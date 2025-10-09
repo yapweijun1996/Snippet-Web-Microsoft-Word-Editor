@@ -89,6 +89,12 @@
   }
   .btn:hover { background: #e8f0fe; border-color: #1976d2; }
   .btn.active { background: #d2e3fc; border-color: #1976d2; }
+  .btn:disabled {
+    opacity: 0.45;
+    cursor: not-allowed;
+    background: #f5f5f5;
+    border-color: #ddd;
+  }
   select, input[type="number"], input[type="text"] {
     height: 28px; border: 1px solid #ddd; background: #fff; padding: 0 6px; border-radius: 3px; font-size: 13px;
   }
@@ -97,6 +103,15 @@
     display: inline-flex; align-items: center; justify-content: center; cursor: pointer; font-weight: 700;
   }
   .color-preview { position: absolute; left: 0; right: 0; bottom: 2px; height: 6px; border-top: 1px solid #eee; }
+  .sr-file {
+    position: fixed;
+    top: -1000px;
+    left: -1000px;
+    width: 0.1px;
+    height: 0.1px;
+    opacity: 0;
+    pointer-events: none;
+  }
 
   /* --- Canvas / Page --- */
   .canvas {
@@ -194,11 +209,11 @@
   <div class="header">
     <h1 id="editorTitle">📝 Web Word-like Editor</h1>
     <div class="header-actions">
-      <button class="btn" id="btnNew">New</button>
-      <button class="btn" id="btnOpen">Open</button>
-      <button class="btn" id="btnSave">Save</button>
-      <button class="btn" id="btnPrint">Print</button>
-      <button class="btn" id="btnCloseEditor" title="Close editor">×</button>
+      <button type="button" class="btn" id="btnNew">New</button>
+      <button type="button" class="btn" id="btnOpen">Open</button>
+      <button type="button" class="btn" id="btnSave">Save</button>
+      <button type="button" class="btn" id="btnPrint">Print</button>
+      <button type="button" class="btn" id="btnCloseEditor" title="Close editor">×</button>
     </div>
   </div>
 
@@ -206,8 +221,8 @@
   <div class="toolbar" role="toolbar" aria-label="Editor toolbar">
     <!-- Undo/Redo -->
     <div class="group">
-      <button class="btn" data-cmd="undo" title="Undo">↶</button>
-      <button class="btn" data-cmd="redo" title="Redo">↷</button>
+      <button type="button" class="btn" id="btnUndo" title="Undo">↶</button>
+      <button type="button" class="btn" id="btnRedo" title="Redo">↷</button>
     </div>
 
     <!-- Clipboard -->
@@ -279,7 +294,7 @@
       <button class="btn" id="btnLink" title="Insert link">🔗</button>
       <button class="btn" id="btnImage" title="Insert image">🖼</button>
       <button class="btn" id="btnTable" title="Insert table">⊞</button>
-      <button class="btn" data-cmd="insertHorizontalRule" title="Horizontal line">—</button>
+      <button type="button" class="btn" data-cmd="insertHorizontalRule" title="Horizontal line">—</button>
       <button class="btn" id="btnPageBreak" title="Insert page break">⤓</button>
     </div>
 
@@ -301,8 +316,8 @@
 
     <!-- Tools -->
     <div class="group">
-      <button class="btn" id="btnFind" title="Find & Replace">🔍</button>
-      <button class="btn" data-cmd="removeFormat" title="Clear formatting">✖</button>
+      <button type="button" class="btn" id="btnFind" title="Find & Replace">🔍</button>
+      <button type="button" class="btn" id="btnClearFormat" title="Clear formatting">✖</button>
     </div>
   </div>
 
@@ -326,8 +341,8 @@
   </div>
 
   <!-- Hidden inputs -->
-  <input type="file" id="fileOpen" accept=".html,.htm,.txt" style="display:none" />
-  <input type="file" id="fileImg" accept="image/*" style="display:none" />
+  <input type="file" id="fileOpen" accept=".html,.htm,.txt" class="sr-file" tabindex="-1" />
+  <input type="file" id="fileImg" accept="image/*" class="sr-file" tabindex="-1" />
     </div>
   <!-- Link modal -->
   <div class="modal" id="modalLink">
@@ -464,6 +479,9 @@
   const fileOpenInput = document.getElementById('fileOpen');
   const fileImgInput = document.getElementById('fileImg');
   const listStyleSelect = document.getElementById('listStyle');
+  const undoBtn = document.getElementById('btnUndo');
+  const redoBtn = document.getElementById('btnRedo');
+  const clearFormatBtn = document.getElementById('btnClearFormat');
 
   const STORAGE_KEY = `webword:v1:${location.href}`;
 
@@ -473,9 +491,17 @@
   let statusResetTimer = null;
   let needsSave = false;
   let pendingImageInsert = false;
+  let docHistory = [];
+  let historyIndex = -1;
+  let isApplyingHistory = false;
+  let historyDebounce = null;
 
   const MAX_IMAGE_BYTES = 2.5 * 1024 * 1024; // ≈2.5MB threshold
   const IMAGE_QUALITY = 0.82;
+  const MAX_HISTORY_ENTRIES = 50;
+  const HISTORY_DEBOUNCE_MS = 350;
+  const CLEARABLE_TAGS = new Set(['SPAN','FONT','B','I','U','STRONG','EM','SUP','SUB','P','DIV','H1','H2','H3','H4','H5','H6','TD','TH','LI','A']);
+  const NON_MUTATING_CMDS = new Set(['copy']);
 
   const ALLOWED_TAGS = new Set([
     'p','h1','h2','h3','h4','h5','h6','span','b','strong','i','em','u','sup','sub','ul','ol','li',
@@ -505,6 +531,15 @@
     document.querySelectorAll('[data-cmd]').forEach(b => {
       b.addEventListener('click', () => execCmd(b.getAttribute('data-cmd')));
     });
+
+    if (undoBtn) {
+      undoBtn.addEventListener('click', e => { e.preventDefault(); undoHistory(); });
+      undoBtn.disabled = true;
+    }
+    if (redoBtn) {
+      redoBtn.addEventListener('click', e => { e.preventDefault(); redoHistory(); });
+      redoBtn.disabled = true;
+    }
 
     // launch / close modal
     launchBtn.addEventListener('click', openEditorModal);
@@ -558,11 +593,18 @@
     document.getElementById('doFind').onclick = doFindNext;
     document.getElementById('doReplace').onclick = doReplaceOne;
     document.getElementById('doReplaceAll').onclick = doReplaceAll;
+    if (clearFormatBtn) {
+      clearFormatBtn.addEventListener('click', e => { e.preventDefault(); clearFormatting(); });
+    }
 
     // image controls
     wireImageTools();
     wireTableTools();
+
+    resetHistory();
   });
+
+window.addEventListener('beforeunload', flushAutoSave);
 
   function restoreFromStorage(){
     if (hasRestored) return;
@@ -598,13 +640,16 @@
   function handlePrint(){
     if (!isModalOpen) return;
     flushAutoSave();
-    window.print();
+    requestAnimationFrame(() => window.print());
   }
 
   // --- Exec command wrapper ---
   function execCmd(cmd, val=null) {
     document.execCommand(cmd, false, val);
     editor.focus();
+    if (!NON_MUTATING_CMDS.has(cmd)) {
+      onDirty();
+    }
   }
 
   function setFontSizePt(pt) {
@@ -853,15 +898,40 @@
 
   function onDirty(){
     if (!isModalOpen) return;
+    if (historyIndex >= 0 && docHistory[historyIndex] && docHistory[historyIndex].html === editor.innerHTML){
+      needsSave = false;
+      saveStatusEl.textContent = 'Ready';
+      if (historyDebounce){
+        clearTimeout(historyDebounce);
+        historyDebounce = null;
+      }
+      if (autoSaveTimer){
+        clearTimeout(autoSaveTimer);
+        autoSaveTimer = null;
+      }
+      return;
+    }
     needsSave = true;
     saveStatusEl.textContent = 'Unsaved';
     updateStats();
     queueAutoSave();
+    queueHistorySnapshot();
   }
 
   function queueAutoSave(){
     if (autoSaveTimer) return;
     autoSaveTimer = setTimeout(runAutoSave, 2000);
+  }
+
+  function queueHistorySnapshot(){
+    if (isApplyingHistory) return;
+    if (historyDebounce){
+      return;
+    }
+    historyDebounce = setTimeout(()=> {
+      historyDebounce = null;
+      pushHistory();
+    }, HISTORY_DEBOUNCE_MS);
   }
 
   function runAutoSave(){
@@ -900,12 +970,214 @@
     }
   }
 
+  function pushHistory(providedSnapshot){
+    if (isApplyingHistory) return;
+    const html = editor.innerHTML;
+    const selection = providedSnapshot !== undefined ? providedSnapshot : getSelectionSnapshot();
+    if (historyIndex >= 0){
+      const current = docHistory[historyIndex];
+      if (current && current.html === html){
+        docHistory[historyIndex] = { html, selection };
+        updateHistoryUI();
+        return;
+      }
+    }
+    docHistory = docHistory.slice(0, historyIndex + 1);
+    docHistory.push({ html, selection });
+    if (docHistory.length > MAX_HISTORY_ENTRIES){
+      docHistory.shift();
+      historyIndex = historyIndex - 1;
+    }
+    historyIndex = docHistory.length - 1;
+    updateHistoryUI();
+  }
+
+  function resetHistory(){
+    if (historyDebounce){
+      clearTimeout(historyDebounce);
+      historyDebounce = null;
+    }
+    docHistory = [];
+    historyIndex = -1;
+    pushHistory(getSelectionSnapshot());
+  }
+
+  function updateHistoryUI(){
+    if (undoBtn){
+      undoBtn.disabled = historyIndex <= 0;
+    }
+    if (redoBtn){
+      redoBtn.disabled = historyIndex === -1 || historyIndex >= docHistory.length - 1;
+    }
+  }
+
+  function undoHistory(){
+    if (!isModalOpen) return;
+    if (historyIndex <= 0) return;
+    historyIndex -= 1;
+    applyHistoryState(docHistory[historyIndex]);
+  }
+
+  function redoHistory(){
+    if (!isModalOpen) return;
+    if (historyIndex === -1 || historyIndex >= docHistory.length - 1) return;
+    historyIndex += 1;
+    applyHistoryState(docHistory[historyIndex]);
+  }
+
+  function applyHistoryState(state){
+    if (!state) return;
+    isApplyingHistory = true;
+    if (historyDebounce){
+      clearTimeout(historyDebounce);
+      historyDebounce = null;
+    }
+    editor.innerHTML = state.html;
+    dismissImageTools();
+    dismissTableTools();
+    needsSave = true;
+    saveStatusEl.textContent = 'Unsaved';
+    updateStats();
+    updateListStyleControl();
+    syncTableSelection();
+    if (isModalOpen){
+      queueAutoSave();
+    }
+    const finalize = ()=> {
+      applySelectionSnapshot(state.selection);
+      try { editor.focus({ preventScroll: true }); } catch(_) { editor.focus(); }
+      const latestSnapshot = getSelectionSnapshot();
+      if (historyIndex >= 0 && historyIndex < docHistory.length){
+        docHistory[historyIndex] = { html: editor.innerHTML, selection: latestSnapshot };
+      }
+      isApplyingHistory = false;
+      updateHistoryUI();
+    };
+    if (typeof requestAnimationFrame === 'function'){
+      requestAnimationFrame(finalize);
+    } else {
+      finalize();
+    }
+  }
+
+  function getSelectionSnapshot(){
+    const sel = window.getSelection();
+    if (!sel || sel.rangeCount === 0) return null;
+    const range = sel.getRangeAt(0);
+    if (!editor.contains(range.startContainer) || !editor.contains(range.endContainer)){
+      return null;
+    }
+    const startPath = getNodePath(range.startContainer, editor);
+    const endPath = getNodePath(range.endContainer, editor);
+    if (!startPath || !endPath) return null;
+    return {
+      start: { path: startPath, offset: range.startOffset },
+      end: { path: endPath, offset: range.endOffset }
+    };
+  }
+
+  function applySelectionSnapshot(snapshot){
+    if (!snapshot) return;
+    const startNode = getNodeFromPath(snapshot.start?.path, editor);
+    const endNode = getNodeFromPath(snapshot.end?.path, editor);
+    if (!startNode || !endNode) return;
+    const range = document.createRange();
+    range.setStart(startNode, Math.min(snapshot.start.offset ?? 0, getNodeMaxOffset(startNode)));
+    range.setEnd(endNode, Math.min(snapshot.end.offset ?? 0, getNodeMaxOffset(endNode)));
+    const sel = window.getSelection();
+    sel.removeAllRanges();
+    sel.addRange(range);
+  }
+
+  function getNodePath(node, root){
+    const path = [];
+    let current = node;
+    while (current && current !== root){
+      const parent = current.parentNode;
+      if (!parent) return null;
+      const index = Array.prototype.indexOf.call(parent.childNodes, current);
+      if (index === -1) return null;
+      path.unshift(index);
+      current = parent;
+    }
+    if (current !== root) return null;
+    return path;
+  }
+
+  function getNodeFromPath(path, root){
+    if (!Array.isArray(path)) return null;
+    let current = root;
+    for (const index of path){
+      if (!current || !current.childNodes || index < 0 || index >= current.childNodes.length){
+        return null;
+      }
+      current = current.childNodes[index];
+    }
+    return current;
+  }
+
+  function getNodeMaxOffset(node){
+    if (!node) return 0;
+    if (node.nodeType === Node.TEXT_NODE){
+      return node.nodeValue ? node.nodeValue.length : 0;
+    }
+    return node.childNodes ? node.childNodes.length : 0;
+  }
+
+  function getElementsInRange(range){
+    const elements = [];
+    let root = range.commonAncestorContainer;
+    if (root.nodeType !== Node.ELEMENT_NODE){
+      root = root.parentElement;
+    }
+    if (!root) return elements;
+    const traverse = (node)=>{
+      if (node.nodeType !== Node.ELEMENT_NODE) return;
+      if (!range.intersectsNode(node)) return;
+      elements.push(node);
+      for (const child of node.children){
+        traverse(child);
+      }
+    };
+    traverse(root);
+    return elements;
+  }
+
+  function clearFormatting(){
+    if (!isModalOpen) return;
+    const snapshot = getSelectionSnapshot();
+    document.execCommand('removeFormat', false, null);
+    if (snapshot) {
+      applySelectionSnapshot(snapshot);
+    }
+    const sel = window.getSelection();
+    if (!sel || sel.rangeCount === 0){
+      onDirty();
+      return;
+    }
+    const range = sel.getRangeAt(0);
+    const elements = getElementsInRange(range);
+    elements.forEach(node => {
+      if (node === editor) return;
+      if (node.tagName && CLEARABLE_TAGS.has(node.tagName)){
+        if (node.hasAttribute('style')){
+          node.removeAttribute('style');
+        }
+        if (node.tagName === 'SPAN' && node.attributes.length === 0){
+          unwrapNode(node);
+        }
+      }
+    });
+    onDirty();
+  }
+
   // --- File ops ---
   function newDoc(){
     if (!confirm('Create new document? Unsaved changes will be lost.')) return;
     editor.innerHTML = '<p><br></p>';
     localStorage.removeItem(STORAGE_KEY);
     onDirty();
+    resetHistory();
   }
   function saveDoc(){
     const content = editor.innerHTML;
@@ -921,7 +1193,17 @@
   function handleOpenFile(e){
     const f = e.target.files[0]; if (!f) return;
     const r = new FileReader();
-    r.onload = ev => { editor.innerHTML = ev.target.result; onDirty(); };
+    r.onload = ev => {
+      editor.innerHTML = ev.target.result;
+      updateStats();
+      updateListStyleControl();
+      syncTableSelection();
+      dismissImageTools();
+      dismissTableTools();
+      resetHistory();
+      needsSave = false;
+      saveStatusEl.textContent = 'Ready';
+    };
     r.readAsText(f);
     e.target.value = '';
   }
@@ -1206,10 +1488,21 @@
     tableTB.style.left = `${left}px`;
   }
 
+  function tableHasMergedCells(table){
+    if (!table) return false;
+    return Array.from(table.rows).some(row =>
+      Array.from(row.cells).some(cell => cell.colSpan > 1 || cell.rowSpan > 1));
+  }
+
   function modifyTableRow(where){
     if (!currentCell) return;
     const row = currentCell.parentElement;
     if (!row) return;
+    const table = row.closest('table');
+    if (tableHasMergedCells(table)) {
+      alert('Table row operations are disabled when merged cells are present.');
+      return;
+    }
     const container = row.parentElement;
     const clone = row.cloneNode(true);
     Array.from(clone.cells).forEach(cell => {
@@ -1227,6 +1520,10 @@
     if (!currentCell) return;
     const table = currentCell.closest('table');
     if (!table) return;
+    if (tableHasMergedCells(table)) {
+      alert('Table column operations are disabled when merged cells are present.');
+      return;
+    }
     const index = currentCell.cellIndex;
     let inserted = null;
     Array.from(table.rows).forEach(row => {
@@ -1253,6 +1550,10 @@
     if (!currentCell) return;
     const table = currentCell.closest('table');
     if (!table) return;
+    if (tableHasMergedCells(table)) {
+      alert('Delete row is disabled when merged cells are present.');
+      return;
+    }
     const row = currentCell.parentElement;
     const rowIndex = Array.from(table.rows).indexOf(row);
     const cellIndex = currentCell.cellIndex;
@@ -1277,6 +1578,10 @@
     if (!currentCell) return;
     const table = currentCell.closest('table');
     if (!table) return;
+    if (tableHasMergedCells(table)) {
+      alert('Delete column is disabled when merged cells are present.');
+      return;
+    }
     const colIndex = currentCell.cellIndex;
     const rowIndex = Array.from(table.rows).indexOf(currentCell.parentElement);
     Array.from(table.rows).forEach(row => {
@@ -1299,6 +1604,10 @@
     if (!currentCell) return;
     const table = currentCell.closest('table');
     if (!table) return;
+    if (tableHasMergedCells(table)) {
+      alert('Header toggle is disabled when merged cells are present.');
+      return;
+    }
     const tbody = table.tBodies[0] || table.createTBody();
     if (table.tHead){
       const headRow = table.tHead.rows[0];

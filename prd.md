@@ -71,7 +71,7 @@
 
 * ContentEditable 容器；基于 Selection/Range API 更新样式。
 * 支持 B/I/U、字号（预设 8–48）、段落样式（Normal/H1–H3）、对齐、行高、列表（ul/ol，支持缩进/反缩进）。
-* 快捷键：Ctrl/Cmd+B/I/U、Ctrl/Cmd+K（link）、Tab/Shift+Tab（list indent）、Ctrl/Cmd+Enter（page break）。
+* 快捷键：MVP 延后，仅提供 toolbar 操作（详见 §18.3）。
 
 **F‑03 Tables（基础表格）**
 
@@ -86,7 +86,7 @@
 
 **F‑05 Pagination & Print（分页与打印）**
 
-* Page sizes：A3 420×297mm，A4 297×210mm，A5 210×148mm。
+* Page size：仅 A4 297×210mm（A3/A5 顺延后续版本）。
 * 默认边距：上/下/左/右 = 20mm（可在设置中调整）；屏幕预览显示纸张阴影。
 * Manual page break 节点（可视化为水平虚线）；打印使用 `@media print`，强制 `@page { size: <paper>; margin: <mm>; }`；browser print scale = 100%。
 
@@ -103,7 +103,7 @@
 
 **F‑08 Modal integration（集成）**
 
-* 以 `<button>` 触发 modal 打开；modal 宽 80–90vw，最大 1200px；支持全屏切换。
+* 以 `<button>` 触发 modal 打开；编辑器以全屏 modal 呈现并支持键盘访问（详见 §18.4）。
 * 提供简单事件回调：onOpen/onClose/onExport。
 
 ---
