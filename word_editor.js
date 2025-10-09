@@ -1,24 +1,24 @@
 // --- References ---
-const editor = document.getElementById('editor');
-const pageWrap = document.getElementById('pageWrap');
-const pageContent = document.querySelector('.page-content');
-const printStyle = document.getElementById('printStyle');
-const editorModal = document.getElementById('editorModal');
-const launchBtn = document.getElementById('launchEditor');
-const closeEditorBtn = document.getElementById('btnCloseEditor');
-const printBtn = document.getElementById('btnPrint');
-const saveStatusEl = document.getElementById('saveStatus');
+const editor = document.getElementById('weditor_editor');
+const pageWrap = document.getElementById('weditor_pageWrap');
+const pageContent = document.querySelector('.weditor_page-content');
+const printStyle = document.getElementById('weditor_printStyle');
+const editorModal = document.getElementById('weditor_editorModal');
+const launchBtn = document.getElementById('weditor_launchEditor');
+const closeEditorBtn = document.getElementById('weditor_btnCloseEditor');
+const printBtn = document.getElementById('weditor_btnPrint');
+const saveStatusEl = document.getElementById('weditor_saveStatus');
 const bodyEl = document.body;
-const fileOpenInput = document.getElementById('fileOpen');
-const fileImgInput = document.getElementById('fileImg');
-const listStyleSelect = document.getElementById('listStyle');
-const undoBtn = document.getElementById('btnUndo');
-const redoBtn = document.getElementById('btnRedo');
-const clearFormatBtn = document.getElementById('btnClearFormat');
-const toastStack = document.getElementById('toastStack');
-const importProgress = document.getElementById('importProgress');
-const importProgressMessage = document.getElementById('importProgressMessage');
-const offlineBanner = document.getElementById('offlineBanner');
+const fileOpenInput = document.getElementById('weditor_fileOpen');
+const fileImgInput = document.getElementById('weditor_fileImg');
+const listStyleSelect = document.getElementById('weditor_listStyle');
+const undoBtn = document.getElementById('weditor_btnUndo');
+const redoBtn = document.getElementById('weditor_btnRedo');
+const clearFormatBtn = document.getElementById('weditor_btnClearFormat');
+const toastStack = document.getElementById('weditor_toastStack');
+const importProgress = document.getElementById('weditor_importProgress');
+const importProgressMessage = document.getElementById('weditor_importProgressMessage');
+const offlineBanner = document.getElementById('weditor_offlineBanner');
 
 const STORAGE_KEY = `webword:v1:${location.href}`;
 
@@ -95,24 +95,24 @@ window.addEventListener('load', () => {
   printBtn.addEventListener('click', handlePrint);
 
   // colors
-  document.getElementById('btnColorText').onclick = () => document.getElementById('colorText').click();
-  document.getElementById('btnColorHilite').onclick = () => document.getElementById('colorHilite').click();
-  document.getElementById('colorText').onchange = (e)=>{ execCmd('foreColor', e.target.value); document.getElementById('cpText').style.background = e.target.value; };
-  document.getElementById('colorHilite').onchange = (e)=>{ execCmd('hiliteColor', e.target.value); document.getElementById('cpHilite').style.background = e.target.value; };
+  document.getElementById('weditor_btnColorText').onclick = () => document.getElementById('weditor_colorText').click();
+  document.getElementById('weditor_btnColorHilite').onclick = () => document.getElementById('weditor_colorHilite').click();
+  document.getElementById('weditor_colorText').onchange = (e)=>{ execCmd('foreColor', e.target.value); document.getElementById('weditor_cpText').style.background = e.target.value; };
+  document.getElementById('weditor_colorHilite').onchange = (e)=>{ execCmd('hiliteColor', e.target.value); document.getElementById('weditor_cpHilite').style.background = e.target.value; };
 
   // font family / size
-  document.getElementById('fontName').onchange = (e)=> execCmd('fontName', e.target.value);
-  document.getElementById('fontSize').onchange = (e)=> setFontSizePt(e.target.value);
+  document.getElementById('weditor_fontName').onchange = (e)=> execCmd('fontName', e.target.value);
+  document.getElementById('weditor_fontSize').onchange = (e)=> setFontSizePt(e.target.value);
 
   // page setup (A4 locked, orientation still respected)
-  document.getElementById('orientation').onchange = applyPageSetup;
-  document.getElementById('margin').oninput = applyPageSetup;
-  document.getElementById('zoom').onchange = applyZoom;
+  document.getElementById('weditor_orientation').onchange = applyPageSetup;
+  document.getElementById('weditor_margin').oninput = applyPageSetup;
+  document.getElementById('weditor_zoom').onchange = applyZoom;
   applyPageSetup();
   applyZoom();
 
   // paste
-  document.getElementById('btnPaste').onclick = doPaste;
+  document.getElementById('weditor_btnPaste').onclick = doPaste;
   editor.addEventListener('paste', onPasteSanitized);
 
   // typing / selection
@@ -122,26 +122,26 @@ window.addEventListener('load', () => {
   document.addEventListener('keydown', handleEditorShortcuts, true);
 
   // file
-  document.getElementById('btnNew').onclick = newDoc;
-  document.getElementById('btnOpen').onclick = ()=> fileOpenInput.click();
-  document.getElementById('btnSave').onclick = saveDoc;
+  document.getElementById('weditor_btnNew').onclick = newDoc;
+  document.getElementById('weditor_btnOpen').onclick = ()=> fileOpenInput.click();
+  document.getElementById('weditor_btnSave').onclick = saveDoc;
   fileOpenInput.addEventListener('change', handleOpenFile);
 
   // link / table / page break
-  document.getElementById('btnLink').onclick = openLinkModal;
+  document.getElementById('weditor_btnLink').onclick = openLinkModal;
   document.querySelectorAll('[data-close]').forEach(el=> el.onclick = ()=> closeModal(el.getAttribute('data-close')));
-  document.querySelectorAll('.close-x').forEach(el=> el.onclick = ()=> closeModal(el.getAttribute('data-close')));
-  document.getElementById('doInsertLink').onclick = doInsertLink;
-  document.getElementById('btnTable').onclick = ()=> openModal('modalTable');
-  document.getElementById('doInsertTable').onclick = doInsertTable;
-  document.getElementById('btnPageBreak').onclick = insertPageBreak;
+  document.querySelectorAll('.weditor_close-x').forEach(el=> el.onclick = ()=> closeModal(el.getAttribute('data-close')));
+  document.getElementById('weditor_doInsertLink').onclick = doInsertLink;
+  document.getElementById('weditor_btnTable').onclick = ()=> openModal('weditor_modalTable');
+  document.getElementById('weditor_doInsertTable').onclick = doInsertTable;
+  document.getElementById('weditor_btnPageBreak').onclick = insertPageBreak;
   if (listStyleSelect) listStyleSelect.onchange = handleListStyleChange;
 
   // find/replace
-  document.getElementById('btnFind').onclick = ()=> openModal('modalFind');
-  document.getElementById('doFind').onclick = doFindNext;
-  document.getElementById('doReplace').onclick = doReplaceOne;
-  document.getElementById('doReplaceAll').onclick = doReplaceAll;
+  document.getElementById('weditor_btnFind').onclick = ()=> openModal('weditor_modalFind');
+  document.getElementById('weditor_doFind').onclick = doFindNext;
+  document.getElementById('weditor_doReplace').onclick = doReplaceOne;
+  document.getElementById('weditor_doReplaceAll').onclick = doReplaceAll;
   if (clearFormatBtn) {
     clearFormatBtn.addEventListener('click', e => { e.preventDefault(); clearFormatting(); });
   }
@@ -168,8 +168,8 @@ function restoreFromStorage(){
 function openEditorModal(){
   restoreFromStorage();
   isModalOpen = true;
-  bodyEl.classList.add('modal-open');
-  editorModal.classList.add('active');
+  bodyEl.classList.add('weditor_modal-open');
+  editorModal.classList.add('weditor_active');
   setSaveStatus(needsSave ? 'Unsaved' : 'Ready');
   updateStats();
   updateListStyleControl();
@@ -180,11 +180,11 @@ function openEditorModal(){
 function closeEditorModal(){
   flushAutoSave();
   isModalOpen = false;
-  bodyEl.classList.remove('modal-open');
-  editorModal.classList.remove('active');
+  bodyEl.classList.remove('weditor_modal-open');
+  editorModal.classList.remove('weditor_active');
   dismissImageTools();
   dismissTableTools();
-  ['modalLink','modalTable','modalFind'].forEach(id => closeModal(id));
+  ['weditor_modalLink','weditor_modalTable','weditor_modalFind'].forEach(id => closeModal(id));
   setSaveStatus('Ready');
   updateListStyleControl();
 }
@@ -455,8 +455,8 @@ function setSaveStatus(baseText){
 function updateStats(){
   const t = editor.innerText || '';
   const words = t.trim().split(/\s+/).filter(Boolean).length;
-  document.getElementById('statWords').textContent = words;
-  document.getElementById('statChars').textContent = t.length;
+  document.getElementById('weditor_statWords').textContent = words;
+  document.getElementById('weditor_statChars').textContent = t.length;
 }
 
 function onDirty(){
@@ -722,11 +722,11 @@ function flashElement(element){
   if (element.dataset.undoFlashTimer){
     clearTimeout(Number(element.dataset.undoFlashTimer));
   }
-  element.classList.remove('undo-flash');
+  element.classList.remove('weditor_undo-flash');
   void element.offsetWidth;
-  element.classList.add('undo-flash');
+  element.classList.add('weditor_undo-flash');
   const timer = window.setTimeout(()=> {
-    element.classList.remove('undo-flash');
+    element.classList.remove('weditor_undo-flash');
     delete element.dataset.undoFlashTimer;
   }, HISTORY_FLASH_MS);
   element.dataset.undoFlashTimer = String(timer);
@@ -770,12 +770,12 @@ function showToast(message, options = {}){
   if (!toastStack || !message) return null;
   const { type = 'info', duration = 4000, sticky = false } = options;
   const toast = document.createElement('div');
-  toast.className = `toast toast--${type}`;
+  toast.className = `weditor_toast weditor_toast--${type}`;
   toast.setAttribute('role', 'status');
   toast.setAttribute('aria-live', 'polite');
   toast.textContent = message;
   toastStack.appendChild(toast);
-  requestAnimationFrame(() => toast.classList.add('toast--visible'));
+  requestAnimationFrame(() => toast.classList.add('weditor_toast--visible'));
   if (!sticky){
     const ttl = Math.max(1800, Number.isFinite(duration) ? duration : 0);
     const timerId = window.setTimeout(() => removeToast(toast), ttl || 4000);
@@ -791,7 +791,7 @@ function removeToast(toast){
     clearTimeout(Number(toast.dataset.timerId));
     delete toast.dataset.timerId;
   }
-  toast.classList.remove('toast--visible');
+  toast.classList.remove('weditor_toast--visible');
   window.setTimeout(() => {
     if (toast.parentNode === toastStack){
       toastStack.removeChild(toast);
@@ -852,7 +852,7 @@ function updateOfflineState(options = {}){
 }
 
 function toggleOfflineUI(offlineNow){
-  bodyEl.classList.toggle('offline', offlineNow);
+  bodyEl.classList.toggle('weditor_offline', offlineNow);
   if (offlineBanner){
     if (offlineNow){
       offlineBanner.textContent = 'Offline mode — changes stay on this device until you reconnect.';
@@ -1041,20 +1041,20 @@ async function handleOpenFile(e){
   }
 }
 // --- Modals simple helpers ---
-function openModal(id){ document.getElementById(id).classList.add('active'); }
-function closeModal(id){ document.getElementById(id).classList.remove('active'); }
+function openModal(id){ document.getElementById(id).classList.add('weditor_active'); }
+function closeModal(id){ document.getElementById(id).classList.remove('weditor_active'); }
 
 // --- Link ---
 function openLinkModal(){
   const sel = String(window.getSelection());
-  document.getElementById('linkText').value = sel || '';
-  document.getElementById('linkURL').value = '';
-  openModal('modalLink');
+  document.getElementById('weditor_linkText').value = sel || '';
+  document.getElementById('weditor_linkURL').value = '';
+  openModal('weditor_modalLink');
 }
 function doInsertLink(){
-  const url = document.getElementById('linkURL').value.trim();
-  const text = document.getElementById('linkText').value.trim();
-  if (!url){ closeModal('modalLink'); return; }
+  const url = document.getElementById('weditor_linkURL').value.trim();
+  const text = document.getElementById('weditor_linkText').value.trim();
+  if (!url){ closeModal('weditor_modalLink'); return; }
   if (text){
     execCmd('insertHTML', `<a href="${escapeHtml(url)}" target="_blank" rel="noopener">${escapeHtml(text)}</a>`);
   } else {
@@ -1065,14 +1065,14 @@ function doInsertLink(){
       if (a){ a.target = '_blank'; a.rel = 'noopener'; }
     }
   }
-  closeModal('modalLink'); onDirty();
+  closeModal('weditor_modalLink'); onDirty();
 }
 function escapeHtml(s){ return s.replace(/[&<>"']/g, m=>({ '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;' }[m])); }
 
 // --- Table ---
 function doInsertTable(){
-  const r = Math.max(1, +document.getElementById('tblRows').value||3);
-  const c = Math.max(1, +document.getElementById('tblCols').value||3);
+  const r = Math.max(1, +document.getElementById('weditor_tblRows').value||3);
+  const c = Math.max(1, +document.getElementById('weditor_tblCols').value||3);
   let html = `<table style="width:100%;border-collapse:collapse;border:1px solid #000;">`;
   for (let i=0;i<r;i++){
     html += `<tr>`;
@@ -1083,20 +1083,20 @@ function doInsertTable(){
   }
   html += `</table><p><br></p>`;
   execCmd('insertHTML', html);
-  closeModal('modalTable'); onDirty();
+  closeModal('weditor_modalTable'); onDirty();
 }
 
 // --- Page break ---
 function insertPageBreak(){
-  execCmd('insertHTML', `<div class="page-break" contenteditable="false"></div>`);
+  execCmd('insertHTML', `<div class="weditor_page-break" contenteditable="false"></div>`);
   onDirty();
 }
 
 // --- Page setup & zoom ---
 function applyPageSetup(){
   const paper = 'A4';
-  const orient = document.getElementById('orientation').value;
-  const margin = Math.max(0, +document.getElementById('margin').value || 20);
+  const orient = document.getElementById('weditor_orientation').value;
+  const margin = Math.max(0, +document.getElementById('weditor_margin').value || 20);
   const dim = PAPER_MM[paper] || PAPER_MM.A4;
   const W = orient==='portrait' ? dim.w : dim.h;
   const H = orient==='portrait' ? dim.h : dim.w;
@@ -1109,7 +1109,7 @@ function applyPageSetup(){
   printStyle.textContent = `@page{ size: ${paper} ${orient}; margin: ${margin}mm; }`;
 }
 function applyZoom(){
-  const zStr = document.getElementById('zoom').value.replace('%','');
+  const zStr = document.getElementById('weditor_zoom').value.replace('%','');
   const z = Math.max(10, +zStr || 100);
   pageWrap.style.transform = `scale(${z/100})`;
 }
@@ -1177,7 +1177,7 @@ function updateListStyleControl(){
 // --- Find & Replace (simple) ---
 let _lastFindIndex = -1, _lastFindText = '';
 function doFindNext(){
-  const needle = document.getElementById('findTxt').value;
+  const needle = document.getElementById('weditor_findTxt').value;
   if (!needle) return;
   const html = editor.innerHTML;
   if (_lastFindText !== needle){ _lastFindText = needle; _lastFindIndex = -1; }
@@ -1189,8 +1189,8 @@ function doFindNext(){
   } else { _lastFindIndex = -1; }
 }
 function doReplaceOne(){
-  const find = document.getElementById('findTxt').value;
-  const repl = document.getElementById('replTxt').value;
+  const find = document.getElementById('weditor_findTxt').value;
+  const repl = document.getElementById('weditor_replTxt').value;
   if (!find) return;
   const sel = window.getSelection();
   if (sel && String(sel) && String(sel).toLowerCase()===find.toLowerCase()){
@@ -1201,8 +1201,8 @@ function doReplaceOne(){
   }
 }
 function doReplaceAll(){
-  const find = document.getElementById('findTxt').value;
-  const repl = document.getElementById('replTxt').value;
+  const find = document.getElementById('weditor_findTxt').value;
+  const repl = document.getElementById('weditor_replTxt').value;
   if (!find) return;
   const re = new RegExp(find.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'gi');
   editor.innerHTML = editor.innerHTML.replace(re, repl);
@@ -1226,12 +1226,12 @@ function selectHtmlRangeByIndex(root, index, length){
 
 // --- Image Tools ---
 let currentImg = null, naturalRatio = 1;
-const imgTB = document.getElementById('imgToolbar');
-const widthSlider = document.getElementById('imgWidth');
-const lockRatio = document.getElementById('imgLock');
-const sizeLabel = document.getElementById('imgSizeLabel');
+const imgTB = document.getElementById('weditor_imgToolbar');
+const widthSlider = document.getElementById('weditor_imgWidth');
+const lockRatio = document.getElementById('weditor_imgLock');
+const sizeLabel = document.getElementById('weditor_imgSizeLabel');
 let currentCell = null;
-const tableTB = document.getElementById('tableToolbar');
+const tableTB = document.getElementById('weditor_tableToolbar');
 
 function wireImageTools(){
   // click to open toolbar
@@ -1246,18 +1246,18 @@ function wireImageTools(){
 
   // controls
   widthSlider.oninput = ()=> applyImgWidth(+widthSlider.value);
-  document.getElementById('imgAlignLeft').onclick = ()=> setImgAlign('left');
-  document.getElementById('imgAlignCenter').onclick = ()=> setImgAlign('center');
-  document.getElementById('imgAlignRight').onclick = ()=> setImgAlign('right');
-  document.getElementById('imgFloatLeft').onclick = ()=> setImgFloat('left');
-  document.getElementById('imgFloatRight').onclick = ()=> setImgFloat('right');
-  document.getElementById('imgFloatNone').onclick = ()=> setImgFloat('none');
-  document.getElementById('imgBorderToggle').onclick = toggleImgBorder;
-  document.getElementById('imgRadius').oninput = (e)=> setImgRadius(+e.target.value);
-  document.getElementById('imgShadowToggle').onclick = toggleImgShadow;
-  document.getElementById('imgReplace').onclick = replaceImgURL;
-  document.getElementById('imgUpload').onclick = ()=> { pendingImageInsert = false; fileImgInput.click(); };
-  document.getElementById('imgRemove').onclick = removeImg;
+  document.getElementById('weditor_imgAlignLeft').onclick = ()=> setImgAlign('left');
+  document.getElementById('weditor_imgAlignCenter').onclick = ()=> setImgAlign('center');
+  document.getElementById('weditor_imgAlignRight').onclick = ()=> setImgAlign('right');
+  document.getElementById('weditor_imgFloatLeft').onclick = ()=> setImgFloat('left');
+  document.getElementById('weditor_imgFloatRight').onclick = ()=> setImgFloat('right');
+  document.getElementById('weditor_imgFloatNone').onclick = ()=> setImgFloat('none');
+  document.getElementById('weditor_imgBorderToggle').onclick = toggleImgBorder;
+  document.getElementById('weditor_imgRadius').oninput = (e)=> setImgRadius(+e.target.value);
+  document.getElementById('weditor_imgShadowToggle').onclick = toggleImgShadow;
+  document.getElementById('weditor_imgReplace').onclick = replaceImgURL;
+  document.getElementById('weditor_imgUpload').onclick = ()=> { pendingImageInsert = false; fileImgInput.click(); };
+  document.getElementById('weditor_imgRemove').onclick = removeImg;
   fileImgInput.addEventListener('change', handleImgUpload);
 }
 
@@ -1266,7 +1266,7 @@ function wireTableTools(){
   editor.addEventListener('click', e => {
     const cell = e.target.closest('td,th');
     if (cell) selectTableCell(cell);
-    else if (!e.target.closest('.table-toolbar')) dismissTableTools();
+    else if (!e.target.closest('.weditor_table-toolbar')) dismissTableTools();
   });
   document.addEventListener('click', e => {
     if (!editor.contains(e.target) && !tableTB.contains(e.target)) dismissTableTools();
@@ -1276,16 +1276,16 @@ function wireTableTools(){
     const btn = document.getElementById(id);
     if (btn) btn.onclick = handler;
   };
-  bind('tblAddRowAbove', ()=> modifyTableRow('above'));
-  bind('tblAddRowBelow', ()=> modifyTableRow('below'));
-  bind('tblAddColLeft', ()=> modifyTableColumn('left'));
-  bind('tblAddColRight', ()=> modifyTableColumn('right'));
-  bind('tblDeleteRow', deleteTableRow);
-  bind('tblDeleteCol', deleteTableColumn);
-  bind('tblToggleHeader', toggleTableHeader);
-  bind('tblAlignLeft', ()=> setCellAlignment('left'));
-  bind('tblAlignCenter', ()=> setCellAlignment('center'));
-  bind('tblAlignRight', ()=> setCellAlignment('right'));
+  bind('weditor_tblAddRowAbove', ()=> modifyTableRow('above'));
+  bind('weditor_tblAddRowBelow', ()=> modifyTableRow('below'));
+  bind('weditor_tblAddColLeft', ()=> modifyTableColumn('left'));
+  bind('weditor_tblAddColRight', ()=> modifyTableColumn('right'));
+  bind('weditor_tblDeleteRow', deleteTableRow);
+  bind('weditor_tblDeleteCol', deleteTableColumn);
+  bind('weditor_tblToggleHeader', toggleTableHeader);
+  bind('weditor_tblAlignLeft', ()=> setCellAlignment('left'));
+  bind('weditor_tblAlignCenter', ()=> setCellAlignment('center'));
+  bind('weditor_tblAlignRight', ()=> setCellAlignment('right'));
   tableTB.querySelectorAll('[data-border]').forEach(btn => {
     btn.addEventListener('click', ()=> applyCellBorder(btn.getAttribute('data-border')));
   });
@@ -1299,15 +1299,15 @@ function selectTableCell(cell){
     positionTableToolbar();
     return;
   }
-  if (currentCell) currentCell.classList.remove('cell-selected');
+  if (currentCell) currentCell.classList.remove('weditor_cell-selected');
   currentCell = cell;
-  currentCell.classList.add('cell-selected');
+  currentCell.classList.add('weditor_cell-selected');
   tableTB.style.display = 'block';
   positionTableToolbar();
 }
 
 function dismissTableTools(){
-  if (currentCell) currentCell.classList.remove('cell-selected');
+  if (currentCell) currentCell.classList.remove('weditor_cell-selected');
   currentCell = null;
   if (tableTB) tableTB.style.display = 'none';
 }
@@ -1340,7 +1340,7 @@ function modifyTableRow(where){
   const clone = row.cloneNode(true);
   Array.from(clone.cells).forEach(cell => {
     cell.innerHTML = '<p><br></p>';
-    cell.classList.remove('cell-selected');
+    cell.classList.remove('weditor_cell-selected');
   });
   if (where === 'above') container.insertBefore(clone, row);
   else container.insertBefore(clone, row.nextSibling);
@@ -1364,7 +1364,7 @@ function modifyTableColumn(where){
     const source = reference || document.createElement(row.parentElement.tagName.toLowerCase() === 'thead' ? 'th' : 'td');
     const newCell = source.cloneNode(false);
     newCell.innerHTML = '<p><br></p>';
-    newCell.classList.remove('cell-selected');
+    newCell.classList.remove('weditor_cell-selected');
     newCell.colSpan = 1;
     newCell.rowSpan = 1;
     newCell.style.cssText = source.style?.cssText || '';
@@ -1537,7 +1537,7 @@ function selectImage(img){
   if (currentImg && currentImg!==img) unmarkImage(currentImg);
   currentImg = img;
   naturalRatio = (img.naturalWidth && img.naturalHeight) ? (img.naturalHeight ? img.naturalWidth/img.naturalHeight : 1) : (img.width && img.height ? img.width/img.height : 1);
-  img.classList.add('img-selected');
+  img.classList.add('weditor_img-selected');
   ensureImgHandle(img);
   widthSlider.max = Math.max(1600, Math.round(getContentMaxWidth()));
   widthSlider.value = Math.round(img.width || 300);
@@ -1546,7 +1546,7 @@ function selectImage(img){
 }
 
 function unmarkImage(img){
-  img.classList.remove('img-selected');
+  img.classList.remove('weditor_img-selected');
   const h = img._handleEl; if (h && h.parentNode) h.parentNode.removeChild(h);
   img._handleEl = null;
 }
@@ -1554,7 +1554,7 @@ function unmarkImage(img){
 function ensureImgHandle(img){
   if (img._handleEl) return;
   const h = document.createElement('div');
-  h.className = 'img-handle';
+  h.className = 'weditor_img-handle';
   h.style.position = 'absolute';
   // parent must be relative to position handle
   const posWrapper = img.parentElement;
@@ -1766,13 +1766,13 @@ function removeImg(){
   if (!currentImg) return;
   const p = currentImg.parentElement;
   currentImg.remove();
-  if (p && p.classList?.contains('img-handle')) p.remove();
+  if (p && p.classList?.contains('weditor_img-handle')) p.remove();
   dismissImageTools();
   onDirty();
 }
 
 // --- Insert image from toolbar button ---
-document.getElementById('btnImage').addEventListener('click', ()=>{
+document.getElementById('weditor_btnImage').addEventListener('click', ()=>{
   const raw = prompt('Image URL (or leave blank to upload):', '');
   if (raw && raw.trim()){
     const safe = sanitizeUrl(raw.trim(), 'src');
