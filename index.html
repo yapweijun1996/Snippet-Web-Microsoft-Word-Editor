@@ -1,0 +1,871 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>Snippet Web Microsoft Word Editor — with Page & Image Controls</title>
+<style>
+  /* --- Reset / Base --- */
+  * { box-sizing: border-box; }
+  html, body { height: 100%; }
+  body {
+    margin: 0;
+    font-family: Calibri, "Segoe UI", Arial, sans-serif;
+    background: #f5f5f5;
+    color: #222;
+  }
+  .header {
+    background: #2b579a; color: #fff; padding: 8px 12px;
+    display: flex; align-items: center; justify-content: space-between;
+  }
+  .header h1 { font-size: 16px; font-weight: 600; margin: 0; }
+  .toolbar {
+    position: sticky; top: 0; z-index: 100; background: #f1f1f1;
+    border-bottom: 1px solid #ddd; padding: 6px 8px; display: flex; flex-wrap: wrap; gap: 8px;
+  }
+  .group { display: inline-flex; align-items: center; gap: 6px; padding-right: 10px; border-right: 1px solid #ddd; }
+  .group:last-child { border-right: 0; }
+  .btn {
+    height: 28px; min-width: 28px; padding: 0 8px; border: 1px solid #ddd; background: #fff;
+    border-radius: 3px; cursor: pointer; font-size: 13px; display: inline-flex; align-items: center; justify-content: center;
+  }
+  .btn:hover { background: #e8f0fe; border-color: #1976d2; }
+  .btn.active { background: #d2e3fc; border-color: #1976d2; }
+  select, input[type="number"], input[type="text"] {
+    height: 28px; border: 1px solid #ddd; background: #fff; padding: 0 6px; border-radius: 3px; font-size: 13px;
+  }
+  .color-btn {
+    width: 28px; height: 28px; border: 1px solid #ddd; background: #fff; position: relative; border-radius: 3px;
+    display: inline-flex; align-items: center; justify-content: center; cursor: pointer; font-weight: 700;
+  }
+  .color-preview { position: absolute; left: 0; right: 0; bottom: 2px; height: 6px; border-top: 1px solid #eee; }
+
+  /* --- Canvas / Page --- */
+  .canvas {
+    min-height: calc(100vh - 130px);
+    background: #e8e8e8;
+    padding: 20px 0 60px;
+  }
+  .page-wrap {
+    margin: 0 auto;
+    box-shadow: 0 0 5px rgba(0,0,0,.15);
+    background: #fff;
+    position: relative;
+    transform-origin: top center;
+  }
+  .page-content {
+    outline: none;
+    min-height: 10mm;
+  }
+  /* default (will be overridden by JS per selection) */
+  .page-wrap { width: 210mm; }
+  .page-content { padding: 20mm; font-size: 11pt; line-height: 1.5; }
+
+  .page-break {
+    height: 0; margin: 12px 0; border-top: 2px dashed #9aa0a6;
+    position: relative; break-after: page; page-break-after: always;
+  }
+  .page-break::after {
+    content: "Page Break";
+    position: absolute; top: -12px; left: 50%; transform: translateX(-50%);
+    font-size: 11px; color: #5f6368; background: #f5f5f5; padding: 0 6px;
+  }
+
+  /* --- Status bar --- */
+  .status {
+    position: fixed; left: 0; right: 0; bottom: 0;
+    background: #f1f1f1; border-top: 1px solid #ddd;
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 6px 12px; font-size: 12px; z-index: 10;
+  }
+
+  /* --- Modals (simple) --- */
+  .modal { display: none; position: fixed; inset: 0; background: rgba(0,0,0,.45); align-items: center; justify-content: center; z-index: 2000; }
+  .modal.active { display: flex; }
+  .modal-card { background: #fff; width: min(92vw, 520px); padding: 16px; border-radius: 6px; }
+  .modal-head { display:flex; align-items:center; justify-content:space-between; margin-bottom: 10px; }
+  .close-x { font-size: 22px; cursor: pointer; color: #777; }
+  .form-row { margin-bottom: 10px; display: grid; grid-template-columns: 140px 1fr; gap: 10px; align-items: center; }
+  .modal-actions { display: flex; gap: 8px; justify-content: flex-end; }
+
+  /* --- Image selection adornments --- */
+  .img-selected { outline: 2px solid #4285f4; }
+  .img-handle {
+    position: absolute; width: 10px; height: 10px; background: #4285f4; border-radius: 50%;
+    right: -5px; bottom: -5px; cursor: se-resize; z-index: 50;
+  }
+  .img-toolbar {
+    position: fixed; z-index: 3000; background: #fff; border: 1px solid #ddd; border-radius: 6px;
+    box-shadow: 0 4px 18px rgba(0,0,0,.12); padding: 8px; display: none; min-width: 280px;
+  }
+  .img-toolbar .row { display: flex; align-items: center; gap: 6px; margin: 6px 0; flex-wrap: wrap; }
+  .img-toolbar label { font-size: 12px; color: #555; }
+
+  /* --- Printing --- */
+  @media print {
+    body { background: #fff; }
+    .header, .toolbar, .status, .img-toolbar { display: none !important; }
+    .canvas { padding: 0; }
+    .page-wrap { box-shadow: none; margin: 0; width: auto; transform: none !important; }
+    .page-content { padding: 0; }
+    .page-break { border: none; height: 0; }
+  }
+</style>
+
+<!-- dynamic print style for @page will be injected here -->
+<style id="printStyle">
+  @page { size: A4 portrait; margin: 20mm; }
+</style>
+</head>
+<body>
+  <div class="header">
+    <h1>📝 Web Word-like Editor</h1>
+    <div>
+      <button class="btn" id="btnNew">New</button>
+      <button class="btn" id="btnOpen">Open</button>
+      <button class="btn" id="btnSave">Save</button>
+      <button class="btn" onclick="window.print()">Print</button>
+    </div>
+  </div>
+
+  <!-- Toolbar -->
+  <div class="toolbar" role="toolbar" aria-label="Editor toolbar">
+    <!-- Undo/Redo -->
+    <div class="group">
+      <button class="btn" data-cmd="undo" title="Undo">↶</button>
+      <button class="btn" data-cmd="redo" title="Redo">↷</button>
+    </div>
+
+    <!-- Clipboard -->
+    <div class="group">
+      <button class="btn" data-cmd="cut" title="Cut">✂</button>
+      <button class="btn" data-cmd="copy" title="Copy">📋</button>
+      <button class="btn" id="btnPaste" title="Paste">📌</button>
+    </div>
+
+    <!-- Font -->
+    <div class="group">
+      <select id="fontName" title="Font family">
+        <option value="">Font</option>
+        <option>Arial</option>
+        <option selected>Calibri</option>
+        <option>Cambria</option>
+        <option>Courier New</option>
+        <option>Georgia</option>
+        <option>Times New Roman</option>
+        <option>Verdana</option>
+      </select>
+      <select id="fontSize" title="Font size (pt)">
+        <option value="">Size</option>
+        <option>8</option><option>9</option><option>10</option><option>11</option><option>12</option>
+        <option>14</option><option>16</option><option>18</option><option>20</option><option>22</option>
+        <option>24</option><option>28</option><option>36</option><option>48</option><option>72</option>
+      </select>
+      <button class="btn" data-cmd="bold"><b>B</b></button>
+      <button class="btn" data-cmd="italic"><i>I</i></button>
+      <button class="btn" data-cmd="underline"><u>U</u></button>
+      <button class="btn" data-cmd="strikeThrough"><s>S</s></button>
+      <button class="btn" data-cmd="subscript">x₂</button>
+      <button class="btn" data-cmd="superscript">x²</button>
+    </div>
+
+    <!-- Colors -->
+    <div class="group">
+      <button class="color-btn" id="btnColorText" title="Text color">A<div class="color-preview" id="cpText" style="background:black;"></div></button>
+      <input type="color" id="colorText" style="display:none" value="#000000"/>
+      <button class="color-btn" id="btnColorHilite" title="Highlight">A<div class="color-preview" id="cpHilite" style="background:yellow;"></div></button>
+      <input type="color" id="colorHilite" style="display:none" value="#ffff00"/>
+    </div>
+
+    <!-- Align & Lists -->
+    <div class="group">
+      <button class="btn" data-cmd="justifyLeft" title="Align left">⬅</button>
+      <button class="btn" data-cmd="justifyCenter" title="Align center">⬌</button>
+      <button class="btn" data-cmd="justifyRight" title="Align right">➡</button>
+      <button class="btn" data-cmd="justifyFull" title="Justify">☰</button>
+      <button class="btn" data-cmd="insertOrderedList" title="Numbered list">1.</button>
+      <button class="btn" data-cmd="insertUnorderedList" title="Bulleted list">•</button>
+      <button class="btn" data-cmd="outdent" title="Outdent">⇤</button>
+      <button class="btn" data-cmd="indent" title="Indent">⇥</button>
+    </div>
+
+    <!-- Insert -->
+    <div class="group">
+      <button class="btn" id="btnLink" title="Insert link">🔗</button>
+      <button class="btn" id="btnImage" title="Insert image">🖼</button>
+      <button class="btn" id="btnTable" title="Insert table">⊞</button>
+      <button class="btn" data-cmd="insertHorizontalRule" title="Horizontal line">—</button>
+      <button class="btn" id="btnPageBreak" title="Insert page break">⤓</button>
+    </div>
+
+    <!-- Page Setup -->
+    <div class="group" title="Page setup">
+      <label style="font-size:12px;color:#555;">Paper:</label>
+      <select id="paper">
+        <option value="A3">A3</option>
+        <option value="A4" selected>A4</option>
+        <option value="A5">A5</option>
+        <option value="Letter">Letter</option>
+        <option value="Legal">Legal</option>
+        <option value="B5">B5</option>
+      </select>
+      <select id="orientation">
+        <option>portrait</option>
+        <option>landscape</option>
+      </select>
+      <label style="font-size:12px;color:#555;">Margins (mm):</label>
+      <input type="number" id="margin" value="20" min="5" max="50" style="width:64px" />
+      <label style="font-size:12px;color:#555;">Zoom:</label>
+      <select id="zoom">
+        <option>80%</option><option>90%</option><option selected>100%</option><option>110%</option><option>125%</option><option>150%</option>
+      </select>
+    </div>
+
+    <!-- Tools -->
+    <div class="group">
+      <button class="btn" id="btnFind" title="Find & Replace">🔍</button>
+      <button class="btn" data-cmd="removeFormat" title="Clear formatting">✖</button>
+    </div>
+  </div>
+
+  <!-- Canvas / Page -->
+  <div class="canvas">
+    <div class="page-wrap" id="pageWrap">
+      <div class="page-content" id="editor" contenteditable="true" spellcheck="true">
+        <h1 style="text-align:center;">Welcome!</h1>
+        <p>Paste from Word and keep your formatting (bold, italic, underline, alignment, lists, tables, etc.).</p>
+        <p>Try inserting an image — click it to control size, alignment, wrap, border, radius, shadow, or drag the corner handle to resize.</p>
+        <p>You can also insert a <em>Page Break</em>, and choose paper size/orientation with real mm units. Print uses real <code>@page</code> rules.</p>
+      </div>
+    </div>
+  </div>
+
+  <!-- Status -->
+  <div class="status">
+    <div>Words: <span id="statWords">0</span> &nbsp; Characters: <span id="statChars">0</span></div>
+    <div id="saveStatus">Ready</div>
+  </div>
+
+  <!-- Hidden inputs -->
+  <input type="file" id="fileOpen" accept=".html,.htm,.txt" style="display:none" />
+  <input type="file" id="fileImg" accept="image/*" style="display:none" />
+
+  <!-- Link modal -->
+  <div class="modal" id="modalLink">
+    <div class="modal-card">
+      <div class="modal-head">
+        <h3>Insert Link</h3>
+        <span class="close-x" data-close="modalLink">×</span>
+      </div>
+      <div class="form-row">
+        <label>URL</label>
+        <input type="text" id="linkURL" placeholder="https://example.com"/>
+      </div>
+      <div class="form-row">
+        <label>Text (optional)</label>
+        <input type="text" id="linkText" placeholder="Text to display"/>
+      </div>
+      <div class="modal-actions">
+        <button class="btn" data-close="modalLink">Cancel</button>
+        <button class="btn" id="doInsertLink" style="background:#1976d2;color:#fff;border:0;">Insert</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Table modal -->
+  <div class="modal" id="modalTable">
+    <div class="modal-card">
+      <div class="modal-head">
+        <h3>Insert Table</h3>
+        <span class="close-x" data-close="modalTable">×</span>
+      </div>
+      <div class="form-row">
+        <label>Rows</label><input type="number" id="tblRows" min="1" max="100" value="3"/>
+      </div>
+      <div class="form-row">
+        <label>Columns</label><input type="number" id="tblCols" min="1" max="20" value="3"/>
+      </div>
+      <div class="modal-actions">
+        <button class="btn" data-close="modalTable">Cancel</button>
+        <button class="btn" id="doInsertTable" style="background:#1976d2;color:#fff;border:0;">Insert</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Find/Replace modal -->
+  <div class="modal" id="modalFind">
+    <div class="modal-card">
+      <div class="modal-head">
+        <h3>Find & Replace</h3>
+        <span class="close-x" data-close="modalFind">×</span>
+      </div>
+      <div class="form-row">
+        <label>Find</label><input type="text" id="findTxt"/>
+      </div>
+      <div class="form-row">
+        <label>Replace</label><input type="text" id="replTxt"/>
+      </div>
+      <div class="modal-actions">
+        <button class="btn" id="doFind">Find next</button>
+        <button class="btn" id="doReplace">Replace</button>
+        <button class="btn" id="doReplaceAll" style="background:#1976d2;color:#fff;border:0;">Replace all</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Floating Image Toolbar -->
+  <div class="img-toolbar" id="imgToolbar" role="dialog" aria-label="Image tools">
+    <div class="row">
+      <label>Width:</label>
+      <input type="range" id="imgWidth" min="20" max="1600" value="300" style="width:140px"/>
+      <label><input type="checkbox" id="imgLock" checked/> Lock ratio</label>
+      <span id="imgSizeLabel" style="font-size:12px;color:#555;">300×—</span>
+    </div>
+    <div class="row">
+      <label>Align:</label>
+      <button class="btn" id="imgAlignLeft">Left</button>
+      <button class="btn" id="imgAlignCenter">Center</button>
+      <button class="btn" id="imgAlignRight">Right</button>
+      <button class="btn" id="imgFloatLeft" title="Wrap left">Wrap ⬅</button>
+      <button class="btn" id="imgFloatRight" title="Wrap right">Wrap ➡</button>
+      <button class="btn" id="imgFloatNone" title="No wrap">No wrap</button>
+    </div>
+    <div class="row">
+      <label>Border:</label>
+      <button class="btn" id="imgBorderToggle">On/Off</button>
+      <label>Radius</label><input type="range" id="imgRadius" min="0" max="40" value="0" style="width:100px"/>
+      <label>Shadow</label><button class="btn" id="imgShadowToggle">On/Off</button>
+    </div>
+    <div class="row">
+      <button class="btn" id="imgReplace">Replace URL</button>
+      <button class="btn" id="imgUpload">Upload…</button>
+      <button class="btn" id="imgRemove" style="color:#b00020;border-color:#f3cbd0;">Remove</button>
+    </div>
+  </div>
+
+<script>
+  // --- References ---
+  const editor = document.getElementById('editor');
+  const pageWrap = document.getElementById('pageWrap');
+  const printStyle = document.getElementById('printStyle');
+
+  // --- Paper sizes in mm ---
+  const PAPER_MM = {
+    A3: { w: 297, h: 420 },
+    A4: { w: 210, h: 297 },
+    A5: { w: 148, h: 210 },
+    Letter: { w: 215.9, h: 279.4 },
+    Legal: { w: 215.9, h: 355.6 },
+    B5: { w: 176, h: 250 }
+  };
+
+  // --- Init ---
+  window.addEventListener('load', () => {
+    // restore content
+    const saved = localStorage.getItem('editorContent');
+    if (saved) editor.innerHTML = saved;
+    updateStats();
+
+    // wire toolbar generic execCommand
+    document.querySelectorAll('[data-cmd]').forEach(b => {
+      b.addEventListener('click', () => execCmd(b.getAttribute('data-cmd')));
+    });
+
+    // colors
+    document.getElementById('btnColorText').onclick = () => document.getElementById('colorText').click();
+    document.getElementById('btnColorHilite').onclick = () => document.getElementById('colorHilite').click();
+    document.getElementById('colorText').onchange = (e)=>{ execCmd('foreColor', e.target.value); document.getElementById('cpText').style.background = e.target.value; };
+    document.getElementById('colorHilite').onchange = (e)=>{ execCmd('hiliteColor', e.target.value); document.getElementById('cpHilite').style.background = e.target.value; };
+
+    // font family / size
+    document.getElementById('fontName').onchange = (e)=> execCmd('fontName', e.target.value);
+    document.getElementById('fontSize').onchange = (e)=> setFontSizePt(e.target.value);
+
+    // page setup
+    document.getElementById('paper').onchange = applyPageSetup;
+    document.getElementById('orientation').onchange = applyPageSetup;
+    document.getElementById('margin').oninput = applyPageSetup;
+    document.getElementById('zoom').onchange = applyZoom;
+    applyPageSetup();
+    applyZoom();
+
+    // paste
+    document.getElementById('btnPaste').onclick = doPaste;
+    editor.addEventListener('paste', onPasteSanitized);
+
+    // typing / selection
+    editor.addEventListener('input', onDirty);
+    editor.addEventListener('keyup', updateStats);
+    editor.addEventListener('mouseup', updateStats);
+
+    // hotkeys
+    document.addEventListener('keydown', onHotkeys);
+
+    // file
+    document.getElementById('btnNew').onclick = newDoc;
+    document.getElementById('btnOpen').onclick = ()=> document.getElementById('fileOpen').click();
+    document.getElementById('btnSave').onclick = saveDoc;
+    document.getElementById('fileOpen').addEventListener('change', handleOpenFile);
+
+    // link / table / page break
+    document.getElementById('btnLink').onclick = openLinkModal;
+    document.querySelectorAll('[data-close]').forEach(el=> el.onclick = ()=> closeModal(el.getAttribute('data-close')));
+    document.querySelectorAll('.close-x').forEach(el=> el.onclick = ()=> closeModal(el.getAttribute('data-close')));
+    document.getElementById('doInsertLink').onclick = doInsertLink;
+    document.getElementById('btnTable').onclick = ()=> openModal('modalTable');
+    document.getElementById('doInsertTable').onclick = doInsertTable;
+    document.getElementById('btnPageBreak').onclick = insertPageBreak;
+
+    // find/replace
+    document.getElementById('btnFind').onclick = ()=> openModal('modalFind');
+    document.getElementById('doFind').onclick = doFindNext;
+    document.getElementById('doReplace').onclick = doReplaceOne;
+    document.getElementById('doReplaceAll').onclick = doReplaceAll;
+
+    // image controls
+    wireImageTools();
+
+    // autosave
+    setInterval(autoSave, 8000);
+  });
+
+  // --- Exec command wrapper ---
+  function execCmd(cmd, val=null) {
+    document.execCommand(cmd, false, val);
+    editor.focus();
+  }
+
+  function setFontSizePt(pt) {
+    if (!pt) return;
+    // Wrap selection in span with font-size:pt (reliable across engines)
+    const sel = window.getSelection();
+    if (!sel || sel.rangeCount===0) return;
+    const range = sel.getRangeAt(0);
+    const span = document.createElement('span');
+    span.style.fontSize = pt + 'pt';
+    range.surroundContents ? safeSurround(range, span) : span.append(range.extractContents());
+    range.insertNode(span);
+    // place caret after span
+    sel.removeAllRanges(); const r = document.createRange(); r.setStartAfter(span); r.collapse(true); sel.addRange(r);
+    onDirty();
+  }
+
+  function safeSurround(range, node){
+    try { range.surroundContents(node); }
+    catch(_) { node.append(range.extractContents()); }
+  }
+
+  // --- Paste handling (preserve styles, strip junk) ---
+  function onPasteSanitized(e){
+    e.preventDefault();
+    const cd = e.clipboardData || window.clipboardData;
+    let html = cd.getData('text/html');
+    const text = cd.getData('text/plain');
+    if (html) {
+      execCmd('insertHTML', cleanWordHTML(html));
+    } else if (text) {
+      execCmd('insertText', text);
+    }
+  }
+
+  function doPaste() {
+    if (navigator.clipboard?.read) {
+      navigator.clipboard.read().then(items => {
+        for (const item of items) {
+          if (item.types.includes('text/html')) {
+            item.getType('text/html').then(b => b.text().then(h => execCmd('insertHTML', cleanWordHTML(h))));
+            return;
+          }
+        }
+        navigator.clipboard.readText().then(t => execCmd('insertText', t));
+      }).catch(()=> execCmd('paste'));
+    } else {
+      execCmd('paste'); // fallback
+    }
+  }
+
+  function cleanWordHTML(html){
+    html = html.replace(/<!--[\s\S]*?-->/gi, '');
+    html = html.replace(/<\/?o:p[^>]*>/gi, '');
+    html = html.replace(/<\/?v:[^>]*>/gi, '');
+    html = html.replace(/<\/?w:[^>]*>/gi, '');
+    html = html.replace(/style="[^"]*mso-[^"]*"/gi, '');
+    const temp = document.createElement('div');
+    temp.innerHTML = html;
+    temp.querySelectorAll('script, iframe, embed, object, form, link').forEach(el=>el.remove());
+    return temp.innerHTML;
+  }
+
+  // --- Status & autosave ---
+  function updateStats(){
+    const t = editor.innerText || '';
+    const words = t.trim().split(/\s+/).filter(Boolean).length;
+    document.getElementById('statWords').textContent = words;
+    document.getElementById('statChars').textContent = t.length;
+  }
+  function onDirty(){ document.getElementById('saveStatus').textContent = 'Unsaved'; updateStats(); }
+  function autoSave(){
+    const st = document.getElementById('saveStatus');
+    if (st.textContent === 'Unsaved') {
+      localStorage.setItem('editorContent', editor.innerHTML);
+      st.textContent = 'Auto-saved';
+      setTimeout(()=>{ if (st.textContent==='Auto-saved') st.textContent='Ready'; }, 1500);
+    }
+  }
+
+  // --- File ops ---
+  function newDoc(){
+    if (!confirm('Create new document? Unsaved changes will be lost.')) return;
+    editor.innerHTML = '<p><br></p>';
+    localStorage.removeItem('editorContent');
+    updateStats();
+  }
+  function saveDoc(){
+    const content = editor.innerHTML;
+    const blob = new Blob([`<!DOCTYPE html><html><head><meta charset="UTF-8"><title>Document</title></head><body>${content}</body></html>`], {type:'text/html'});
+    const url = URL.createObjectURL(blob);
+    const a = Object.assign(document.createElement('a'), { href: url, download: 'document.html' });
+    a.click(); URL.revokeObjectURL(url);
+    localStorage.setItem('editorContent', content);
+    document.getElementById('saveStatus').textContent = 'Saved';
+  }
+  function handleOpenFile(e){
+    const f = e.target.files[0]; if (!f) return;
+    const r = new FileReader();
+    r.onload = ev => { editor.innerHTML = ev.target.result; updateStats(); };
+    r.readAsText(f);
+    e.target.value = '';
+  }
+
+  // --- Hotkeys ---
+  function onHotkeys(e){
+    if (e.ctrlKey || e.metaKey) {
+      const k = e.key.toLowerCase();
+      if (k==='s'){ e.preventDefault(); saveDoc(); }
+      if (k==='b'){ e.preventDefault(); execCmd('bold'); }
+      if (k==='i'){ e.preventDefault(); execCmd('italic'); }
+      if (k==='u'){ e.preventDefault(); execCmd('underline'); }
+    }
+  }
+
+  // --- Modals simple helpers ---
+  function openModal(id){ document.getElementById(id).classList.add('active'); }
+  function closeModal(id){ document.getElementById(id).classList.remove('active'); }
+
+  // --- Link ---
+  function openLinkModal(){
+    const sel = String(window.getSelection());
+    document.getElementById('linkText').value = sel || '';
+    document.getElementById('linkURL').value = '';
+    openModal('modalLink');
+  }
+  function doInsertLink(){
+    const url = document.getElementById('linkURL').value.trim();
+    const text = document.getElementById('linkText').value.trim();
+    if (!url){ closeModal('modalLink'); return; }
+    if (text){
+      execCmd('insertHTML', `<a href="${escapeHtml(url)}" target="_blank" rel="noopener">${escapeHtml(text)}</a>`);
+    } else {
+      execCmd('createLink', url);
+      // ensure target=_blank
+      const sel = window.getSelection(); if (sel?.anchorNode) {
+        const a = (sel.anchorNode.nodeType===1? sel.anchorNode : sel.anchorNode.parentElement).closest('a');
+        if (a){ a.target = '_blank'; a.rel = 'noopener'; }
+      }
+    }
+    closeModal('modalLink'); onDirty();
+  }
+  function escapeHtml(s){ return s.replace(/[&<>"']/g, m=>({ '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;' }[m])); }
+
+  // --- Table ---
+  function doInsertTable(){
+    const r = Math.max(1, +document.getElementById('tblRows').value||3);
+    const c = Math.max(1, +document.getElementById('tblCols').value||3);
+    let html = `<table style="width:100%;border-collapse:collapse;border:1px solid #000;">`;
+    for (let i=0;i<r;i++){
+      html += `<tr>`;
+      for (let j=0;j<c;j++){
+        html += `<td style="border:1px solid #000;padding:4px;"><p><br></p></td>`;
+      }
+      html += `</tr>`;
+    }
+    html += `</table><p><br></p>`;
+    execCmd('insertHTML', html);
+    closeModal('modalTable'); onDirty();
+  }
+
+  // --- Page break ---
+  function insertPageBreak(){
+    execCmd('insertHTML', `<div class="page-break" contenteditable="false"></div>`);
+    onDirty();
+  }
+
+  // --- Page setup & zoom ---
+  function applyPageSetup(){
+    const paper = document.getElementById('paper').value;
+    const orient = document.getElementById('orientation').value;
+    const margin = Math.max(0, +document.getElementById('margin').value || 20);
+    const dim = PAPER_MM[paper] || PAPER_MM.A4;
+    const W = orient==='portrait' ? dim.w : dim.h;
+    const H = orient==='portrait' ? dim.h : dim.w;
+    // On-screen size in mm (CSS supports mm)
+    pageWrap.style.width = W + 'mm';
+    pageWrap.style.minHeight = H + 'mm';
+    // Content padding = margins
+    document.querySelector('.page-content').style.padding = margin + 'mm';
+    // Print @page
+    printStyle.textContent = `@page{ size: ${paper} ${orient}; margin: ${margin}mm; }`;
+  }
+  function applyZoom(){
+    const zStr = document.getElementById('zoom').value.replace('%','');
+    const z = Math.max(10, +zStr || 100);
+    pageWrap.style.transform = `scale(${z/100})`;
+  }
+
+  // --- Find & Replace (simple) ---
+  let _lastFindIndex = -1, _lastFindText = '';
+  function doFindNext(){
+    const needle = document.getElementById('findTxt').value;
+    if (!needle) return;
+    const html = editor.innerHTML;
+    if (_lastFindText !== needle){ _lastFindText = needle; _lastFindIndex = -1; }
+    const from = _lastFindIndex + 1;
+    const idx = html.toLowerCase().indexOf(needle.toLowerCase(), from);
+    if (idx >= 0){
+      _lastFindIndex = idx;
+      selectHtmlRangeByIndex(editor, idx, needle.length);
+    } else { _lastFindIndex = -1; }
+  }
+  function doReplaceOne(){
+    const find = document.getElementById('findTxt').value;
+    const repl = document.getElementById('replTxt').value;
+    if (!find) return;
+    const sel = window.getSelection();
+    if (sel && String(sel) && String(sel).toLowerCase()===find.toLowerCase()){
+      execCmd('insertText', repl);
+      onDirty(); doFindNext();
+    } else {
+      doFindNext();
+    }
+  }
+  function doReplaceAll(){
+    const find = document.getElementById('findTxt').value;
+    const repl = document.getElementById('replTxt').value;
+    if (!find) return;
+    const re = new RegExp(find.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'gi');
+    editor.innerHTML = editor.innerHTML.replace(re, repl);
+    onDirty();
+  }
+  function selectHtmlRangeByIndex(root, index, length){
+    // naive selection across text nodes
+    let walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT, null);
+    let pos = 0, startNode=null, startOffset=0, endNode=null, endOffset=0;
+    while (walker.nextNode()){
+      const n = walker.currentNode, len = n.nodeValue.length;
+      if (!startNode && pos + len >= index) { startNode = n; startOffset = index - pos; }
+      if (startNode && pos + len >= index + length){ endNode = n; endOffset = index + length - pos; break; }
+      pos += len;
+    }
+    if (startNode && endNode){
+      const r = document.createRange(); r.setStart(startNode, startOffset); r.setEnd(endNode, endOffset);
+      const sel = window.getSelection(); sel.removeAllRanges(); sel.addRange(r);
+    }
+  }
+
+  // --- Image Tools ---
+  let currentImg = null, naturalRatio = 1;
+  const imgTB = document.getElementById('imgToolbar');
+  const widthSlider = document.getElementById('imgWidth');
+  const lockRatio = document.getElementById('imgLock');
+  const sizeLabel = document.getElementById('imgSizeLabel');
+
+  function wireImageTools(){
+    // click to open toolbar
+    editor.addEventListener('click', e => {
+      const img = e.target.closest('img');
+      if (img) selectImage(img);
+      else dismissImageTools();
+    });
+    // keyboard/mouse outside
+    document.addEventListener('scroll', positionToolbar, true);
+    window.addEventListener('resize', positionToolbar);
+
+    // controls
+    widthSlider.oninput = ()=> applyImgWidth(+widthSlider.value);
+    document.getElementById('imgAlignLeft').onclick = ()=> setImgAlign('left');
+    document.getElementById('imgAlignCenter').onclick = ()=> setImgAlign('center');
+    document.getElementById('imgAlignRight').onclick = ()=> setImgAlign('right');
+    document.getElementById('imgFloatLeft').onclick = ()=> setImgFloat('left');
+    document.getElementById('imgFloatRight').onclick = ()=> setImgFloat('right');
+    document.getElementById('imgFloatNone').onclick = ()=> setImgFloat('none');
+    document.getElementById('imgBorderToggle').onclick = toggleImgBorder;
+    document.getElementById('imgRadius').oninput = (e)=> setImgRadius(+e.target.value);
+    document.getElementById('imgShadowToggle').onclick = toggleImgShadow;
+    document.getElementById('imgReplace').onclick = replaceImgURL;
+    document.getElementById('imgUpload').onclick = ()=> document.getElementById('fileImg').click();
+    document.getElementById('imgRemove').onclick = removeImg;
+    document.getElementById('fileImg').addEventListener('change', handleImgUpload);
+  }
+
+  function selectImage(img){
+    if (currentImg && currentImg!==img) unmarkImage(currentImg);
+    currentImg = img;
+    naturalRatio = (img.naturalWidth && img.naturalHeight) ? (img.naturalHeight ? img.naturalWidth/img.naturalHeight : 1) : (img.width && img.height ? img.width/img.height : 1);
+    img.classList.add('img-selected');
+    ensureImgHandle(img);
+    widthSlider.value = Math.round(img.width || 300);
+    updateImgSizeLabel();
+    showToolbarNear(img);
+  }
+
+  function unmarkImage(img){
+    img.classList.remove('img-selected');
+    const h = img._handleEl; if (h && h.parentNode) h.parentNode.removeChild(h);
+    img._handleEl = null;
+  }
+
+  function ensureImgHandle(img){
+    if (img._handleEl) return;
+    const h = document.createElement('div');
+    h.className = 'img-handle';
+    h.style.position = 'absolute';
+    // parent must be relative to position handle
+    const posWrapper = img.parentElement;
+    if (getComputedStyle(posWrapper).position === 'static') posWrapper.style.position = 'relative';
+    posWrapper.appendChild(h);
+    img._handleEl = h;
+    positionHandle(img);
+    // drag to resize
+    let dragging=false, startX=0, startW=0;
+    h.addEventListener('mousedown', (e)=>{
+      e.preventDefault(); dragging=true; startX=e.clientX; startW=img.width;
+      document.body.style.userSelect='none';
+    });
+    window.addEventListener('mousemove', (e)=>{
+      if (!dragging) return;
+      const dx = e.clientX - startX;
+      applyImgWidth(Math.max(20, startW + dx));
+    });
+    window.addEventListener('mouseup', ()=>{
+      if (dragging){ dragging=false; document.body.style.userSelect=''; onDirty(); }
+    });
+  }
+
+  function positionHandle(img){
+    const h = img._handleEl; if (!h) return;
+    const r = img.getBoundingClientRect();
+    const pr = img.parentElement.getBoundingClientRect();
+    h.style.left = (r.right - pr.left - 5) + 'px';
+    h.style.top  = (r.bottom - pr.top - 5) + 'px';
+  }
+
+  function showToolbarNear(img){
+    imgTB.style.display = 'block';
+    positionToolbar();
+  }
+  function positionToolbar(){
+    if (!currentImg) return;
+    const r = currentImg.getBoundingClientRect();
+    const top = Math.max(8, r.top + window.scrollY - imgTB.offsetHeight - 10);
+    const left = Math.min(window.scrollX + r.left, window.scrollX + window.innerWidth - imgTB.offsetWidth - 8);
+    imgTB.style.top = top + 'px';
+    imgTB.style.left = left + 'px';
+    // update handle position too
+    positionHandle(currentImg);
+  }
+  function dismissImageTools(){
+    if (currentImg) unmarkImage(currentImg);
+    currentImg = null;
+    imgTB.style.display = 'none';
+  }
+
+  function applyImgWidth(w){
+    if (!currentImg) return;
+    currentImg.style.width = w + 'px';
+    if (lockRatio.checked && naturalRatio){
+      currentImg.style.height = Math.round(w / naturalRatio) + 'px';
+    } else {
+      currentImg.style.height = 'auto';
+    }
+    widthSlider.value = Math.round(w);
+    updateImgSizeLabel();
+    positionToolbar();
+    onDirty();
+  }
+  function updateImgSizeLabel(){
+    if (!currentImg){ sizeLabel.textContent = ''; return; }
+    sizeLabel.textContent = `${Math.round(currentImg.getBoundingClientRect().width)}×${Math.round(currentImg.getBoundingClientRect().height)} px`;
+  }
+
+  function setImgAlign(where){
+    if (!currentImg) return;
+    currentImg.style.display = 'block';
+    currentImg.style.float = 'none';
+    currentImg.style.margin = '0';
+    if (where==='left'){ currentImg.style.marginRight = 'auto'; }
+    if (where==='center'){ currentImg.style.margin = '0 auto'; }
+    if (where==='right'){ currentImg.style.marginLeft = 'auto'; }
+    positionToolbar(); onDirty();
+  }
+  function setImgFloat(where){
+    if (!currentImg) return;
+    currentImg.style.display = 'inline-block';
+    if (where==='left'){ currentImg.style.float = 'left'; currentImg.style.margin = '0 12px 8px 0'; }
+    else if (where==='right'){ currentImg.style.float = 'right'; currentImg.style.margin = '0 0 8px 12px'; }
+    else { currentImg.style.float = 'none'; currentImg.style.margin = '0'; }
+    positionToolbar(); onDirty();
+  }
+  function toggleImgBorder(){
+    if (!currentImg) return;
+    const has = currentImg.style.border && currentImg.style.border !== 'none';
+    currentImg.style.border = has ? 'none' : '1px solid #000';
+    onDirty();
+  }
+  function setImgRadius(v){
+    if (!currentImg) return;
+    currentImg.style.borderRadius = v + 'px';
+    onDirty();
+  }
+  function toggleImgShadow(){
+    if (!currentImg) return;
+    const has = currentImg.style.boxShadow && currentImg.style.boxShadow !== 'none';
+    currentImg.style.boxShadow = has ? 'none' : '0 6px 18px rgba(0,0,0,.25)';
+    onDirty();
+  }
+  function replaceImgURL(){
+    if (!currentImg) return;
+    const u = prompt('Image URL:', currentImg.src || '');
+    if (u){ currentImg.src = u; onDirty(); }
+  }
+  function handleImgUpload(e){
+    const f = e.target.files[0]; if (!f || !currentImg) return;
+    const r = new FileReader();
+    r.onload = ev => { currentImg.src = ev.target.result; onDirty(); };
+    r.readAsDataURL(f);
+    e.target.value = '';
+  }
+  function removeImg(){
+    if (!currentImg) return;
+    const p = currentImg.parentElement;
+    currentImg.remove();
+    if (p && p.classList?.contains('img-handle')) p.remove();
+    dismissImageTools();
+    onDirty();
+  }
+
+  // --- Insert image from toolbar button ---
+  document.getElementById('btnImage').addEventListener('click', ()=>{
+    const url = prompt('Image URL (or leave blank to upload):', '');
+    if (url){ execCmd('insertImage', url); onDirty(); }
+    else document.getElementById('fileImg').click();
+  });
+
+  // --- Table selection state etc. (optional active buttons) ---
+  document.addEventListener('selectionchange', ()=>{
+    // could toggle .active on buttons using document.queryCommandState(cmd) if desired
+    if (currentImg && !editor.contains(currentImg)) dismissImageTools();
+  });
+
+</script>
+</body>
+</html>
