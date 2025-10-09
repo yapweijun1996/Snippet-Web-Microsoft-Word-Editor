@@ -182,7 +182,17 @@
   @media print {
     body { background: #fff; }
     .header, .toolbar, .status, .img-toolbar, .table-toolbar { display: none !important; }
-    .canvas { padding: 0; }
+    .editor-modal, .editor-shell, .editor-frame {
+      position: static;
+      display: block;
+      height: auto !important;
+      overflow: visible !important;
+    }
+    .canvas {
+      padding: 0;
+      overflow: visible !important;
+      height: auto !important;
+    }
     .page-wrap { box-shadow: none; margin: 0; width: auto; transform: none !important; }
     .page-content { padding: 0; }
     .page-break { border: none; height: 0; }
@@ -341,7 +351,7 @@
   </div>
 
   <!-- Hidden inputs -->
-  <input type="file" id="fileOpen" accept=".html,.htm,.txt" class="sr-file" tabindex="-1" />
+  <input type="file" id="fileOpen" accept=".html,.htm,.txt,.docx" class="sr-file" tabindex="-1" />
   <input type="file" id="fileImg" accept="image/*" class="sr-file" tabindex="-1" />
     </div>
   <!-- Link modal -->
@@ -464,6 +474,7 @@
     </div>
   </div>
 </div>
+<script src="libs/mammoth.browser.min.js"></script>
 <script>
   // --- References ---
   const editor = document.getElementById('editor');
@@ -1190,11 +1201,24 @@ window.addEventListener('beforeunload', flushAutoSave);
     saveStatusEl.textContent = 'Saved';
     scheduleStatusReset();
   }
-  function handleOpenFile(e){
-    const f = e.target.files[0]; if (!f) return;
-    const r = new FileReader();
-    r.onload = ev => {
-      editor.innerHTML = ev.target.result;
+  async function handleOpenFile(e){
+    const file = e.target.files?.[0];
+    e.target.value = '';
+    if (!file) return;
+    try {
+      if (/\.(docx)$/i.test(file.name)) {
+        if (!window.mammoth?.convertToHtml) {
+          alert('DOCX support is unavailable. Please ensure mammoth.browser.min.js is loaded.');
+          return;
+        }
+        const arrayBuffer = await file.arrayBuffer();
+        const result = await window.mammoth.convertToHtml({ arrayBuffer });
+        const html = cleanWordHTML(result.value || '');
+        editor.innerHTML = html || '<p><br></p>';
+      } else {
+        const text = await file.text();
+        editor.innerHTML = text || '<p><br></p>';
+      }
       updateStats();
       updateListStyleControl();
       syncTableSelection();
@@ -1203,9 +1227,10 @@ window.addEventListener('beforeunload', flushAutoSave);
       resetHistory();
       needsSave = false;
       saveStatusEl.textContent = 'Ready';
-    };
-    r.readAsText(f);
-    e.target.value = '';
+    } catch (err) {
+      console.error('File import failed', err);
+      alert('Unable to import this file. Please confirm it is a valid document.');
+    }
   }
   // --- Modals simple helpers ---
   function openModal(id){ document.getElementById(id).classList.add('active'); }
