@@ -12,104 +12,86 @@
   var formSyncRegistry = new WeakSet();
   var lastOptions = DEFAULTS;
   var DEFAULT_MAMMOTH_STYLE_MAP = [
-    "p[style-name='Title'] => h1.weditor-doc-title.weditor-align-center:fresh",
-    "p[style-name='title'] => h1.weditor-doc-title.weditor-align-center:fresh",
-    "p[style-name='Subtitle'] => p.weditor-doc-subtitle.weditor-align-center:fresh",
-    "p[style-name='subtitle'] => p.weditor-doc-subtitle.weditor-align-center:fresh",
-    "p[style-name='Heading 1'] => h1.weditor-heading-1:fresh",
-    "p[style-name='Heading1'] => h1.weditor-heading-1:fresh",
-    "p[style-name='heading 1'] => h1.weditor-heading-1:fresh",
-    "p[style-name='heading1'] => h1.weditor-heading-1:fresh",
-    "p[style-name='Heading 2'] => h2.weditor-heading-2:fresh",
-    "p[style-name='Heading2'] => h2.weditor-heading-2:fresh",
-    "p[style-name='heading 2'] => h2.weditor-heading-2:fresh",
-    "p[style-name='heading2'] => h2.weditor-heading-2:fresh",
-    "p[style-name='Heading 3'] => h3.weditor-heading-3:fresh",
-    "p[style-name='Heading3'] => h3.weditor-heading-3:fresh",
-    "p[style-name='heading 3'] => h3.weditor-heading-3:fresh",
-    "p[style-name='heading3'] => h3.weditor-heading-3:fresh",
-    "p[style-name='Heading 4'] => h4.weditor-heading-4:fresh",
-    "p[style-name='Heading4'] => h4.weditor-heading-4:fresh",
-    "p[style-name='heading 4'] => h4.weditor-heading-4:fresh",
-    "p[style-name='heading4'] => h4.weditor-heading-4:fresh",
-    "p[style-name='Heading 5'] => h5.weditor-heading-5:fresh",
-    "p[style-name='Heading5'] => h5.weditor-heading-5:fresh",
-    "p[style-name='heading 5'] => h5.weditor-heading-5:fresh",
-    "p[style-name='heading5'] => h5.weditor-heading-5:fresh",
-    "p[style-name='Heading 6'] => h6.weditor-heading-6:fresh",
-    "p[style-name='Heading6'] => h6.weditor-heading-6:fresh",
-    "p[style-name='heading 6'] => h6.weditor-heading-6:fresh",
-    "p[style-name='heading6'] => h6.weditor-heading-6:fresh",
-    "p[style-name='Heading 7'] => h6.weditor-heading-7:fresh",
-    "p[style-name='Heading7'] => h6.weditor-heading-7:fresh",
-    "p[style-name='heading 7'] => h6.weditor-heading-7:fresh",
-    "p[style-name='heading7'] => h6.weditor-heading-7:fresh",
-    "p[style-name='Heading 8'] => h6.weditor-heading-8:fresh",
-    "p[style-name='Heading8'] => h6.weditor-heading-8:fresh",
-    "p[style-name='heading 8'] => h6.weditor-heading-8:fresh",
-    "p[style-name='heading8'] => h6.weditor-heading-8:fresh",
-    "p[style-name='Heading 9'] => h6.weditor-heading-9:fresh",
-    "p[style-name='Heading9'] => h6.weditor-heading-9:fresh",
-    "p[style-name='heading 9'] => h6.weditor-heading-9:fresh",
-    "p[style-name='heading9'] => h6.weditor-heading-9:fresh",
-    "p[style-name='Normal'] => p.weditor-normal",
-    "p[style-name='Normal (Web)'] => p.weditor-normal",
-    "p[style-name='Body Text'] => p.weditor-body-text",
-    "p[style-name='BodyText'] => p.weditor-body-text",
-    "p[style-name='No Spacing'] => p.weditor-no-spacing",
-    "p[style-name='NoSpacing'] => p.weditor-no-spacing",
-    "p[style-name='List Paragraph'] => p.weditor-list-paragraph",
-    "p[style-name='ListParagraph'] => p.weditor-list-paragraph",
-    "p[style-name='Caption'] => p.weditor-caption",
-    "p[style-name='TOC Heading'] => p.weditor-toc-heading",
-    "p[style-name='TOC 1'] => p.weditor-toc-level-1",
-    "p[style-name='TOC1'] => p.weditor-toc-level-1",
-    "p[style-name='TOC 2'] => p.weditor-toc-level-2",
-    "p[style-name='TOC2'] => p.weditor-toc-level-2",
-    "p[style-name='TOC 3'] => p.weditor-toc-level-3",
-    "p[style-name='TOC3'] => p.weditor-toc-level-3",
-    "p[style-name='Quote'] => blockquote.weditor-quote:fresh",
-    "p[style-name='Intense Quote'] => blockquote.weditor-intense-quote:fresh",
-    "p[style-name='Intense Centered Quote'] => blockquote.weditor-intense-quote.weditor-align-center:fresh",
-    "p[style-name='Center'] => p.weditor-align-center",
-    "p[style-name='center'] => p.weditor-align-center",
-    "p[style-name='Right'] => p.weditor-align-right",
-    "p[style-name='right'] => p.weditor-align-right",
-    "p[style-name='Justify'] => p.weditor-align-justify",
-    "p[style-name='Justified'] => p.weditor-align-justify",
-    "r[style-name='Hyperlink'] => span.doc-link",
-    "r[style-name='hyperlink'] => span.doc-link",
-    "r[style-name='FollowedHyperlink'] => span.doc-followed-link",
-    "r[style-name='followedHyperlink'] => span.doc-followed-link",
-    "r[style-name='Emphasis'] => span.doc-emphasis",
-    "r[style-name='emphasis'] => span.doc-emphasis",
-    "r[style-name='Subtle Emphasis'] => span.doc-subtle-emphasis",
-    "r[style-name='Intense Emphasis'] => span.doc-intense-emphasis",
-    "r[style-name='Strong'] => span.doc-strong",
-    "r[style-name='strong'] => span.doc-strong",
-    "r[style-name='Intense Reference'] => span.doc-intense-reference",
-    "r[style-name='Subtle Reference'] => span.doc-subtle-reference",
-    "r[style-name='Book Title'] => span.doc-book-title",
-    "r[style-name='Heading 1 Char'] => span.doc-heading1-char",
-    "r[style-name='Heading1 Char'] => span.doc-heading1-char",
-    "r[style-name='Heading1Char'] => span.doc-heading1-char",
-    "r[style-name='Heading 2 Char'] => span.doc-heading2-char",
-    "r[style-name='Heading2 Char'] => span.doc-heading2-char",
-    "r[style-name='Heading2Char'] => span.doc-heading2-char",
-    "r[style-name='Heading 3 Char'] => span.doc-heading3-char",
-    "r[style-name='Heading3 Char'] => span.doc-heading3-char",
-    "r[style-name='Heading3Char'] => span.doc-heading3-char",
-    "table[style-name='Table Grid'] => table.weditor-doc-table.table-grid",
-    "table[style-name='Light Shading'] => table.weditor-doc-table.table-light-shading",
-    "table[style-name='Medium Shading 1'] => table.weditor-doc-table.table-medium-shading",
-    "table[style-name*='Light Shading'] => table.weditor-doc-table.table-light-shading",
-    "table[style-name*='Medium Shading'] => table.weditor-doc-table.table-medium-shading",
-    "table[style-name*='Grid'] => table.weditor-doc-table.table-grid",
-    "table[style-name*='List'] => table.weditor-doc-table.table-list",
-    "table => table.weditor-doc-table",
-    "table row => tr",
-    "table header cell => th",
-    "table cell => td"
+    // Titles (EN + CN) - Inline Styles
+    "p[style-name='Title'] => h1[style='font-size:30px; font-weight:600; color:#000; text-align:center; margin:12px 0 6px;']:fresh",
+    "p[style-name='title'] => h1[style='font-size:30px; font-weight:600; color:#000; text-align:center; margin:12px 0 6px;']:fresh",
+    "p[style-name='标题'] => h1[style='font-size:30px; font-weight:600; color:#000; text-align:center; margin:12px 0 6px;']:fresh",
+    "p[style-name='Subtitle'] => p[style='font-style:italic; color:#555; text-align:center; margin:0 0 16px;']:fresh",
+    "p[style-name='subtitle'] => p[style='font-style:italic; color:#555; text-align:center; margin:0 0 16px;']:fresh",
+    "p[style-name='副标题'] => p[style='font-style:italic; color:#555; text-align:center; margin:0 0 16px;']:fresh",
+
+    // Headings 1-9 (EN + CN) - Inline Styles
+    "p[style-name='Heading 1'] => h1[style='font-size:26px; font-weight:700; color:#000; margin:18px 0 8px; line-height:1.2;']:fresh",
+    "p[style-name='Heading1'] => h1[style='font-size:26px; font-weight:700; color:#000; margin:18px 0 8px; line-height:1.2;']:fresh",
+    "p[style-name='标题 1'] => h1[style='font-size:26px; font-weight:700; color:#000; margin:18px 0 8px; line-height:1.2;']:fresh",
+    "p[style-name='Heading 2'] => h2[style='font-size:22px; font-weight:600; color:#000; margin:18px 0 8px; line-height:1.2;']:fresh",
+    "p[style-name='Heading2'] => h2[style='font-size:22px; font-weight:600; color:#000; margin:18px 0 8px; line-height:1.2;']:fresh",
+    "p[style-name='标题 2'] => h2[style='font-size:22px; font-weight:600; color:#000; margin:18px 0 8px; line-height:1.2;']:fresh",
+    "p[style-name='Heading 3'] => h3[style='font-size:18px; font-weight:600; color:#000; margin:18px 0 8px; line-height:1.2;']:fresh",
+    "p[style-name='Heading3'] => h3[style='font-size:18px; font-weight:600; color:#000; margin:18px 0 8px; line-height:1.2;']:fresh",
+    "p[style-name='标题 3'] => h3[style='font-size:18px; font-weight:600; color:#000; margin:18px 0 8px; line-height:1.2;']:fresh",
+    "p[style-name='Heading 4'] => h4[style='font-size:16px; font-weight:600; color:#000; margin:18px 0 8px; line-height:1.2;']:fresh",
+    "p[style-name='Heading4'] => h4[style='font-size:16px; font-weight:600; color:#000; margin:18px 0 8px; line-height:1.2;']:fresh",
+    "p[style-name='标题 4'] => h4[style='font-size:16px; font-weight:600; color:#000; margin:18px 0 8px; line-height:1.2;']:fresh",
+    "p[style-name='Heading 5'] => h5[style='font-size:14px; font-weight:600; color:#000; margin:18px 0 8px; line-height:1.2;']:fresh",
+    "p[style-name='Heading5'] => h5[style='font-size:14px; font-weight:600; color:#000; margin:18px 0 8px; line-height:1.2;']:fresh",
+    "p[style-name='标题 5'] => h5[style='font-size:14px; font-weight:600; color:#000; margin:18px 0 8px; line-height:1.2;']:fresh",
+    "p[style-name='Heading 6'] => h6[style='font-size:13px; font-weight:600; color:#000; margin:18px 0 8px; line-height:1.2;']:fresh",
+    "p[style-name='Heading6'] => h6[style='font-size:13px; font-weight:600; color:#000; margin:18px 0 8px; line-height:1.2;']:fresh",
+    "p[style-name='标题 6'] => h6[style='font-size:13px; font-weight:600; color:#000; margin:18px 0 8px; line-height:1.2;']:fresh",
+
+    // APA/Academic Style Names
+    "p[style-name='Heading Level 1'] => h1[style='font-size:26px; font-weight:700; color:#000; margin:18px 0 8px; line-height:1.2; text-align:center;']:fresh",
+    "p[style-name='Heading Level 2'] => h2[style='font-size:22px; font-weight:600; color:#000; margin:18px 0 8px; line-height:1.2;']:fresh",
+    "p[style-name='Heading Level 3'] => h3[style='font-size:18px; font-weight:600; color:#000; margin:18px 0 8px; line-height:1.2;']:fresh",
+    "p[style-name='Heading Level 4'] => h4[style='font-size:16px; font-weight:600; color:#000; margin:18px 0 8px; line-height:1.2;']:fresh",
+    "p[style-name='Heading Level 5'] => h5[style='font-size:14px; font-weight:600; color:#000; margin:18px 0 8px; line-height:1.2;']:fresh",
+    "p[style-name='Abstract'] => p[style='margin:0 0 1.15em;']",
+
+    // Normal / Body / Spacing (EN + CN) - Inline Styles
+    "p[style-name='Normal'] => p[style='margin:0 0 1.15em;']",
+    "p:empty => p:empty[style='margin:0 0 1.15em;min-height:1em;']", // Preserve empty lines
+    "p[style-name='Normal (Web)'] => p[style='margin:0 0 1.15em;']",
+    "p[style-name='Body Text'] => p[style='margin:0 0 1.15em;']",
+    "p[style-name='BodyText'] => p[style='margin:0 0 1.15em;']",
+    "p[style-name='正文'] => p[style='margin:0 0 1.15em;']",
+    "p[style-name='正文文本'] => p[style='margin:0 0 1.15em;']",
+    "p[style-name='No Spacing'] => p[style='margin:0;']",
+    "p[style-name='NoSpacing'] => p[style='margin:0;']",
+    "p[style-name='无间距'] => p[style='margin:0;']",
+    "p[style-name='List Paragraph'] => p[style='margin:0 0 1.15em 32px; text-indent:0;']",
+    "p[style-name='ListParagraph'] => p[style='margin:0 0 1.15em 32px; text-indent:0;']",
+    "p[style-name='列表段落'] => p[style='margin:0 0 1.15em 32px; text-indent:0;']",
+
+    // Alignment - applied via style attribute
+    "p.weditor-align-center => p[style='text-align:center;']",
+    "p.weditor-align-right => p[style='text-align:right;']",
+    "p.weditor-align-justify => p[style='text-align:justify;']",
+
+    // Quotes / Captions - Inline Styles
+    "p[style-name='Quote'] => blockquote[style='border-left:4px solid #c6c6c6; background:#f9f9f9; margin:16px 0; padding:12px 16px;']:fresh",
+    "p[style-name='Intense Quote'] => blockquote[style='border-left:6px solid #000; background:#f1f1f1; font-style:italic; margin:16px 0; padding:12px 16px;']:fresh",
+    "p[style-name='引用'] => blockquote[style='border-left:4px solid #c6c6c6; background:#f9f9f9; margin:16px 0; padding:12px 16px;']:fresh",
+    "p[style-name='加强引用'] => blockquote[style='border-left:6px solid #000; background:#f1f1f1; font-style:italic; margin:16px 0; padding:12px 16px;']:fresh",
+    "p[style-name='Caption'] => p[style='font-size:13px; color:#5a5a5a; text-align:center; margin:8px 0 12px;']",
+    "p[style-name='题注'] => p[style='font-size:13px; color:#5a5a5a; text-align:center; margin:8px 0 12px;']",
+
+    // Character styles (for inline headings and emphasis)
+    "r[style-name='Heading 1 Char'] => strong[style='font-size:26px; font-weight:700; color:#000;']",
+    "r[style-name='Heading 2 Char'] => strong[style='font-size:22px; font-weight:600; color:#000;']",
+    "r[style-name='Heading 3 Char'] => strong[style='font-size:18px; font-weight:600; color:#000;']",
+    "r[style-name='Heading 4 Char'] => strong[style='font-size:16px; font-weight:600; color:#000;']",
+    "r[style-name='Heading 5 Char'] => strong[style='font-size:14px; font-weight:600; color:#000;']",
+    "r[style-name='Hyperlink'] => a",
+    "r[style-name='Emphasis'] => em",
+    "r[style-name='Strong'] => strong",
+    "r[style-name='Code'] => code[style='font-family:Consolas, \"Courier New\", monospace; background:#f2f2f2; padding:0 2px;']",
+    "p[style-name='Code'] => pre[style='font-family:Consolas, \"Courier New\", monospace; background:#f8f8f8; border:1px solid #e0e0e0; padding:10px; overflow:auto;']:fresh",
+
+    // Tables - Basic structure, inline styles for tables are very complex, better to keep classes
+    "table => table[style='width:100%; border-collapse:collapse; margin:16px 0;']",
+    "table > tr > td => td[style='border:1px solid #c6c6c6; padding:6px 10px; text-align:left;']",
+    "table > tr > th => th[style='border:1px solid #c6c6c6; padding:6px 10px; text-align:left; background:#f3f3f3; font-weight:600;']"
   ];
   var FONT_FAMILY_OPTIONS = [
     { label: 'Font', value: '', placeholder: true },
@@ -136,7 +118,7 @@
     style.id = STYLE_ID;
     style.textContent = [
       '.weditor__wrapper{display:flex;flex-direction:column;gap:8px;}',
-      '.weditor__wrapper .weditor{min-height:200px;}',
+      '.weditor__wrapper .weditor{min-height:200px;border:1px solid #ccc;padding:8px;background:#fff;}',
       '.weditor__toolbar{display:flex;flex-wrap:wrap;align-items:center;gap:6px;}',
       '.weditor__btn{border:1px solid #999;background:#f7f7f7;padding:4px 9px;cursor:pointer;font-size:13px;}',
       '.weditor__btn:hover{background:#ececec;}',
@@ -152,10 +134,40 @@
       '.weditor-overlay__title{font-weight:600;font-size:15px;}',
       '.weditor-overlay__close{border:1px solid #999;background:#f7f7f7;padding:4px 12px;cursor:pointer;}',
       '.weditor-overlay__close:hover{background:#ececec;}',
-      '.weditor-overlay__body{flex:1;overflow:auto;padding:12px;background:#f5f5f5;}',
-      '.weditor__wrapper[data-mode="fullscreen"]{height:100%;}',
-      '.weditor__wrapper[data-mode="fullscreen"] .weditor{height:100%;min-height:calc(100% - 36px);}',
-      'body.weditor-no-scroll{overflow:hidden;}'
+      '.weditor-overlay__body{flex:1;overflow-y:auto;background:#e9e9e9;padding:32px 0;}',
+      '.weditor__wrapper[data-mode="fullscreen"]{display:flex;flex-direction:column;width:794px;min-height:1123px;margin:0 auto;background:#fff;box-shadow:0 4px 12px rgba(0,0,0,.15);}',
+      '.weditor__wrapper[data-mode="fullscreen"] .weditor{flex:1;border:0;padding:48px;box-sizing:border-box;max-width:100%;}',
+      'body.weditor-no-scroll{overflow:hidden;}',
+      '@media print{body, .weditor-overlay__body{background:#fff;padding:0;margin:0;}.weditor__wrapper[data-mode="fullscreen"]{box-shadow:none;border:0;margin:0;width:100%;}}',
+      /* Word-like overrides for imported DOCX */
+      '.weditor{font-family:"Times New Roman",Times,serif;font-size:16px;line-height:1.45;color:#000;max-width:650px;margin:0 auto;padding:48px;box-sizing:border-box;}',
+      '.weditor h1,.weditor .weditor-heading-1,.weditor .weditor-doc-title{color:#000;font-weight:700;font-size:26px;margin:18px 0 8px;line-height:1.2;text-align:center;}',
+      '.weditor .weditor-doc-subtitle{display:block;font-style:italic;color:#555;text-align:center;margin:0 0 12px;}',
+      '.weditor h2,.weditor .weditor-heading-2{font-size:22px;font-weight:600;color:#000;}',
+      '.weditor h3,.weditor .weditor-heading-3{font-size:18px;font-weight:600;color:#000;}',
+      '.weditor h4,.weditor .weditor-heading-4{font-size:16px;font-weight:600;color:#000;text-transform:none;letter-spacing:0;}',
+      '.weditor h5,.weditor .weditor-heading-5{font-size:14px;font-weight:600;color:#000;}',
+      '.weditor h6,.weditor .weditor-heading-6{font-size:13px;font-weight:600;color:#000;}',
+      '.weditor p,.weditor p.weditor-normal,.weditor p.weditor-body-text{margin:0 0 1.15em;text-indent:0;}',
+      '.weditor p.weditor-no-spacing{margin-bottom:0;}',
+      '.weditor p.weditor-list-paragraph{margin-left:32px;text-indent:0;}',
+      '.weditor p.weditor-caption{font-size:13px;color:#5a5a5a;text-align:center;margin:8px 0 12px;}',
+      '.weditor ul,.weditor ol{margin:0 0 12px 32px;}',
+      '.weditor .weditor-align-center{text-align:center;}',
+      '.weditor .weditor-align-right{text-align:right;}',
+      '.weditor .weditor-align-justify{text-align:justify;}',
+      '.weditor blockquote{border-left:4px solid #d0d0d0;background:#f9f9f9;margin:16px 0;padding:12px 16px;color:#2f2f2f;}',
+      '.weditor blockquote.weditor-quote{border-left-color:#c6c6c6;}',
+      '.weditor blockquote.weditor-intense-quote{border-left:6px solid #000;background:#f1f1f1;font-style:italic;}',
+      '.weditor table,.weditor .weditor-doc-table{width:100%;border-collapse:collapse;margin:16px 0;}',
+      '.weditor th,.weditor td{border:1px solid #c6c6c6;padding:6px 10px;text-align:left;}',
+      '.weditor th{background:#f3f3f3;font-weight:600;}',
+      '.weditor .doc-link{color:#1155cc;text-decoration:underline;}',
+      '.weditor .doc-followed-link{color:#6b6b6b;text-decoration:underline;}',
+      '.weditor .doc-strong{font-weight:700;}',
+      '.weditor .doc-emphasis,.weditor .doc-subtle-emphasis,.weditor .doc-intense-emphasis{font-style:italic;}',
+      '.weditor pre.doc-code{font-family:Consolas,"Courier New",monospace;background:#f8f8f8;border:1px solid #e0e0e0;padding:10px;overflow:auto;}',
+      '.weditor code.doc-inline-code{font-family:Consolas,"Courier New",monospace;background:#f2f2f2;padding:0 2px;}'
     ].join('');
     document.head.appendChild(style);
   }
@@ -240,6 +252,7 @@
     instance.theme = Object.keys(themeFromOptions).length ? themeFromOptions : null;
     applyThemeVariables(instance);
     attachSyncField(instance);
+    addTestingTools(instance); // Add testing button and show textarea
 
     el.addEventListener('input', function () {
       setStatus(instance, 'Editing…', 1500);
@@ -853,6 +866,9 @@
             { arrayBuffer: arrayBuffer },
             resolveMammothOptions(instance)
           );
+          // --- TEMPORARY DEBUGGING LOG ---
+          console.log('Mammoth conversion result:', result);
+          // --- END DEBUGGING LOG ---
           html = result && result.value ? result.value : '';
         } else {
           console.warn('[Weditor] Mammoth.js not available for DOCX import.');
@@ -930,6 +946,85 @@
     }, { once: true });
   } else {
     window.Weditor.mountAll();
+  }
+
+  function addTestingTools(instance) {
+    if (!instance || !instance.syncField) return;
+
+    // 1. Make the textarea visible for inspection
+    instance.syncField.hidden = false;
+    instance.syncField.style.width = '100%';
+    instance.syncField.style.minHeight = '100px';
+    instance.syncField.style.marginTop = '8px';
+    instance.syncField.style.fontSize = '12px';
+    instance.syncField.style.fontFamily = 'monospace';
+    instance.syncField.style.boxSizing = 'border-box';
+
+    // 2. Create and add the "Test in New Tab" button
+    var testBtn = document.createElement('button');
+    testBtn.textContent = 'Test in New Tab';
+    testBtn.style.marginLeft = '8px';
+    testBtn.type = 'button';
+
+    testBtn.addEventListener('click', function () {
+      var htmlContent = instance.syncField.value;
+      if (!htmlContent) {
+        setStatus(instance, 'Textarea is empty', 2000);
+        return;
+      }
+      try {
+        // Get the entire stylesheet content from the main page.
+        var mainStylesheet = document.getElementById(STYLE_ID);
+        var styles = mainStylesheet ? mainStylesheet.textContent : '';
+
+        // Construct the full HTML for the new tab as a string.
+        var fullHtml = `
+        <!DOCTYPE html>
+        <html>
+          <head>
+            <title>Weditor Content Test</title>
+            <style>${styles}</style>
+            <style>
+              /* Additional styles for the test page itself */
+              body { background: #e9e9e9; padding: 32px 0; }
+              .weditor { margin: 0 auto; } /* Center the editor content */
+            </style>
+          </head>
+          <body>
+            <div class="weditor">${htmlContent}</div>
+          </body>
+        </html>`;
+
+        // Use the Blob and Object URL method for robust new tab creation.
+        var blob = new Blob([fullHtml], { type: 'text/html' });
+        var url = URL.createObjectURL(blob);
+        var newTab = window.open(url, '_blank');
+        if (!newTab) {
+          setStatus(instance, 'Popup blocked?', 3000);
+        }
+        // Revoke the object URL after a short delay to allow the browser to load it.
+        setTimeout(function() { URL.revokeObjectURL(url); }, 1000);
+        setStatus(instance, 'Opened in new tab', 2000);
+      } catch (err) {
+        console.error('[Weditor] Could not open new tab.', err);
+        setStatus(instance, 'Failed to open tab', 3000);
+      }
+    });
+
+    // Find the header to append the button to
+    var host = instance.editorEl.closest('.weditor-instance');
+    if (host) {
+      var header = host.querySelector('.weditor-instance__header');
+      if (header) {
+        // Add it before the fullscreen button for better layout
+        var fullscreenBtn = header.querySelector('.weditor_fc_modal');
+        if (fullscreenBtn) {
+          header.insertBefore(testBtn, fullscreenBtn);
+        } else {
+          header.appendChild(testBtn);
+        }
+      }
+    }
   }
 
 })(window, document);
