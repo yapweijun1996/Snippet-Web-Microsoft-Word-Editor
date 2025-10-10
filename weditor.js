@@ -930,7 +930,7 @@
     var defaults = {
       paper: 'A4',
       orientation: 'portrait',
-      margin: 25.4,
+      margin: 31.7,
       widthMM: 210,
       heightMM: 297,
       lineHeight: 1.45,
@@ -1073,6 +1073,8 @@
       applyPageLayout(instance);
       // new: try to infer base typography (font, size, line-height) from imported HTML
       inferAndApplyTypography(instance);
+      initializeFontMetrics();
+      applyWordTypography(instance.editorEl);
       pushEditorToField(instance);
       setStatus(instance, 'Loaded ' + file.name, 4000);
       focusInstance(instance);
@@ -1080,6 +1082,37 @@
       console.error('[Weditor] Import failed', err);
       setStatus(instance, 'Import failed', 4000);
     }
+  }
+  function initializeFontMetrics() {
+    if ('fonts' in document) {
+      document.fonts.ready.then(function() {
+        // 确保中文字体正确加载
+        const chineseFonts = ['宋体', 'SimSun', '微软雅黑', 'Microsoft YaHei'];
+        chineseFonts.forEach(font => {
+          document.fonts.load(`12px "${font}"`);
+        });
+      });
+    }
+  }
+
+  // 应用Word精确的排版规则
+  function applyWordTypography(element) {
+    // 字符间距标准化
+    const textNodes = element.querySelectorAll('*');
+    textNodes.forEach(node => {
+      if (node.nodeType === Node.TEXT_NODE && node.textContent.trim()) {
+        // 确保标点符号正确间距
+        node.textContent = node.textContent.replace(/([，。！？；：])([^，。！？；：\s])/g, '$1 $2');
+      }
+    });
+    
+    // 段落首行缩进标准化
+    const paragraphs = element.querySelectorAll('p');
+    paragraphs.forEach(p => {
+      if (!p.style.textIndent && !p.querySelector('ul, ol, table, blockquote')) {
+        p.style.textIndent = '2em';
+      }
+    });
   }
 
   function resolveInstance(target) {
