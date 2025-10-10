@@ -375,6 +375,131 @@
     }
   }
 
+  function attachSyncField(instance) {
+    if (!instance || !instance.editorEl) return;
+    var field = findSyncField(instance);
+    if (!field) return;
+
+    instance.syncField = field;
+    if (field._weditorCreated && !field.hasAttribute('data-weditor-visible')) {
+      field.hidden = true;
+      field.setAttribute('aria-hidden', 'true');
+    }
+    field.classList.add('weditor__field');
+    field.setAttribute('data-weditor-bound', 'true');
+
+    if (field.value && field.value.trim()) {
+      instance.editorEl.innerHTML = field.value;
+    } else {
+      pushEditorToField(instance);
+    }
+
+    var syncFromField = function () {
+      if (!instance.syncField) return;
+      if (document.activeElement !== field) return;
+      instance.editorEl.innerHTML = field.value ? field.value : defaultEmpty();
+    };
+    field.addEventListener('input', syncFromField);
+    field.addEventListener('change', syncFromField);
+
+    if (field.form && !formSyncRegistry.has(field.form)) {
+      formSyncRegistry.add(field.form);
+      field.form.addEventListener('submit', function () {
+        syncAllToFields();
+      });
+    }
+  }
+
+  function findSyncField(instance) {
+    var editor = instance && instance.editorEl ? instance.editorEl : null;
+    if (!editor) return null;
+    var selector = editor.getAttribute('data-weditor-field');
+    var field = null;
+
+    if (selector) {
+      try {
+        field = document.querySelector(selector);
+      } catch (err) {
+        console.warn('[Weditor] Unable to resolve data-weditor-field selector:', selector, err);
+      }
+      if (!field) {
+        try {
+          field = instance.wrapper.querySelector(selector);
+        } catch (_) {
+          // ignore
+        }
+      }
+    }
+
+    if (field && field.tagName !== 'TEXTAREA') {
+      field = null;
+    }
+
+    if (!field) {
+      var host = editor.closest('[data-editor]') || instance.wrapper;
+      if (host) {
+        field = host.querySelector('textarea[data-weditor-source], textarea[data-weditor-storage], textarea[data-role="weditor-source"]');
+      }
+    }
+
+    if (!field) {
+      var sibling = editor.nextElementSibling;
+      while (sibling) {
+        if (sibling.tagName === 'TEXTAREA') {
+          field = sibling;
+          break;
+        }
+        sibling = sibling.nextElementSibling;
+      }
+    }
+
+    if (!field) {
+      var nameAttr = editor.getAttribute('data-weditor-name');
+      if (nameAttr) {
+        field = document.createElement('textarea');
+        field.name = nameAttr;
+        field._weditorCreated = true;
+        instance.wrapper.appendChild(field);
+      }
+    }
+
+    return field && field.tagName === 'TEXTAREA' ? field : null;
+  }
+
+  function scheduleFieldSync(instance) {
+    if (!instance || !instance.syncField) return;
+    if (instance.syncTimer) {
+      clearTimeout(instance.syncTimer);
+    }
+    instance.syncTimer = window.setTimeout(function () {
+      instance.syncTimer = null;
+      pushEditorToField(instance);
+    }, 120);
+  }
+
+  function pushEditorToField(instance) {
+    if (!instance || !instance.syncField || !instance.editorEl) return;
+    var html = instance.editorEl.innerHTML || '';
+    instance.syncField.value = hasMeaningfulContent(html) ? html : '';
+  }
+
+  function syncAllToFields() {
+    for (var i = 0; i < registry.length; i++) {
+      pushEditorToField(registry[i]);
+    }
+  }
+
+  function hasMeaningfulContent(html) {
+    if (!html) return false;
+    var stripped = String(html)
+      .replace(/<style[\s\S]*?<\/style>/gi, '')
+      .replace(/<script[\s\S]*?<\/script>/gi, '')
+      .replace(/<\/?[^>]+>/g, '')
+      .replace(/&nbsp;/gi, ' ')
+      .trim();
+    return stripped.length > 0;
+  }
+
   function executeFormattingCommand(instance, command, value, statusText) {
     if (!instance || !command) return;
     focusInstance(instance);
@@ -391,6 +516,7 @@
     try {
       document.execCommand(command, false, value);
       setStatus(instance, statusText || command, 1500);
+      scheduleFieldSync(instance);
     } catch (err) {
       console.warn('[Weditor] Command failed:', command, err);
       setStatus(instance, 'Command failed', 2000);
@@ -438,6 +564,7 @@
     try {
       document.execCommand('insertHTML', false, temp.innerHTML);
       setStatus(instance, 'Inserted table', 1600);
+      scheduleFieldSync(instance);
     } catch (err) {
       console.warn('[Weditor] Table insert failed', err);
       setStatus(instance, 'Table insert failed', 2000);
@@ -737,6 +864,7 @@
         html = await file.text();
       }
       instance.editorEl.innerHTML = html || defaultEmpty();
+      pushEditorToField(instance);
       setStatus(instance, 'Loaded ' + file.name, 4000);
       focusInstance(instance);
     } catch (err) {
