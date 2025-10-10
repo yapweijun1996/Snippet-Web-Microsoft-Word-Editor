@@ -501,7 +501,61 @@
   }
 
   // Override open to perform: ensure assets + inject DOM + delay-load scripts + open + set content
-  var prevOpen = window.WEditor.open;
+  function ensureInlineStyle(){
+  var id='weditor_inlineStyle';
+  if (document.getElementById(id)) return;
+  var st=document.createElement('style');
+  st.id=id;
+  st.textContent = [
+    '.weditor_inline-host{display:block;}',
+    '.weditor_inline-host .weditor_editor-shell{height:100%;border-radius:6px;box-shadow:none;}',
+    '.weditor_inline-host .weditor_canvas{padding:20px 0 20px;background:#f7f7f7;}',
+    '.weditor_inline-host .weditor_page-wrap{margin:0;}',
+    '.weditor_inline-host .weditor_status{position:static;}'
+  ].join('');
+  (document.head||document.documentElement).appendChild(st);
+}
+
+function mountInline(host){
+  try{
+    var modal = document.getElementById('weditor_editorModal');
+    if(!modal) return;
+    var shell = modal.querySelector('.weditor_editor-shell');
+    if(!shell) return;
+    host.classList.add('weditor_inline-host');
+    try {
+      if (getComputedStyle(host).position === 'static') host.style.position = 'relative';
+      if (!host.style.height) host.style.height = host.style.height || '100%';
+      if (!host.style.width) host.style.width = host.style.width || '100%';
+      if (!host.style.overflow) host.style.overflow = 'auto';
+    } catch(_) {}
+    if (shell.parentElement !== host){
+      // clear visual placeholder; actual content is copied into editor area separately
+      host.innerHTML = '';
+      host.appendChild(shell);
+    }
+    shell.style.height = '100%';
+  }catch(e){ console.warn('[WEditor] mountInline failed', e); }
+}
+
+function unmountToModal(){
+  try{
+    var modal = document.getElementById('weditor_editorModal');
+    if(!modal) return;
+    var shell = document.querySelector('.weditor_editor-shell');
+    if(!shell) return;
+    if (shell.parentElement !== modal){
+      modal.appendChild(shell);
+    }
+  }catch(e){ console.warn('[WEditor] unmountToModal failed', e); }
+}
+
+// expose helpers for other patches
+window.WEditor._ensureInlineStyle = ensureInlineStyle;
+window.WEditor._mountInline = mountInline;
+window.WEditor._unmountToModal = unmountToModal;
+
+var prevOpen = window.WEditor.open;
   window.WEditor.open = async function (index) {
     try {
       var pairs = (window.WEditor.list && window.WEditor.list()) || [];
@@ -518,6 +572,10 @@
       await loadEditorScriptsOnce();
 
       if (typeof window.openEditorModal === 'function') {
+        if (!window.WEditor._loadDispatched) {
+          try { window.dispatchEvent(new Event('load')); } catch (e) {}
+          window.WEditor._loadDispatched = true;
+        }
         window.openEditorModal();
       } else {
         // Fallback: try the previous stub if exists
