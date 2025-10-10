@@ -150,6 +150,23 @@
     attachSyncField(instance);
     addTestingTools(instance);
     makeImagesResizable(instance.editorEl);
+    setupContextMenu(instance);
+
+    // Ensure any clicked/pasted images become resizable (中文解释: 点击或粘贴的图片自动加上缩放句柄)
+    el.addEventListener('click', function (ev) {
+      var target = ev.target;
+      if (target && target.tagName === 'IMG' && !target.classList.contains('resizable')) {
+        addResizeHandles(target);
+      }
+    });
+
+    el.addEventListener('paste', function () {
+      // Defer to allow DOM update after paste (中文解释: 等待粘贴完成再处理DOM)
+      setTimeout(function () {
+        makeImagesResizable(instance.editorEl);
+        scheduleFieldSync(instance);
+      }, 0);
+    });
 
     el.addEventListener('input', function () {
       setStatus(instance, 'Editing…', 1500);
@@ -464,23 +481,48 @@
   }
 
   function insertImage(instance) {
-    var url = prompt('Enter image URL:');
-    if (!url) return;
-    focusInstance(instance);
-    try {
-      document.execCommand('insertImage', false, url);
-      setStatus(instance, 'Image inserted', 1500);
-      scheduleFieldSync(instance);
-      setTimeout(function() {
-        var insertedImage = instance.editorEl.querySelector('img[src="' + url + '"]:not(.resizable)');
-        if (insertedImage) {
-          addResizeHandles(insertedImage);
-        }
-      }, 100);
-    } catch (err) {
-      console.warn('[Weditor] Image insert failed', err);
-      setStatus(instance, 'Image insert failed', 2000);
-    }
+    var input = document.createElement('input');
+    input.type = 'file';
+    input.accept = 'image/*';
+    input.style.display = 'none';
+
+    input.addEventListener('change', function () {
+      if (input.files && input.files[0]) {
+        var file = input.files[0];
+        var reader = new FileReader();
+
+        reader.onload = function (e) {
+          var dataUrl = e.target.result;
+          focusInstance(instance);
+          try {
+            document.execCommand('insertImage', false, dataUrl);
+            setStatus(instance, 'Image inserted', 1500);
+            scheduleFieldSync(instance);
+            setTimeout(function() {
+              // Find the newly inserted image to make it resizable.
+              var insertedImage = instance.editorEl.querySelector('img[src^="data:"]:not(.resizable)');
+              if (insertedImage) {
+                addResizeHandles(insertedImage);
+              }
+            }, 100);
+          } catch (err) {
+            console.warn('[Weditor] Image insert failed', err);
+            setStatus(instance, 'Image insert failed', 2000);
+          }
+        };
+
+        reader.onerror = function () {
+          console.error('[Weditor] Failed to read file.');
+          setStatus(instance, 'Failed to read file', 2000);
+        };
+
+        reader.readAsDataURL(file);
+      }
+      document.body.removeChild(input);
+    });
+
+    document.body.appendChild(input);
+    input.click();
   }
 
   function makeImagesResizable(editor) {
@@ -516,6 +558,10 @@
       wrapper.appendChild(handle);
 
       handle.addEventListener('mousedown', function(e) {
+        // Ignore right-click to allow native/context menus (中文解释: 右键不参与缩放)
+        if (e && e.button === 2) {
+          return;
+        }
         e.preventDefault();
         e.stopPropagation();
         startResize(e, img, corner);
@@ -551,6 +597,98 @@
 
     document.addEventListener('mousemove', resize);
     document.addEventListener('mouseup', stopResize);
+  }
+
+  function setupContextMenu(instance) {
+    var menu = null;
+    var currentTarget = null;
+
+    function createMenu() {
+      if (menu) return;
+      menu = document.createElement('div');
+      menu.className = 'weditor-context-menu';
+      menu.style.cssText = 'position:absolute;display:none;background:#fff;box-shadow:0 4px 12px rgba(0,0,0,.2);border-radius:6px;padding:6px;z-index:10001;min-width:150px;';
+      document.body.appendChild(menu);
+
+      document.addEventListener('click', function(e) {
+        if (menu && menu.style.display !== 'none' && !menu.contains(e.target)) {
+          hideMenu();
+        }
+      }, true);
+    }
+
+    function hideMenu() {
+      if (menu) {
+        menu.style.display = 'none';
+        menu.innerHTML = '';
+      }
+      currentTarget = null;
+    }
+
+    function showMenu(e) {
+      createMenu();
+      menu.style.display = 'block';
+      menu.style.top = e.clientY + 'px';
+      menu.style.left = e.clientX + 'px';
+    }
+    
+    function addMenuItem(label, onClick) {
+        var item = document.createElement('div');
+        item.textContent = label;
+        item.style.cssText = 'padding:6px 12px;cursor:pointer;font-size:14px;';
+        item.addEventListener('mouseenter', function() { item.style.backgroundColor = '#f0f0f0'; });
+        item.addEventListener('mouseleave', function() { item.style.backgroundColor = '#fff'; });
+        item.addEventListener('click', function(e) {
+            e.stopPropagation();
+            onClick();
+            hideMenu();
+        });
+        menu.appendChild(item);
+    }
+
+    instance.editorEl.addEventListener('contextmenu', function(e) {
+      // If the target is a resize handle, do nothing and allow default behavior.
+      if (e.target && e.target.classList && e.target.classList.contains('resize-handle')) {
+        return;
+      }
+
+      e.preventDefault();
+      hideMenu(); // Hide previous menu if any
+      currentTarget = e.target;
+      
+      var img = currentTarget.closest('img');
+      if (img && img.parentNode.style.position === 'relative') {
+        var imgWrapper = img.parentNode;
+        showMenu(e);
+        addMenuItem('Align Left', function() {
+            imgWrapper.style.float = 'left';
+            imgWrapper.style.display = 'inline-block';
+            imgWrapper.style.marginLeft = '';
+            imgWrapper.style.marginRight = '10px';
+            scheduleFieldSync(instance);
+        });
+        addMenuItem('Align Center', function() {
+            imgWrapper.style.float = 'none';
+            imgWrapper.style.display = 'block';
+            imgWrapper.style.marginLeft = 'auto';
+            imgWrapper.style.marginRight = 'auto';
+            scheduleFieldSync(instance);
+        });
+        addMenuItem('Align Right', function() {
+            imgWrapper.style.float = 'right';
+            imgWrapper.style.display = 'inline-block';
+            imgWrapper.style.marginLeft = '10px';
+            imgWrapper.style.marginRight = '';
+            scheduleFieldSync(instance);
+        });
+      } else {
+        // Placeholder for general context menu
+        showMenu(e);
+        addMenuItem('Copy', function() { document.execCommand('copy'); });
+        addMenuItem('Paste', function() { document.execCommand('paste'); });
+        addMenuItem('Cut', function() { document.execCommand('cut'); });
+      }
+    });
   }
 
   function deriveTitle(instance) {
