@@ -13,50 +13,50 @@
   var lastOptions = DEFAULTS;
   var DEFAULT_MAMMOTH_STYLE_MAP = [
     // Most aggressive generic rules - catch everything
-    "h1 => h1[style='font-size:28px; font-weight:700; color:#000; margin:24px 0 12px; line-height:1.2; text-align:center; font-family:\"Times New Roman\", Times, serif;']",
-    "h2 => h2[style='font-size:24px; font-weight:600; color:#000; margin:20px 0 10px; line-height:1.3; font-family:\"Times New Roman\", Times, serif;']",
-    "h3 => h3[style='font-size:20px; font-weight:600; color:#000; margin:18px 0 9px; line-height:1.3; font-family:\"Times New Roman\", Times, serif;']",
-    "h4 => h4[style='font-size:18px; font-weight:600; color:#000; margin:16px 0 8px; line-height:1.3; font-family:\"Times New Roman\", Times, serif;']",
-    "h5 => h5[style='font-size:16px; font-weight:600; color:#000; margin:14px 0 7px; line-height:1.3; font-family:\"Times New Roman\", Times, serif;']",
-    "h6 => h6[style='font-size:14px; font-weight:600; color:#000; margin:12px 0 6px; line-height:1.3; font-family:\"Times New Roman\", Times, serif;']",
-    "p => p[style='margin:0 0 1.15em; font-family:\"Times New Roman\", Times, serif; font-size:16px; line-height:1.45; color:#000;']",
-    "strong => strong[style='font-weight:700; font-family:\"Times New Roman\", Times, serif;']",
-    "em => em[style='font-style:italic; font-family:\"Times New Roman\", Times, serif;']",
+    "h1 => h1",
+    "h2 => h2",
+    "h3 => h3",
+    "h4 => h4",
+    "h5 => h5",
+    "h6 => h6",
+    "p => p",
+    "strong => strong",
+    "em => em",
 
     // Specific style names as fallbacks
-    "p[style-name='Title'] => h1[style='font-size:30px; font-weight:600; color:#000; text-align:center; margin:12px 0 6px;']:fresh",
-    "p[style-name='title'] => h1[style='font-size:30px; font-weight:600; color:#000; text-align:center; margin:12px 0 6px;']:fresh",
-    "p[style-name='标题'] => h1[style='font-size:30px; font-weight:600; color:#000; text-align:center; margin:12px 0 6px;']:fresh",
-    "p[style-name='Subtitle'] => p[style='font-style:italic; color:#555; text-align:center; margin:0 0 16px;']:fresh",
-    "p[style-name='subtitle'] => p[style='font-style:italic; color:#555; text-align:center; margin:0 0 16px;']:fresh",
-    "p[style-name='副标题'] => p[style='font-style:italic; color:#555; text-align:center; margin:0 0 16px;']:fresh",
+    "p[style-name='Title'] => h1:fresh",
+    "p[style-name='title'] => h1:fresh",
+    "p[style-name='标题'] => h1:fresh",
+    "p[style-name='Subtitle'] => p.weditor-doc-subtitle:fresh",
+    "p[style-name='subtitle'] => p.weditor-doc-subtitle:fresh",
+    "p[style-name='副标题'] => p.weditor-doc-subtitle:fresh",
 
     // Headings 1-9 (EN + CN) - Inline Styles
-    "p[style-name='Heading 1'] => h1[style='font-size:26px; font-weight:700; color:#000; margin:18px 0 8px; line-height:1.2;']:fresh",
-    "p[style-name='Heading1'] => h1[style='font-size:26px; font-weight:700; color:#000; margin:18px 0 8px; line-height:1.2;']:fresh",
-    "p[style-name='标题 1'] => h1[style='font-size:26px; font-weight:700; color:#000; margin:18px 0 8px; line-height:1.2;']:fresh",
-    "p[style-name='Heading 2'] => h2[style='font-size:22px; font-weight:600; color:#000; margin:18px 0 8px; line-height:1.2;']:fresh",
-    "p[style-name='Heading2'] => h2[style='font-size:22px; font-weight:600; color:#000; margin:18px 0 8px; line-height:1.2;']:fresh",
-    "p[style-name='标题 2'] => h2[style='font-size:22px; font-weight:600; color:#000; margin:18px 0 8px; line-height:1.2;']:fresh",
-    "p[style-name='Heading 3'] => h3[style='font-size:18px; font-weight:600; color:#000; margin:18px 0 8px; line-height:1.2;']:fresh",
-    "p[style-name='Heading3'] => h3[style='font-size:18px; font-weight:600; color:#000; margin:18px 0 8px; line-height:1.2;']:fresh",
-    "p[style-name='标题 3'] => h3[style='font-size:18px; font-weight:600; color:#000; margin:18px 0 8px; line-height:1.2;']:fresh",
-    "p[style-name='Heading 4'] => h4[style='font-size:16px; font-weight:600; color:#000; margin:18px 0 8px; line-height:1.2;']:fresh",
-    "p[style-name='Heading4'] => h4[style='font-size:16px; font-weight:600; color:#000; margin:18px 0 8px; line-height:1.2;']:fresh",
-    "p[style-name='标题 4'] => h4[style='font-size:16px; font-weight:600; color:#000; margin:18px 0 8px; line-height:1.2;']:fresh",
-    "p[style-name='Heading 5'] => h5[style='font-size:14px; font-weight:600; color:#000; margin:18px 0 8px; line-height:1.2;']:fresh",
-    "p[style-name='Heading5'] => h5[style='font-size:14px; font-weight:600; color:#000; margin:18px 0 8px; line-height:1.2;']:fresh",
-    "p[style-name='标题 5'] => h5[style='font-size:14px; font-weight:600; color:#000; margin:18px 0 8px; line-height:1.2;']:fresh",
-    "p[style-name='Heading 6'] => h6[style='font-size:13px; font-weight:600; color:#000; margin:18px 0 8px; line-height:1.2;']:fresh",
-    "p[style-name='Heading6'] => h6[style='font-size:13px; font-weight:600; color:#000; margin:18px 0 8px; line-height:1.2;']:fresh",
-    "p[style-name='标题 6'] => h6[style='font-size:13px; font-weight:600; color:#000; margin:18px 0 8px; line-height:1.2;']:fresh",
+    "p[style-name='Heading 1'] => h1:fresh",
+    "p[style-name='Heading1'] => h1:fresh",
+    "p[style-name='标题 1'] => h1:fresh",
+    "p[style-name='Heading 2'] => h2:fresh",
+    "p[style-name='Heading2'] => h2:fresh",
+    "p[style-name='标题 2'] => h2:fresh",
+    "p[style-name='Heading 3'] => h3:fresh",
+    "p[style-name='Heading3'] => h3:fresh",
+    "p[style-name='标题 3'] => h3:fresh",
+    "p[style-name='Heading 4'] => h4:fresh",
+    "p[style-name='Heading4'] => h4:fresh",
+    "p[style-name='标题 4'] => h4:fresh",
+    "p[style-name='Heading 5'] => h5:fresh",
+    "p[style-name='Heading5'] => h5:fresh",
+    "p[style-name='标题 5'] => h5:fresh",
+    "p[style-name='Heading 6'] => h6:fresh",
+    "p[style-name='Heading6'] => h6:fresh",
+    "p[style-name='标题 6'] => h6:fresh",
 
     // APA/Academic Style Names
-    "p[style-name='Heading Level 1'] => h1[style='font-size:26px; font-weight:700; color:#000; margin:18px 0 8px; line-height:1.2; text-align:center;']:fresh",
-    "p[style-name='Heading Level 2'] => h2[style='font-size:22px; font-weight:600; color:#000; margin:18px 0 8px; line-height:1.2;']:fresh",
-    "p[style-name='Heading Level 3'] => h3[style='font-size:18px; font-weight:600; color:#000; margin:18px 0 8px; line-height:1.2;']:fresh",
-    "p[style-name='Heading Level 4'] => h4[style='font-size:16px; font-weight:600; color:#000; margin:18px 0 8px; line-height:1.2;']:fresh",
-    "p[style-name='Heading Level 5'] => h5[style='font-size:14px; font-weight:600; color:#000; margin:18px 0 8px; line-height:1.2;']:fresh",
+    "p[style-name='Heading Level 1'] => h1:fresh",
+    "p[style-name='Heading Level 2'] => h2:fresh",
+    "p[style-name='Heading Level 3'] => h3:fresh",
+    "p[style-name='Heading Level 4'] => h4:fresh",
+    "p[style-name='Heading Level 5'] => h5:fresh",
     "p[style-name='Abstract'] => p[style='margin:0 0 1.15em;']",
 
     // Normal / Body / Spacing (EN + CN) - Inline Styles
@@ -88,11 +88,11 @@
     "p[style-name='题注'] => p[style='font-size:13px; color:#5a5a5a; text-align:center; margin:8px 0 12px;']",
 
     // Character styles (for inline headings and emphasis)
-    "r[style-name='Heading 1 Char'] => strong[style='font-size:26px; font-weight:700; color:#000;']",
-    "r[style-name='Heading 2 Char'] => strong[style='font-size:22px; font-weight:600; color:#000;']",
-    "r[style-name='Heading 3 Char'] => strong[style='font-size:18px; font-weight:600; color:#000;']",
-    "r[style-name='Heading 4 Char'] => strong[style='font-size:16px; font-weight:600; color:#000;']",
-    "r[style-name='Heading 5 Char'] => strong[style='font-size:14px; font-weight:600; color:#000;']",
+    "r[style-name='Heading 1 Char'] => strong",
+    "r[style-name='Heading 2 Char'] => strong",
+    "r[style-name='Heading 3 Char'] => strong",
+    "r[style-name='Heading 4 Char'] => strong",
+    "r[style-name='Heading 5 Char'] => strong",
     "r[style-name='Hyperlink'] => a",
     "r[style-name='Emphasis'] => em",
     "r[style-name='Strong'] => strong",
@@ -146,20 +146,20 @@
       '.weditor-overlay__close{border:1px solid #999;background:#f7f7f7;padding:4px 12px;cursor:pointer;}',
       '.weditor-overlay__close:hover{background:#ececec;}',
       '.weditor-overlay__body{flex:1;overflow-y:auto;background:#e9e9e9;padding:32px 0;}',
-      '.weditor__wrapper[data-mode="fullscreen"]{display:flex;flex-direction:column;width:794px;min-height:1123px;margin:0 auto;background:#fff;box-shadow:0 4px 12px rgba(0,0,0,.15);}',
-      '.weditor__wrapper[data-mode="fullscreen"] .weditor{flex:1;border:0;padding:48px;box-sizing:border-box;max-width:100%;}',
+      '.weditor__wrapper[data-mode="fullscreen"]{display:flex;flex-direction:column;width:var(--weditor-page-width,210mm);min-height:var(--weditor-page-height,297mm);margin:0 auto;background:#fff;box-shadow:0 4px 12px rgba(0,0,0,.15);}',
+      '.weditor__wrapper[data-mode="fullscreen"] .weditor{flex:1;border:0;padding:var(--weditor-page-margin,25.4mm);box-sizing:border-box;max-width:100%;}',
       'body.weditor-no-scroll{overflow:hidden;}',
       '@media print{body, .weditor-overlay__body{background:#fff;padding:0;margin:0;}.weditor__wrapper[data-mode="fullscreen"]{box-shadow:none;border:0;margin:0;width:100%;}}',
       /* Word-like overrides for imported DOCX */
-      '.weditor{font-family:"Times New Roman",Times,serif;font-size:16px;line-height:1.45;color:#000;max-width:650px;margin:0 auto;padding:48px;box-sizing:border-box;}',
-      '.weditor h1,.weditor .weditor-heading-1,.weditor .weditor-doc-title{color:#000;font-weight:700;font-size:26px;margin:18px 0 8px;line-height:1.2;text-align:center;}',
+      '.weditor{font-family:var(--weditor-font, inherit);font-size:var(--weditor-font-size,16px);line-height:var(--weditor-line-height,1.45);color:inherit;width:var(--weditor-page-width,210mm);max-width:unset;margin:0 auto;padding:var(--weditor-page-margin,25.4mm);box-sizing:border-box;background:#fff;box-shadow:0 0 5px rgba(0,0,0,.15);}',
+      '.weditor h1,.weditor .weditor-heading-1,.weditor .weditor-doc-title{color:inherit;font-weight:700;margin:18px 0 8px;line-height:1.2;}',
       '.weditor .weditor-doc-subtitle{display:block;font-style:italic;color:#555;text-align:center;margin:0 0 12px;}',
-      '.weditor h2,.weditor .weditor-heading-2{font-size:22px;font-weight:600;color:#000;}',
-      '.weditor h3,.weditor .weditor-heading-3{font-size:18px;font-weight:600;color:#000;}',
-      '.weditor h4,.weditor .weditor-heading-4{font-size:16px;font-weight:600;color:#000;text-transform:none;letter-spacing:0;}',
-      '.weditor h5,.weditor .weditor-heading-5{font-size:14px;font-weight:600;color:#000;}',
-      '.weditor h6,.weditor .weditor-heading-6{font-size:13px;font-weight:600;color:#000;}',
-      '.weditor p,.weditor p.weditor-normal,.weditor p.weditor-body-text{margin:0 0 1.15em;text-indent:0;}',
+      '.weditor h2,.weditor .weditor-heading-2{font-weight:600;color:inherit;}',
+      '.weditor h3,.weditor .weditor-heading-3{font-weight:600;color:inherit;}',
+      '.weditor h4,.weditor .weditor-heading-4{font-weight:600;color:inherit;text-transform:none;letter-spacing:0;}',
+      '.weditor h5,.weditor .weditor-heading-5{font-weight:600;color:inherit;}',
+      '.weditor h6,.weditor .weditor-heading-6{font-weight:600;color:inherit;}',
+      '.weditor p,.weditor p.weditor-normal,.weditor p.weditor-body-text{margin:0 0 1.15em;text-indent:var(--weditor-first-line-indent,0);}',
       '.weditor p.weditor-no-spacing{margin-bottom:0;}',
       '.weditor p.weditor-list-paragraph{margin-left:32px;text-indent:0;}',
       '.weditor p.weditor-caption{font-size:13px;color:#5a5a5a;text-align:center;margin:8px 0 12px;}',
@@ -183,10 +183,20 @@
     document.head.appendChild(style);
   }
 
+  function ensurePrintStyle() {
+    if (document.getElementById('weditor-lite-print')) return;
+    var st = document.createElement('style');
+    st.id = 'weditor-lite-print';
+    // default to 1 inch margins; will be updated per-instance by applyPageLayout()
+    st.textContent = '@page { size: A4 portrait; margin: 25.4mm; }';
+    document.head.appendChild(st);
+  }
+
   function mountAll(options) {
     var opts = Object.assign({}, lastOptions, options || {});
     lastOptions = opts;
     ensureStyles();
+    ensurePrintStyle();
     var editors = document.querySelectorAll(opts.editorSelector);
     Array.prototype.forEach.call(editors, function (el) {
       mount(el, opts);
@@ -201,6 +211,7 @@
     if (existing) return existing;
 
     ensureStyles();
+    ensurePrintStyle();
     var instance = createInstance(el, options || lastOptions);
     if (!instance) return null;
 
@@ -262,6 +273,7 @@
     }
     instance.theme = Object.keys(themeFromOptions).length ? themeFromOptions : null;
     applyThemeVariables(instance);
+    applyPageLayout(instance);
     attachSyncField(instance);
     addTestingTools(instance); // Add testing button and show textarea
 
@@ -834,6 +846,176 @@
     });
   }
 
+  function getPaperDims(paper) {
+    var map = { A4: { w: 210, h: 297 } };
+    return map[paper] || map.A4;
+  }
+
+  // parse dimension string to mm; supports "mm", "in" or plain number (assumed mm)
+  function parseDimMM(raw, fallback) {
+    try {
+      if (!raw) return fallback;
+      var s = String(raw).trim().toLowerCase();
+      if (!s) return fallback;
+      if (s.endsWith('in')) return Math.max(0, parseFloat(s) * 25.4) || fallback;
+      if (s.endsWith('mm')) return Math.max(0, parseFloat(s)) || fallback;
+      var n = parseFloat(s);
+      return isNaN(n) ? fallback : Math.max(0, n);
+    } catch (_) { return fallback; }
+  }
+
+  // parse font-size allowing pt/px/em/rem numbers or strings; returns CSS value or fallback
+  function parseFontSize(raw, fallback) {
+    try {
+      if (!raw) return fallback;
+      var s = String(raw).trim().toLowerCase();
+      if (!s) return fallback;
+      if (/(pt|px|em|rem)$/.test(s)) return s;
+      var n = parseFloat(s);
+      if (isNaN(n)) return fallback;
+      return n + 'px';
+    } catch (_) { return fallback; }
+  }
+
+  // Heuristic: infer base font, font-size, (optional) line-height from imported HTML inline styles
+  function inferAndApplyTypography(instance) {
+    try {
+      var root = instance && instance.editorEl;
+      if (!root) return;
+
+      var ff = null, fs = null, lh = null;
+
+      // helper to parse style string
+      function pick(prop, style) {
+        var re = new RegExp(prop + '\\s*:\\s*([^;]+)', 'i');
+        var m = re.exec(style || '');
+        return m ? m[1].trim() : null;
+      }
+
+      // scan limited number of candidates to keep fast
+      var candidates = root.querySelectorAll('[style]');
+      var maxScan = Math.min(200, candidates.length);
+      for (var i = 0; i < maxScan && (!(ff && fs && lh)); i++) {
+        var style = candidates[i].getAttribute('style') || '';
+        if (!ff) {
+          var fam = pick('font-family', style);
+          if (fam) {
+            // normalize quotes
+            ff = fam.replace(/\s*,\s*/g, ', ').replace(/"{2,}/g, '"');
+          }
+        }
+        if (!fs) {
+          var fsz = pick('font-size', style);
+          if (fsz) fs = parseFontSize(fsz, null);
+        }
+        if (!lh) {
+          var lhv = pick('line-height', style);
+          if (lhv) {
+            // numeric -> as-is; else trust css value
+            var n = parseFloat(lhv);
+            lh = isNaN(n) ? lhv : String(Math.max(1, n));
+          }
+        }
+      }
+
+      // apply as CSS vars so our editor styles adopt them
+      if (ff) root.style.setProperty('--weditor-font', ff);
+      if (fs) root.style.setProperty('--weditor-font-size', fs);
+      if (lh) root.style.setProperty('--weditor-line-height', lh);
+    } catch (_) { /* noop */ }
+  }
+
+  function readLayoutAttributes(instance) {
+    var el = instance && instance.editorEl;
+    var defaults = {
+      paper: 'A4',
+      orientation: 'portrait',
+      margin: 25.4,
+      widthMM: 210,
+      heightMM: 297,
+      lineHeight: 1.45,
+      indentMM: 0,
+      font: null,
+      fontSize: null
+    };
+    if (!el) return defaults;
+
+    var paper = (el.getAttribute('data-weditor-paper') || defaults.paper).toUpperCase();
+    var orientation = (el.getAttribute('data-weditor-orientation') || defaults.orientation).toLowerCase();
+
+    var margin = parseDimMM(el.getAttribute('data-weditor-margin'), defaults.margin);
+
+    var dim = getPaperDims(paper);
+    var W = orientation === 'landscape' ? dim.h : dim.w;
+    var H = orientation === 'landscape' ? dim.w : dim.h;
+
+    var lhRaw = el.getAttribute('data-weditor-line-height');
+    var lineHeight = (lhRaw && !isNaN(parseFloat(lhRaw))) ? Math.max(1, parseFloat(lhRaw)) : defaults.lineHeight;
+
+    var indentRaw = el.getAttribute('data-weditor-first-line-indent') || el.getAttribute('data-weditor-indent');
+    var indentMM = parseDimMM(indentRaw, defaults.indentMM);
+
+    // new: base font + font-size
+    var font = (el.getAttribute('data-weditor-font') || '').trim() || null;
+    var fontSize = parseFontSize(el.getAttribute('data-weditor-font-size'), defaults.fontSize);
+
+    return {
+      paper: paper,
+      orientation: orientation,
+      margin: margin,
+      widthMM: W,
+      heightMM: H,
+      lineHeight: lineHeight,
+      indentMM: indentMM,
+      font: font,
+      fontSize: fontSize
+    };
+  }
+
+  function applyPageLayout(instance, layout) {
+    try {
+      layout = layout || readLayoutAttributes(instance);
+      var el = instance && instance.editorEl;
+      if (!el || !el.style) return;
+
+      // page metrics
+      el.style.setProperty('--weditor-page-width', layout.widthMM + 'mm');
+      el.style.setProperty('--weditor-page-height', layout.heightMM + 'mm');
+      el.style.setProperty('--weditor-page-margin', layout.margin + 'mm');
+
+      // typography
+      el.style.setProperty('--weditor-line-height', String(layout.lineHeight));
+      el.style.setProperty('--weditor-first-line-indent', layout.indentMM + 'mm');
+      if (layout.font) el.style.setProperty('--weditor-font', layout.font);
+      if (layout.fontSize) el.style.setProperty('--weditor-font-size', layout.fontSize);
+
+      // expose on wrapper for debugging
+      if (instance && instance.wrapper && instance.wrapper.dataset) {
+        instance.wrapper.dataset.page = layout.paper + ':' + layout.orientation;
+      }
+
+      // sync @page for print based on current instance layout
+      var st = document.getElementById('weditor-lite-print');
+      if (st) {
+        st.textContent = '@page { size: ' + layout.paper + ' ' + layout.orientation + '; margin: ' + layout.margin + 'mm; }';
+      }
+    } catch (_) {}
+  }
+
+  function ensureEmptyParagraphs(root) {
+    try {
+      var ps = root ? root.querySelectorAll('p') : null;
+      if (!ps) return;
+      for (var i = 0; i < ps.length; i++) {
+        var p = ps[i];
+        var stripped = p.innerHTML.replace(/<br\s*\/?>/gi, '').replace(/&nbsp;|\s+/gi, '').trim();
+        if (!stripped) {
+          p.innerHTML = '<br>';
+        }
+      }
+    } catch (_) {}
+  }
+
   function focusInstance(instance) {
     try {
       instance.editorEl.focus({ preventScroll: true });
@@ -887,6 +1069,10 @@
         html = await file.text();
       }
       instance.editorEl.innerHTML = html || defaultEmpty();
+      ensureEmptyParagraphs(instance.editorEl);
+      applyPageLayout(instance);
+      // new: try to infer base typography (font, size, line-height) from imported HTML
+      inferAndApplyTypography(instance);
       pushEditorToField(instance);
       setStatus(instance, 'Loaded ' + file.name, 4000);
       focusInstance(instance);
