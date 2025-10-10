@@ -9,6 +9,7 @@
   var registry = [];
   var editorMap = new WeakMap();
   var overlay = null;
+  var formSyncRegistry = new WeakSet();
   var lastOptions = DEFAULTS;
   var DEFAULT_MAMMOTH_STYLE_MAP = [
     "p[style-name='Title'] => h1.weditor-doc-title.weditor-align-center:fresh",
@@ -110,6 +111,24 @@
     "table header cell => th",
     "table cell => td"
   ];
+  var FONT_FAMILY_OPTIONS = [
+    { label: 'Font', value: '', placeholder: true },
+    { label: 'Default', value: 'Segoe UI, Calibri, "Helvetica Neue", Arial, sans-serif' },
+    { label: 'Calibri', value: 'Calibri' },
+    { label: 'Arial', value: 'Arial' },
+    { label: 'Times New Roman', value: 'Times New Roman' },
+    { label: 'Georgia', value: 'Georgia' },
+    { label: 'Verdana', value: 'Verdana' },
+    { label: 'Courier New', value: '"Courier New", Courier, monospace' }
+  ];
+  var FONT_SIZE_OPTIONS = [
+    { label: 'Size', value: '', placeholder: true },
+    { label: 'Normal (15px)', value: '3' },
+    { label: 'Small (12px)', value: '2' },
+    { label: 'Large (18px)', value: '4' },
+    { label: 'Heading (24px)', value: '5' },
+    { label: 'Display (32px)', value: '6' }
+  ];
 
   function ensureStyles() {
     if (document.getElementById(STYLE_ID)) return;
@@ -121,6 +140,8 @@
       '.weditor__toolbar{display:flex;flex-wrap:wrap;align-items:center;gap:6px;}',
       '.weditor__btn{border:1px solid #999;background:#f7f7f7;padding:4px 9px;cursor:pointer;font-size:13px;}',
       '.weditor__btn:hover{background:#ececec;}',
+      '.weditor__select{border:1px solid #999;background:#fff;padding:4px 6px;font-size:13px;cursor:pointer;}',
+      '.weditor__color{border:1px solid #999;background:#fff;padding:0;width:36px;height:26px;}',
       '.weditor__divider{width:1px;height:18px;background:#ccc;margin:0 4px;}',
       '.weditor-status{margin-left:auto;font-size:12px;color:#555;}',
       '.weditor__wrapper--active .weditor{outline:1px solid #4c7ae5;outline-offset:2px;}',
@@ -183,7 +204,9 @@
       index: -1,
       isFullscreen: false,
       extraStyleMap: [],
-      theme: null
+      theme: null,
+      syncField: null,
+      syncTimer: null
     };
 
     instance.wrapper.className = 'weditor__wrapper';
@@ -216,16 +239,18 @@
     }
     instance.theme = Object.keys(themeFromOptions).length ? themeFromOptions : null;
     applyThemeVariables(instance);
-    applyThemeVariables(instance);
+    attachSyncField(instance);
 
     el.addEventListener('input', function () {
       setStatus(instance, 'Editing…', 1500);
+      scheduleFieldSync(instance);
     });
     el.addEventListener('focus', function () {
       instance.wrapper.classList.add('weditor__wrapper--active');
     });
     el.addEventListener('blur', function () {
       instance.wrapper.classList.remove('weditor__wrapper--active');
+      pushEditorToField(instance);
     });
 
     return instance;
@@ -248,6 +273,10 @@
       { type: 'command', command: 'justifyRight', label: '⯈', title: 'Align right' },
       { type: 'command', command: 'justifyFull', label: '⯌', title: 'Justify' },
       { divider: true },
+      { type: 'select', action: 'fontName', title: 'Font family', options: FONT_FAMILY_OPTIONS },
+      { type: 'select', action: 'fontSize', title: 'Font size', options: FONT_SIZE_OPTIONS },
+      { type: 'color', action: 'foreColor', title: 'Text colour' },
+      { divider: true },
       { type: 'command', command: 'insertUnorderedList', label: '• List', title: 'Bulleted list' },
       { type: 'command', command: 'insertOrderedList', label: '1. List', title: 'Numbered list' },
       { divider: true },
@@ -265,26 +294,61 @@
         toolbar.appendChild(divider);
         return;
       }
-      var btn = document.createElement('button');
-      btn.type = 'button';
-      btn.className = 'weditor__btn';
-      btn.innerHTML = cfg.label;
-      if (cfg.title) btn.title = cfg.title;
-      btn.addEventListener('click', function (ev) {
-        ev.preventDefault();
-        instance.editorEl.focus({ preventScroll: true });
-        if (cfg.type === 'command') {
-          try {
-            document.execCommand(cfg.command, false, cfg.value || null);
-            setStatus(instance, cfg.title || cfg.command, 1200);
-          } catch (err) {
-            console.warn('[Weditor] Command failed:', cfg.command, err);
+      if (cfg.type === 'select') {
+        var select = document.createElement('select');
+        select.className = 'weditor__select';
+        if (cfg.title) select.title = cfg.title;
+        cfg.options.forEach(function (optConfig) {
+          var option = document.createElement('option');
+          option.textContent = optConfig.label || '';
+          option.value = String(typeof optConfig.value === 'undefined' ? '' : optConfig.value);
+          if (optConfig.placeholder) {
+            option.disabled = true;
+            option.selected = true;
           }
-        } else if (cfg.type === 'action') {
-          handleToolbarAction(instance, cfg.action);
-        }
-      });
-      toolbar.appendChild(btn);
+          select.appendChild(option);
+        });
+        select.addEventListener('change', function (ev) {
+          var value = ev.target.value;
+          if (!value) return;
+          executeFormattingCommand(instance, cfg.action, value, cfg.title || cfg.action);
+          select.selectedIndex = 0;
+        });
+        toolbar.appendChild(select);
+      } else if (cfg.type === 'color') {
+        var input = document.createElement('input');
+        input.type = 'color';
+        input.className = 'weditor__color';
+        if (cfg.title) input.title = cfg.title;
+        input.value = '#1f1f1f';
+        input.addEventListener('input', function (ev) {
+          executeFormattingCommand(instance, cfg.action, ev.target.value, cfg.title || cfg.action);
+        });
+        toolbar.appendChild(input);
+      } else {
+        var btn = document.createElement('button');
+        btn.type = 'button';
+        btn.className = 'weditor__btn';
+        btn.innerHTML = cfg.label;
+        if (cfg.title) btn.title = cfg.title;
+        btn.addEventListener('click', function (ev) {
+          ev.preventDefault();
+          instance.editorEl.focus({ preventScroll: true });
+          if (cfg.type === 'command') {
+            try {
+              document.execCommand(cfg.command, false, cfg.value || null);
+              setStatus(instance, cfg.title || cfg.command, 1200);
+              scheduleFieldSync(instance);
+            } catch (err) {
+              console.warn('[Weditor] Command failed:', cfg.command, err);
+              setStatus(instance, 'Command failed', 2000);
+            }
+          } else if (cfg.type === 'action') {
+            handleToolbarAction(instance, cfg.action);
+          }
+        });
+        toolbar.appendChild(btn);
+      }
     });
 
     var status = document.createElement('span');
@@ -301,12 +365,43 @@
       instance.editorEl.innerHTML = defaultEmpty();
       setStatus(instance, 'Cleared', 1500);
       instance.editorEl.focus({ preventScroll: true });
+      pushEditorToField(instance);
     } else if (action === 'open') {
       if (instance.fileInput) instance.fileInput.click();
     } else if (action === 'fullscreen') {
       enterFullscreen(instance, instance.title);
     } else if (action === 'table') {
       insertTable(instance, 3, 3);
+    }
+  }
+
+  function executeFormattingCommand(instance, command, value, statusText) {
+    if (!instance || !command) return;
+    focusInstance(instance);
+    var needsCss = command === 'foreColor' || command === 'fontSize';
+    var cssEnabled = false;
+    if (needsCss) {
+      try {
+        document.execCommand('styleWithCSS', true);
+        cssEnabled = true;
+      } catch (err) {
+        cssEnabled = false;
+      }
+    }
+    try {
+      document.execCommand(command, false, value);
+      setStatus(instance, statusText || command, 1500);
+    } catch (err) {
+      console.warn('[Weditor] Command failed:', command, err);
+      setStatus(instance, 'Command failed', 2000);
+    } finally {
+      if (needsCss && cssEnabled) {
+        try {
+          document.execCommand('styleWithCSS', false);
+        } catch (err2) {
+          // ignore
+        }
+      }
     }
   }
 
