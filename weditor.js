@@ -65,11 +65,27 @@
     var triggers = Array.prototype.slice.call(document.querySelectorAll(SELECTOR_TRIGGER));
     var containers = Array.prototype.slice.call(document.querySelectorAll(SELECTOR_CONTAINER));
 
-    var count = Math.min(triggers.length, containers.length);
     state.pairs = [];
-    for (var i = 0; i < count; i++) {
-      state.pairs.push({ trigger: triggers[i], host: containers[i] });
-    }
+    // Pair each trigger with the nearest following .weditor container (sibling scanning). Fallback to first unused container.
+    var usedHosts = new Set();
+    triggers.forEach(function (tr, idx) {
+      var cur = tr.nextElementSibling;
+      var found = null;
+      while (cur) {
+        if (cur.matches && cur.matches(SELECTOR_CONTAINER) && !usedHosts.has(cur)) { found = cur; break; }
+        cur = cur.nextElementSibling;
+      }
+      if (!found) {
+        for (var j = 0; j < containers.length; j++) {
+          var cand = containers[j];
+          if (!usedHosts.has(cand)) { found = cand; break; }
+        }
+      }
+      if (found) {
+        usedHosts.add(found);
+        state.pairs.push({ trigger: tr, host: found });
+      }
+    });
 
     // Bind click handlers to triggers (by index order pairing)
     state.pairs.forEach(function (pair, idx) {
@@ -496,7 +512,16 @@
     var btn = document.getElementById('weditor_btnCloseEditor');
     if (btn && !btn._weditorHooked) {
       btn._weditorHooked = true;
-      btn.addEventListener('click', writeBackToHost);
+      btn.addEventListener('click', function(){
+        try { writeBackToHost(); } catch(_) {}
+        try {
+          if (window.WEditor && typeof window.WEditor._unmountToModal === 'function') window.WEditor._unmountToModal();
+          if (window.WEditor && window.WEditor._currentHost) {
+            window.WEditor._currentHost.classList.remove('weditor_inline-host');
+          }
+          if (window.WEditor) { window.WEditor._currentHost = null; window.WEditor._currentIndex = -1; }
+        } catch(_) {}
+      });
     }
   }
 
@@ -570,6 +595,8 @@ var prevOpen = window.WEditor.open;
       ensureHeadAssets();
       ensureModalDOM();
       await loadEditorScriptsOnce();
+      ensureStatusBlock();
+      patchUpdateStatsSafe();
 
       if (typeof window.openEditorModal === 'function') {
         if (!window.WEditor._loadDispatched) {
@@ -590,6 +617,12 @@ var prevOpen = window.WEditor.open;
         if (typeof window.resetHistory === 'function') {
           try { window.resetHistory(); } catch (_) {}
         }
+        // Inline mount into host: move the editor shell into the target container and hide modal overlay
+        if (window.WEditor && typeof window.WEditor._ensureInlineStyle === 'function') { window.WEditor._ensureInlineStyle(); }
+        if (window.WEditor && typeof window.WEditor._mountInline === 'function') { window.WEditor._mountInline(pair.host); }
+        var _modalEl = document.getElementById('weditor_editorModal');
+        if (_modalEl) { _modalEl.classList.remove('weditor_active'); }
+        if (document && document.body && document.body.classList) { document.body.classList.remove('weditor_modal-open'); }
       }
 
       hookCloseButton();
@@ -647,6 +680,13 @@ var prevOpen = window.WEditor.open;
         if (ed && window.WEditor && window.WEditor._currentHost) {
           window.WEditor._currentHost.innerHTML = ed.innerHTML;
         }
+        // unmount back to modal and clean host class/state
+        try {
+          if (window.WEditor && typeof window.WEditor._unmountToModal === 'function') window.WEditor._unmountToModal();
+          if (window.WEditor && window.WEditor._currentHost) {
+            window.WEditor._currentHost.classList.remove('weditor_inline-host');
+          }
+        } catch(_) {}
         if (typeof window.WEditor.onClose === 'function') {
           try {
             window.WEditor.onClose({
@@ -655,6 +695,7 @@ var prevOpen = window.WEditor.open;
             });
           } catch (_) {}
         }
+        if (window.WEditor) { window.WEditor._currentHost = null; window.WEditor._currentIndex = -1; }
       } finally {
         _closing = false;
       }
@@ -668,6 +709,12 @@ var prevOpen = window.WEditor.open;
       if (ed && window.WEditor && window.WEditor._currentHost) {
         window.WEditor._currentHost.innerHTML = ed.innerHTML;
       }
+      try {
+        if (window.WEditor && typeof window.WEditor._unmountToModal === 'function') window.WEditor._unmountToModal();
+        if (window.WEditor && window.WEditor._currentHost) {
+          window.WEditor._currentHost.classList.remove('weditor_inline-host');
+        }
+      } catch(_) {}
       if (typeof window.closeEditorModal === 'function') {
         window.closeEditorModal();
       }
@@ -679,6 +726,7 @@ var prevOpen = window.WEditor.open;
           });
         } catch (_) {}
       }
+      if (window.WEditor) { window.WEditor._currentHost = null; window.WEditor._currentIndex = -1; }
     } catch (e) {
       console.warn('[WEditor] close() encountered an issue:', e);
     }
