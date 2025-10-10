@@ -396,7 +396,6 @@
 
     var syncFromField = function () {
       if (!instance.syncField) return;
-      if (document.activeElement !== field) return;
       instance.editorEl.innerHTML = field.value ? field.value : defaultEmpty();
     };
     field.addEventListener('input', syncFromField);
