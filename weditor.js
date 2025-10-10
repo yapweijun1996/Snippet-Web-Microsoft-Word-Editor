@@ -11,34 +11,100 @@
   var overlay = null;
   var lastOptions = DEFAULTS;
   var DEFAULT_MAMMOTH_STYLE_MAP = [
-    "p[style-name='Title'] => h1.weditor-doc-title:fresh",
-    "p[style-name='Subtitle'] => p.weditor-doc-subtitle:fresh",
-    "p[style-name='Heading 1'] => h1:fresh",
-    "p[style-name='Heading 2'] => h2:fresh",
-    "p[style-name='Heading 3'] => h3:fresh",
-    "p[style-name='Heading 4'] => h4:fresh",
-    "p[style-name='Heading 5'] => h5:fresh",
-    "p[style-name='Heading 6'] => h6:fresh",
+    "p[style-name='Title'] => h1.weditor-doc-title.weditor-align-center:fresh",
+    "p[style-name='title'] => h1.weditor-doc-title.weditor-align-center:fresh",
+    "p[style-name='Subtitle'] => p.weditor-doc-subtitle.weditor-align-center:fresh",
+    "p[style-name='subtitle'] => p.weditor-doc-subtitle.weditor-align-center:fresh",
+    "p[style-name='Heading 1'] => h1.weditor-heading-1:fresh",
+    "p[style-name='Heading1'] => h1.weditor-heading-1:fresh",
+    "p[style-name='heading 1'] => h1.weditor-heading-1:fresh",
+    "p[style-name='heading1'] => h1.weditor-heading-1:fresh",
+    "p[style-name='Heading 2'] => h2.weditor-heading-2:fresh",
+    "p[style-name='Heading2'] => h2.weditor-heading-2:fresh",
+    "p[style-name='heading 2'] => h2.weditor-heading-2:fresh",
+    "p[style-name='heading2'] => h2.weditor-heading-2:fresh",
+    "p[style-name='Heading 3'] => h3.weditor-heading-3:fresh",
+    "p[style-name='Heading3'] => h3.weditor-heading-3:fresh",
+    "p[style-name='heading 3'] => h3.weditor-heading-3:fresh",
+    "p[style-name='heading3'] => h3.weditor-heading-3:fresh",
+    "p[style-name='Heading 4'] => h4.weditor-heading-4:fresh",
+    "p[style-name='Heading4'] => h4.weditor-heading-4:fresh",
+    "p[style-name='heading 4'] => h4.weditor-heading-4:fresh",
+    "p[style-name='heading4'] => h4.weditor-heading-4:fresh",
+    "p[style-name='Heading 5'] => h5.weditor-heading-5:fresh",
+    "p[style-name='Heading5'] => h5.weditor-heading-5:fresh",
+    "p[style-name='heading 5'] => h5.weditor-heading-5:fresh",
+    "p[style-name='heading5'] => h5.weditor-heading-5:fresh",
+    "p[style-name='Heading 6'] => h6.weditor-heading-6:fresh",
+    "p[style-name='Heading6'] => h6.weditor-heading-6:fresh",
+    "p[style-name='heading 6'] => h6.weditor-heading-6:fresh",
+    "p[style-name='heading6'] => h6.weditor-heading-6:fresh",
     "p[style-name='Heading 7'] => h6.weditor-heading-7:fresh",
+    "p[style-name='Heading7'] => h6.weditor-heading-7:fresh",
+    "p[style-name='heading 7'] => h6.weditor-heading-7:fresh",
+    "p[style-name='heading7'] => h6.weditor-heading-7:fresh",
     "p[style-name='Heading 8'] => h6.weditor-heading-8:fresh",
+    "p[style-name='Heading8'] => h6.weditor-heading-8:fresh",
+    "p[style-name='heading 8'] => h6.weditor-heading-8:fresh",
+    "p[style-name='heading8'] => h6.weditor-heading-8:fresh",
     "p[style-name='Heading 9'] => h6.weditor-heading-9:fresh",
+    "p[style-name='Heading9'] => h6.weditor-heading-9:fresh",
+    "p[style-name='heading 9'] => h6.weditor-heading-9:fresh",
+    "p[style-name='heading9'] => h6.weditor-heading-9:fresh",
     "p[style-name='Normal'] => p.weditor-normal",
+    "p[style-name='Normal (Web)'] => p.weditor-normal",
     "p[style-name='Body Text'] => p.weditor-body-text",
+    "p[style-name='BodyText'] => p.weditor-body-text",
     "p[style-name='No Spacing'] => p.weditor-no-spacing",
+    "p[style-name='NoSpacing'] => p.weditor-no-spacing",
     "p[style-name='List Paragraph'] => p.weditor-list-paragraph",
+    "p[style-name='ListParagraph'] => p.weditor-list-paragraph",
     "p[style-name='Caption'] => p.weditor-caption",
     "p[style-name='TOC Heading'] => p.weditor-toc-heading",
+    "p[style-name='TOC 1'] => p.weditor-toc-level-1",
+    "p[style-name='TOC1'] => p.weditor-toc-level-1",
+    "p[style-name='TOC 2'] => p.weditor-toc-level-2",
+    "p[style-name='TOC2'] => p.weditor-toc-level-2",
+    "p[style-name='TOC 3'] => p.weditor-toc-level-3",
+    "p[style-name='TOC3'] => p.weditor-toc-level-3",
     "p[style-name='Quote'] => blockquote.weditor-quote:fresh",
     "p[style-name='Intense Quote'] => blockquote.weditor-intense-quote:fresh",
+    "p[style-name='Intense Centered Quote'] => blockquote.weditor-intense-quote.weditor-align-center:fresh",
+    "p[style-name='Center'] => p.weditor-align-center",
+    "p[style-name='center'] => p.weditor-align-center",
+    "p[style-name='Right'] => p.weditor-align-right",
+    "p[style-name='right'] => p.weditor-align-right",
+    "p[style-name='Justify'] => p.weditor-align-justify",
+    "p[style-name='Justified'] => p.weditor-align-justify",
     "r[style-name='Hyperlink'] => span.doc-link",
+    "r[style-name='hyperlink'] => span.doc-link",
+    "r[style-name='FollowedHyperlink'] => span.doc-followed-link",
+    "r[style-name='followedHyperlink'] => span.doc-followed-link",
     "r[style-name='Emphasis'] => span.doc-emphasis",
+    "r[style-name='emphasis'] => span.doc-emphasis",
     "r[style-name='Subtle Emphasis'] => span.doc-subtle-emphasis",
     "r[style-name='Intense Emphasis'] => span.doc-intense-emphasis",
     "r[style-name='Strong'] => span.doc-strong",
+    "r[style-name='strong'] => span.doc-strong",
     "r[style-name='Intense Reference'] => span.doc-intense-reference",
+    "r[style-name='Subtle Reference'] => span.doc-subtle-reference",
+    "r[style-name='Book Title'] => span.doc-book-title",
+    "r[style-name='Heading 1 Char'] => span.doc-heading1-char",
+    "r[style-name='Heading1 Char'] => span.doc-heading1-char",
+    "r[style-name='Heading1Char'] => span.doc-heading1-char",
+    "r[style-name='Heading 2 Char'] => span.doc-heading2-char",
+    "r[style-name='Heading2 Char'] => span.doc-heading2-char",
+    "r[style-name='Heading2Char'] => span.doc-heading2-char",
+    "r[style-name='Heading 3 Char'] => span.doc-heading3-char",
+    "r[style-name='Heading3 Char'] => span.doc-heading3-char",
+    "r[style-name='Heading3Char'] => span.doc-heading3-char",
     "table[style-name='Table Grid'] => table.weditor-doc-table.table-grid",
     "table[style-name='Light Shading'] => table.weditor-doc-table.table-light-shading",
     "table[style-name='Medium Shading 1'] => table.weditor-doc-table.table-medium-shading",
+    "table[style-name*='Light Shading'] => table.weditor-doc-table.table-light-shading",
+    "table[style-name*='Medium Shading'] => table.weditor-doc-table.table-medium-shading",
+    "table[style-name*='Grid'] => table.weditor-doc-table.table-grid",
+    "table[style-name*='List'] => table.weditor-doc-table.table-list",
     "table => table.weditor-doc-table",
     "table row => tr",
     "table header cell => th",
@@ -116,7 +182,8 @@
       title: null,
       index: -1,
       isFullscreen: false,
-      extraStyleMap: []
+      extraStyleMap: [],
+      theme: null
     };
 
     instance.wrapper.className = 'weditor__wrapper';
@@ -139,6 +206,17 @@
 
     instance.title = deriveTitle(instance);
     instance.extraStyleMap = parseStyleMapAttribute(el.getAttribute('data-weditor-stylemap'));
+
+    var themeFromOptions = options && options.theme && typeof options.theme === 'object'
+      ? Object.assign({}, options.theme)
+      : {};
+    var themeFromAttr = parseThemeAttribute(el.getAttribute('data-weditor-theme'));
+    if (themeFromAttr) {
+      themeFromOptions = Object.assign(themeFromOptions, themeFromAttr);
+    }
+    instance.theme = Object.keys(themeFromOptions).length ? themeFromOptions : null;
+    applyThemeVariables(instance);
+    applyThemeVariables(instance);
 
     el.addEventListener('input', function () {
       setStatus(instance, 'Editing…', 1500);
@@ -470,6 +548,45 @@
       if (entry) parsed.push(entry.trim());
     });
     return parsed;
+  }
+
+  function parseThemeAttribute(value) {
+    if (!value) return null;
+    var trimmed = String(value).trim();
+    if (!trimmed) return null;
+    try {
+      var parsed = JSON.parse(trimmed);
+      if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) {
+        return parsed;
+      }
+    } catch (err) {
+      console.warn('[Weditor] Failed to parse theme attribute', err);
+    }
+    return null;
+  }
+
+  function applyThemeVariables(instance) {
+    if (!instance || !instance.theme) return;
+    var theme = instance.theme;
+    var target = instance.editorEl;
+    if (!target || !target.style) return;
+    var mapping = {
+      heading1: '--weditor-heading1-color',
+      heading2: '--weditor-heading2-color',
+      heading3: '--weditor-heading3-color',
+      heading4: '--weditor-heading4-color',
+      heading5: '--weditor-heading5-color',
+      heading6: '--weditor-heading6-color',
+      title: '--weditor-title-color',
+      subtitle: '--weditor-subtitle-color'
+    };
+    Object.keys(theme).forEach(function (key) {
+      if (!Object.prototype.hasOwnProperty.call(theme, key)) return;
+      var value = theme[key];
+      if (typeof value !== 'string' || !value.trim()) return;
+      var varName = mapping[key] || (key.indexOf('--') === 0 ? key : '--weditor-' + key.replace(/[^a-z0-9]+/gi, '-').toLowerCase());
+      target.style.setProperty(varName, value.trim());
+    });
   }
 
   function focusInstance(instance) {

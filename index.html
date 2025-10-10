@@ -45,6 +45,14 @@
       font-size: 15px;
       line-height: 1.58;
       color: #1f1f1f;
+      --weditor-heading1-color: #2f5496;
+      --weditor-heading2-color: #2f5496;
+      --weditor-heading3-color: #1f3864;
+      --weditor-heading4-color: #1f3864;
+      --weditor-heading5-color: #5b9bd5;
+      --weditor-heading6-color: #5b9bd5;
+      --weditor-title-color: #2f5496;
+      --weditor-subtitle-color: #5a5a5a;
     }
     .weditor p {
       margin: 0 0 12px;
@@ -56,38 +64,60 @@
     .weditor h5,
     .weditor h6 {
       font-weight: 600;
-      margin: 20px 0 10px;
+      margin: 18px 0 8px;
       line-height: 1.2;
-      color: #2b579a;
     }
-    .weditor h1 {
-      font-size: 28px;
-      border-bottom: 1px solid #d0d0d0;
-      padding-bottom: 6px;
+    .weditor h1,
+    .weditor .weditor-heading-1 {
+      font-size: 26px;
+      color: var(--weditor-heading1-color, inherit);
     }
-    .weditor h2 {
-      font-size: 24px;
+    .weditor h2,
+    .weditor .weditor-heading-2 {
+      font-size: 22px;
+      color: var(--weditor-heading2-color, inherit);
     }
-    .weditor h3 {
-      font-size: 20px;
+    .weditor h3,
+    .weditor .weditor-heading-3 {
+      font-size: 18px;
+      color: var(--weditor-heading3-color, inherit);
     }
-    .weditor h6.weditor-heading-7,
-    .weditor h6.weditor-heading-8,
-    .weditor h6.weditor-heading-9 {
+    .weditor h4,
+    .weditor .weditor-heading-4 {
       font-size: 16px;
-      margin: 16px 0 8px;
-      font-weight: 600;
-      color: #2b579a;
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+      color: var(--weditor-heading4-color, inherit);
     }
-    .weditor h6.weditor-heading-8 {
-      font-size: 15px;
-    }
-    .weditor h6.weditor-heading-9 {
+    .weditor h5,
+    .weditor .weditor-heading-5 {
       font-size: 14px;
+      color: var(--weditor-heading5-color, inherit);
+    }
+    .weditor h6,
+    .weditor .weditor-heading-6 {
+      font-size: 13px;
+      color: var(--weditor-heading6-color, inherit);
+    }
+    .weditor .weditor-heading-7,
+    .weditor .weditor-heading-8,
+    .weditor .weditor-heading-9 {
+      font-size: 12px;
+      font-weight: 600;
+      color: var(--weditor-heading6-color, inherit);
     }
     .weditor ul,
     .weditor ol {
       margin: 0 0 12px 32px;
+    }
+    .weditor .weditor-align-center {
+      text-align: center;
+    }
+    .weditor .weditor-align-right {
+      text-align: right;
+    }
+    .weditor .weditor-align-justify {
+      text-align: justify;
     }
     .weditor blockquote {
       border-left: 4px solid #4b87ff;
@@ -101,11 +131,26 @@
       background: #f7faff;
     }
     .weditor blockquote.weditor-intense-quote {
-      border-left: 6px solid #2b579a;
+      border-left: 6px solid var(--weditor-heading1-color, #2b579a);
       background: #edf2ff;
       font-style: italic;
       padding: 14px 18px;
       margin: 18px 0;
+    }
+    .weditor p.weditor-toc-level-1,
+    .weditor p.weditor-toc-level-2,
+    .weditor p.weditor-toc-level-3 {
+      margin: 4px 0;
+      font-size: 13px;
+      color: var(--weditor-heading2-color, #2f5496);
+    }
+    .weditor p.weditor-toc-level-2 {
+      margin-left: 16px;
+      font-size: 12.5px;
+    }
+    .weditor p.weditor-toc-level-3 {
+      margin-left: 28px;
+      font-size: 12px;
     }
     .weditor p.weditor-normal,
     .weditor p.weditor-body-text {
@@ -116,7 +161,7 @@
     }
     .weditor p.weditor-list-paragraph {
       margin-left: 32px;
-      text-indent: -16px;
+      text-indent: 0;
     }
     .weditor p.weditor-caption {
       font-size: 13px;
@@ -162,20 +207,31 @@
     .weditor table.table-medium-shading td {
       border: 1px solid #b4c6e7;
     }
+    .weditor table.table-list td {
+      border: 1px solid #c8c8c8;
+      background: #fdfdfd;
+    }
     .weditor .weditor-doc-title {
       display: block;
-      font-size: 32px;
+      font-size: 30px;
       font-weight: 600;
-      margin-bottom: 6px;
+      margin: 12px 0 6px;
+      text-align: center;
+      color: var(--weditor-title-color, inherit);
     }
     .weditor .weditor-doc-subtitle {
       display: block;
-      color: #666;
       font-style: italic;
       margin-bottom: 16px;
+      color: var(--weditor-subtitle-color, #666);
+      text-align: center;
     }
     .weditor .doc-link {
       color: #1155cc;
+      text-decoration: underline;
+    }
+    .weditor .doc-followed-link {
+      color: #6b6b6b;
       text-decoration: underline;
     }
     .weditor .doc-strong {
@@ -190,11 +246,31 @@
     }
     .weditor .doc-intense-emphasis {
       font-style: italic;
-      color: #2b579a;
+      color: var(--weditor-heading1-color, #2b579a);
     }
     .weditor .doc-intense-reference {
-      color: #2b579a;
+      color: var(--weditor-heading1-color, #2b579a);
       font-weight: 600;
+    }
+    .weditor .doc-subtle-reference {
+      color: #5a5a5a;
+      font-weight: 600;
+    }
+    .weditor .doc-book-title {
+      font-style: italic;
+      color: #2b579a;
+    }
+    .weditor .doc-heading1-char,
+    .weditor .doc-heading2-char,
+    .weditor .doc-heading3-char {
+      font-weight: 600;
+      color: var(--weditor-heading1-color, #2b579a);
+    }
+    .weditor .weditor-action-item {
+      border-left: 3px solid var(--weditor-heading1-color, #2b579a);
+      padding: 8px 12px;
+      margin: 8px 0 12px;
+      background: #f0f5ff;
     }
     .weditor hr {
       border: 0;
@@ -234,7 +310,7 @@
             Open Fullscreen
           </button>
         </div>
-        <div class="weditor" data-role="editor" contenteditable="true" aria-label="Requirements editor">
+        <div class="weditor" data-role="editor" contenteditable="true" aria-label="Requirements editor" data-weditor-stylemap="p[style-name='Action Item'] => p.weditor-action-item">
           <ul>
             <li>Outline key deliverables.</li>
             <li>Track pending questions.</li>
@@ -277,7 +353,12 @@
     if (window.Weditor?.mountAll) {
       window.Weditor.mountAll({
         editorSelector: '.weditor',
-        fullscreenButtonSelector: '.weditor_fc_modal'
+        fullscreenButtonSelector: '.weditor_fc_modal',
+        theme: {
+          heading1: '#ff5e0e',
+          heading2: '#008575',
+          title: '#ff5e0e'
+        }
       });
     }
   </script>
