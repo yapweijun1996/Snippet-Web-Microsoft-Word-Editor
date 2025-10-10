@@ -12,14 +12,16 @@
   var formSyncRegistry = new WeakSet();
   var lastOptions = DEFAULTS;
   var DEFAULT_MAMMOTH_STYLE_MAP = [
-    // Generic, "brute-force" style mappings for elements. This is more robust.
-    "h1 => h1[style='font-size:26px; font-weight:700; color:#000; margin:18px 0 8px; line-height:1.2; text-align:center;']",
-    "h2 => h2[style='font-size:22px; font-weight:600; color:#000; margin:18px 0 8px; line-height:1.2;']",
-    "h3 => h3[style='font-size:18px; font-weight:600; color:#000; margin:18px 0 8px; line-height:1.2;']",
-    "h4 => h4[style='font-size:16px; font-weight:600; color:#000; margin:18px 0 8px; line-height:1.2;']",
-    "h5 => h5[style='font-size:14px; font-weight:600; color:#000; margin:18px 0 8px; line-height:1.2;']",
-    "h6 => h6[style='font-size:13px; font-weight:600; color:#000; margin:18px 0 8px; line-height:1.2;']",
-    "p => p[style='margin:0 0 1.15em;']",
+    // Most aggressive generic rules - catch everything
+    "h1 => h1[style='font-size:28px; font-weight:700; color:#000; margin:24px 0 12px; line-height:1.2; text-align:center; font-family:\"Times New Roman\", Times, serif;']",
+    "h2 => h2[style='font-size:24px; font-weight:600; color:#000; margin:20px 0 10px; line-height:1.3; font-family:\"Times New Roman\", Times, serif;']",
+    "h3 => h3[style='font-size:20px; font-weight:600; color:#000; margin:18px 0 9px; line-height:1.3; font-family:\"Times New Roman\", Times, serif;']",
+    "h4 => h4[style='font-size:18px; font-weight:600; color:#000; margin:16px 0 8px; line-height:1.3; font-family:\"Times New Roman\", Times, serif;']",
+    "h5 => h5[style='font-size:16px; font-weight:600; color:#000; margin:14px 0 7px; line-height:1.3; font-family:\"Times New Roman\", Times, serif;']",
+    "h6 => h6[style='font-size:14px; font-weight:600; color:#000; margin:12px 0 6px; line-height:1.3; font-family:\"Times New Roman\", Times, serif;']",
+    "p => p[style='margin:0 0 1.15em; font-family:\"Times New Roman\", Times, serif; font-size:16px; line-height:1.45; color:#000;']",
+    "strong => strong[style='font-weight:700; font-family:\"Times New Roman\", Times, serif;']",
+    "em => em[style='font-style:italic; font-family:\"Times New Roman\", Times, serif;']",
 
     // Specific style names as fallbacks
     "p[style-name='Title'] => h1[style='font-size:30px; font-weight:600; color:#000; text-align:center; margin:12px 0 6px;']:fresh",
