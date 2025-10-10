@@ -129,10 +129,16 @@
       { type: 'command', command: 'italic', label: '<i>I</i>', title: 'Italic' },
       { type: 'command', command: 'underline', label: '<u>U</u>', title: 'Underline' },
       { divider: true },
+      { type: 'command', command: 'justifyLeft', label: '⯇', title: 'Align left' },
+      { type: 'command', command: 'justifyCenter', label: '⇔', title: 'Align center' },
+      { type: 'command', command: 'justifyRight', label: '⯈', title: 'Align right' },
+      { type: 'command', command: 'justifyFull', label: '⯌', title: 'Justify' },
+      { divider: true },
       { type: 'command', command: 'insertUnorderedList', label: '• List', title: 'Bulleted list' },
       { type: 'command', command: 'insertOrderedList', label: '1. List', title: 'Numbered list' },
       { divider: true },
       { type: 'command', command: 'removeFormat', label: 'Clean', title: 'Remove formatting' },
+      { type: 'action', action: 'table', label: 'Tbl', title: 'Insert table' },
       { type: 'action', action: 'clear', label: 'Clear', title: 'Clear content' },
       { type: 'action', action: 'open', label: 'Open', title: 'Import file (.docx/.html/.txt)' },
       { type: 'action', action: 'fullscreen', label: 'Full', title: 'Open fullscreen' }
@@ -185,6 +191,8 @@
       if (instance.fileInput) instance.fileInput.click();
     } else if (action === 'fullscreen') {
       enterFullscreen(instance, instance.title);
+    } else if (action === 'table') {
+      insertTable(instance, 3, 3);
     }
   }
 
@@ -200,6 +208,31 @@
       importFile(instance, file);
     });
     return input;
+  }
+
+  function insertTable(instance, rows, cols) {
+    if (!instance) return;
+    var r = typeof rows === 'number' && rows > 0 ? rows : 2;
+    var c = typeof cols === 'number' && cols > 0 ? cols : 2;
+    var temp = document.createElement('div');
+    var table = '<table style="width:100%;border-collapse:collapse;">';
+    for (var i = 0; i < r; i++) {
+      table += '<tr>';
+      for (var j = 0; j < c; j++) {
+        table += '<td style="border:1px solid #999;padding:6px;"><br></td>';
+      }
+      table += '</tr>';
+    }
+    table += '</table><p><br></p>';
+    temp.innerHTML = table;
+    instance.editorEl.focus({ preventScroll: true });
+    try {
+      document.execCommand('insertHTML', false, temp.innerHTML);
+      setStatus(instance, 'Inserted table', 1600);
+    } catch (err) {
+      console.warn('[Weditor] Table insert failed', err);
+      setStatus(instance, 'Table insert failed', 2000);
+    }
   }
 
   function deriveTitle(instance) {
