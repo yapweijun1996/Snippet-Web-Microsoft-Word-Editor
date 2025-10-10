@@ -152,11 +152,25 @@
     makeImagesResizable(instance.editorEl);
     setupContextMenu(instance);
 
-    // Ensure any clicked/pasted images become resizable (中文解释: 点击或粘贴的图片自动加上缩放句柄)
+    // Click to activate image resizing (点击图片激活缩放, 点击空白取消)
     el.addEventListener('click', function (ev) {
-      var target = ev.target;
-      if (target && target.tagName === 'IMG' && !target.classList.contains('resizable')) {
-        addResizeHandles(target);
+      var t = ev.target;
+      // Keep active when clicking on handles
+      if (t && t.classList && t.classList.contains('resize-handle')) {
+        return;
+      }
+      var img = t && (t.tagName === 'IMG' ? t : (t.closest ? t.closest('img') : null));
+      if (img) {
+        if (!img.classList.contains('resizable')) {
+          addResizeHandles(img);
+        }
+        var wrapper = (img.parentNode && img.parentNode.getAttribute && img.parentNode.getAttribute('data-weditor-img-wrapper') === '1') ? img.parentNode : null;
+        if (wrapper) {
+          setActiveImage(instance, wrapper);
+        }
+      } else {
+        // Clicked outside image: deactivate all
+        deactivateAllImages(instance);
       }
     });
 
@@ -499,10 +513,14 @@
             setStatus(instance, 'Image inserted', 1500);
             scheduleFieldSync(instance);
             setTimeout(function() {
-              // Find the newly inserted image to make it resizable.
+              // Find the newly inserted image to make it resizable and active.
               var insertedImage = instance.editorEl.querySelector('img[src^="data:"]:not(.resizable)');
               if (insertedImage) {
                 addResizeHandles(insertedImage);
+                var wrapper = insertedImage.parentNode;
+                if (wrapper) {
+                  setActiveImage(instance, wrapper);
+                }
               }
             }, 100);
           } catch (err) {
@@ -541,6 +559,7 @@
     var wrapper = document.createElement('span');
     wrapper.style.position = 'relative';
     wrapper.style.display = 'inline-block';
+    wrapper.setAttribute('data-weditor-img-wrapper', '1');
     img.parentNode.insertBefore(wrapper, img);
     wrapper.appendChild(img);
 
@@ -555,12 +574,19 @@
       if (corner === 'sw') style = 'bottom:-4px;left:-4px;cursor:nesw-resize;';
       if (corner === 'se') style = 'bottom:-4px;right:-4px;cursor:nwse-resize;';
       handle.style.cssText += style;
+      handle.style.display = 'none'; // hidden by default; shown when active
       wrapper.appendChild(handle);
-
+ 
       handle.addEventListener('mousedown', function(e) {
         // Ignore right-click to allow native/context menus (中文解释: 右键不参与缩放)
         if (e && e.button === 2) {
           return;
+        }
+        // Activate this image's handles on left-click
+        var editorEl = img.closest ? img.closest('.weditor') : null;
+        var inst = resolveInstance(editorEl || img);
+        if (inst) {
+          setActiveImage(inst, wrapper);
         }
         e.preventDefault();
         e.stopPropagation();
@@ -597,6 +623,33 @@
 
     document.addEventListener('mousemove', resize);
     document.addEventListener('mouseup', stopResize);
+  }
+
+  // --- Image selection helpers: click to activate resize handles ---
+  function toggleHandles(wrapper, show) {
+    if (!wrapper) return;
+    var hs = wrapper.querySelectorAll('.resize-handle');
+    for (var i = 0; i < hs.length; i++) {
+      hs[i].style.display = show ? 'block' : 'none';
+    }
+  }
+
+  function deactivateAllImages(instance) {
+    if (!instance || !instance.editorEl) return;
+    var active = instance.editorEl.querySelectorAll('span[data-weditor-img-wrapper="1"][data-active="true"]');
+    for (var i = 0; i < active.length; i++) {
+      active[i].removeAttribute('data-active');
+      active[i].style.outline = '';
+      toggleHandles(active[i], false);
+    }
+  }
+
+  function setActiveImage(instance, wrapper) {
+    if (!instance || !wrapper) return;
+    deactivateAllImages(instance);
+    wrapper.setAttribute('data-active', 'true');
+    wrapper.style.outline = '1px dashed #4c7ae5';
+    toggleHandles(wrapper, true);
   }
 
   function setupContextMenu(instance) {
@@ -659,6 +712,7 @@
       var img = currentTarget.closest('img');
       if (img && img.parentNode.style.position === 'relative') {
         var imgWrapper = img.parentNode;
+        setActiveImage(instance, imgWrapper);
         showMenu(e);
         addMenuItem('Align Left', function() {
             imgWrapper.style.float = 'left';
