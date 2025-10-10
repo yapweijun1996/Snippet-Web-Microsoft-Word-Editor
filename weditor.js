@@ -10,6 +10,40 @@
   var editorMap = new WeakMap();
   var overlay = null;
   var lastOptions = DEFAULTS;
+  var DEFAULT_MAMMOTH_STYLE_MAP = [
+    "p[style-name='Title'] => h1.weditor-doc-title:fresh",
+    "p[style-name='Subtitle'] => p.weditor-doc-subtitle:fresh",
+    "p[style-name='Heading 1'] => h1:fresh",
+    "p[style-name='Heading 2'] => h2:fresh",
+    "p[style-name='Heading 3'] => h3:fresh",
+    "p[style-name='Heading 4'] => h4:fresh",
+    "p[style-name='Heading 5'] => h5:fresh",
+    "p[style-name='Heading 6'] => h6:fresh",
+    "p[style-name='Heading 7'] => h6.weditor-heading-7:fresh",
+    "p[style-name='Heading 8'] => h6.weditor-heading-8:fresh",
+    "p[style-name='Heading 9'] => h6.weditor-heading-9:fresh",
+    "p[style-name='Normal'] => p.weditor-normal",
+    "p[style-name='Body Text'] => p.weditor-body-text",
+    "p[style-name='No Spacing'] => p.weditor-no-spacing",
+    "p[style-name='List Paragraph'] => p.weditor-list-paragraph",
+    "p[style-name='Caption'] => p.weditor-caption",
+    "p[style-name='TOC Heading'] => p.weditor-toc-heading",
+    "p[style-name='Quote'] => blockquote.weditor-quote:fresh",
+    "p[style-name='Intense Quote'] => blockquote.weditor-intense-quote:fresh",
+    "r[style-name='Hyperlink'] => span.doc-link",
+    "r[style-name='Emphasis'] => span.doc-emphasis",
+    "r[style-name='Subtle Emphasis'] => span.doc-subtle-emphasis",
+    "r[style-name='Intense Emphasis'] => span.doc-intense-emphasis",
+    "r[style-name='Strong'] => span.doc-strong",
+    "r[style-name='Intense Reference'] => span.doc-intense-reference",
+    "table[style-name='Table Grid'] => table.weditor-doc-table.table-grid",
+    "table[style-name='Light Shading'] => table.weditor-doc-table.table-light-shading",
+    "table[style-name='Medium Shading 1'] => table.weditor-doc-table.table-medium-shading",
+    "table => table.weditor-doc-table",
+    "table row => tr",
+    "table header cell => th",
+    "table cell => td"
+  ];
 
   function ensureStyles() {
     if (document.getElementById(STYLE_ID)) return;
@@ -81,7 +115,8 @@
       placeholder: null,
       title: null,
       index: -1,
-      isFullscreen: false
+      isFullscreen: false,
+      extraStyleMap: []
     };
 
     instance.wrapper.className = 'weditor__wrapper';
@@ -103,6 +138,7 @@
     el.classList.add('weditor__editable');
 
     instance.title = deriveTitle(instance);
+    instance.extraStyleMap = parseStyleMapAttribute(el.getAttribute('data-weditor-stylemap'));
 
     el.addEventListener('input', function () {
       setStatus(instance, 'Editing…', 1500);
@@ -414,12 +450,57 @@
     return '<p><br></p>';
   }
 
+  function parseStyleMapAttribute(value) {
+    if (!value) return [];
+    var trimmed = String(value).trim();
+    if (!trimmed) return [];
+    var parsed = [];
+    try {
+      var json = JSON.parse(trimmed);
+      if (Array.isArray(json)) {
+        for (var i = 0; i < json.length; i++) {
+          if (typeof json[i] === 'string' && json[i].trim()) parsed.push(json[i].trim());
+        }
+        if (parsed.length) return parsed;
+      }
+    } catch (err) {
+      // fall through to split
+    }
+    trimmed.split(/\s*;\s*/).forEach(function (entry) {
+      if (entry) parsed.push(entry.trim());
+    });
+    return parsed;
+  }
+
   function focusInstance(instance) {
     try {
       instance.editorEl.focus({ preventScroll: true });
     } catch (_) {
       instance.editorEl.focus();
     }
+  }
+
+  function resolveMammothOptions(instance) {
+    var userOptions = instance && instance.options && instance.options.mammothOptions
+      ? instance.options.mammothOptions
+      : {};
+    var merged = Object.assign({}, userOptions);
+    var styleMap = DEFAULT_MAMMOTH_STYLE_MAP.slice();
+    if (merged.styleMap) {
+      if (Array.isArray(merged.styleMap)) {
+        styleMap = styleMap.concat(merged.styleMap);
+      } else if (typeof merged.styleMap === 'string') {
+        styleMap.push(merged.styleMap);
+      }
+    }
+    if (instance && instance.extraStyleMap && instance.extraStyleMap.length) {
+      styleMap = styleMap.concat(instance.extraStyleMap);
+    }
+    merged.styleMap = styleMap;
+    if (typeof merged.includeDefaultStyleMap === 'undefined') {
+      merged.includeDefaultStyleMap = true;
+    }
+    return merged;
   }
 
   async function importFile(instance, file) {
@@ -430,7 +511,10 @@
       if (/\.docx$/i.test(file.name)) {
         if (window.mammoth && typeof window.mammoth.convertToHtml === 'function') {
           var arrayBuffer = await file.arrayBuffer();
-          var result = await window.mammoth.convertToHtml({ arrayBuffer: arrayBuffer });
+          var result = await window.mammoth.convertToHtml(
+            { arrayBuffer: arrayBuffer },
+            resolveMammothOptions(instance)
+          );
           html = result && result.value ? result.value : '';
         } else {
           console.warn('[Weditor] Mammoth.js not available for DOCX import.');
