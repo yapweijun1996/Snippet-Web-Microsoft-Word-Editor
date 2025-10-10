@@ -22,8 +22,6 @@
       '.weditor__toolbar{display:flex;flex-wrap:wrap;align-items:center;gap:6px;}',
       '.weditor__btn{border:1px solid #999;background:#f7f7f7;padding:4px 9px;cursor:pointer;font-size:13px;}',
       '.weditor__btn:hover{background:#ececec;}',
-      '.weditor__select{border:1px solid #999;background:#fff;padding:4px 6px;font-size:13px;cursor:pointer;}',
-      '.weditor__color{border:1px solid #999;background:#fff;padding:0;width:36px;height:26px;}',
       '.weditor__divider{width:1px;height:18px;background:#ccc;margin:0 4px;}',
       '.weditor-status{margin-left:auto;font-size:12px;color:#555;}',
       '.weditor__wrapper--active .weditor{outline:1px solid #4c7ae5;outline-offset:2px;}',
@@ -38,54 +36,16 @@
       '.weditor__wrapper[data-mode="fullscreen"]{display:flex;flex-direction:column;width:var(--weditor-page-width,210mm);min-height:var(--weditor-page-height,297mm);margin:0 auto;background:#fff;box-shadow:0 4px 12px rgba(0,0,0,.15);}',
       '.weditor__wrapper[data-mode="fullscreen"] .weditor{flex:1;border:0;padding:var(--weditor-page-margin,25.4mm);box-sizing:border-box;max-width:100%;}',
       'body.weditor-no-scroll{overflow:hidden;}',
-      '@media print{body, .weditor-overlay__body{background:#fff;padding:0;margin:0;}.weditor__wrapper[data-mode="fullscreen"]{box-shadow:none;border:0;margin:0;width:100%;}}',
-      /* Word-like overrides for imported DOCX */
-      '.weditor{font-family:var(--weditor-font, inherit);font-size:var(--weditor-font-size,16px);line-height:var(--weditor-line-height,1.45);color:inherit;width:var(--weditor-page-width,210mm);max-width:unset;margin:0 auto;padding:var(--weditor-page-margin,25.4mm);box-sizing:border-box;background:#fff;box-shadow:0 0 5px rgba(0,0,0,.15);}',
-      '.weditor h1,.weditor .weditor-heading-1,.weditor .weditor-doc-title{color:inherit;font-weight:700;margin:18px 0 8px;line-height:1.2;}',
-      '.weditor .weditor-doc-subtitle{display:block;font-style:italic;color:#555;text-align:center;margin:0 0 12px;}',
-      '.weditor h2,.weditor .weditor-heading-2{font-weight:600;color:inherit;}',
-      '.weditor h3,.weditor .weditor-heading-3{font-weight:600;color:inherit;}',
-      '.weditor h4,.weditor .weditor-heading-4{font-weight:600;color:inherit;text-transform:none;letter-spacing:0;}',
-      '.weditor h5,.weditor .weditor-heading-5{font-weight:600;color:inherit;}',
-      '.weditor h6,.weditor .weditor-heading-6{font-weight:600;color:inherit;}',
-      '.weditor p,.weditor p.weditor-normal,.weditor p.weditor-body-text{margin:0 0 1.15em;text-indent:var(--weditor-first-line-indent,0);}',
-      '.weditor p.weditor-no-spacing{margin-bottom:0;}',
-      '.weditor p.weditor-list-paragraph{margin-left:32px;text-indent:0;}',
-      '.weditor p.weditor-caption{font-size:13px;color:#5a5a5a;text-align:center;margin:8px 0 12px;}',
-      '.weditor ul,.weditor ol{margin:0 0 12px 32px;}',
-      '.weditor .weditor-align-center{text-align:center;}',
-      '.weditor .weditor-align-right{text-align:right;}',
-      '.weditor .weditor-align-justify{text-align:justify;}',
-      '.weditor blockquote{border-left:4px solid #d0d0d0;background:#f9f9f9;margin:16px 0;padding:12px 16px;color:#2f2f2f;}',
-      '.weditor blockquote.weditor-quote{border-left-color:#c6c6c6;}',
-      '.weditor blockquote.weditor-intense-quote{border-left:6px solid #000;background:#f1f1f1;font-style:italic;}',
-      '.weditor table,.weditor .weditor-doc-table{width:100%;border-collapse:collapse;margin:16px 0;}',
-      '.weditor th,.weditor td{border:1px solid #c6c6c6;padding:6px 10px;text-align:left;}',
-      '.weditor th{background:#f3f3f3;font-weight:600;}',
-      '.weditor .doc-link{color:#1155cc;text-decoration:underline;}',
-      '.weditor .doc-followed-link{color:#6b6b6b;text-decoration:underline;}',
-      '.weditor .doc-strong{font-weight:700;}',
-      '.weditor .doc-emphasis,.weditor .doc-subtle-emphasis,.weditor .doc-intense-emphasis{font-style:italic;}',
-      '.weditor pre.doc-code{font-family:Consolas,"Courier New",monospace;background:#f8f8f8;border:1px solid #e0e0e0;padding:10px;overflow:auto;}',
-      '.weditor code.doc-inline-code{font-family:Consolas,"Courier New",monospace;background:#f2f2f2;padding:0 2px;}'
+      '@media print{body, .weditor-overlay__body{background:#fff;padding:0;margin:0;}.weditor__wrapper[data-mode="fullscreen"]{box-shadow:none;border:0;margin:0;width:100%;}}'
     ].join('');
     document.head.appendChild(style);
   }
 
-  function ensurePrintStyle() {
-    if (document.getElementById('weditor-lite-print')) return;
-    var st = document.createElement('style');
-    st.id = 'weditor-lite-print';
-    // default to 1 inch margins; will be updated per-instance by applyPageLayout()
-    st.textContent = '@page { size: A4 portrait; margin: 25.4mm; }';
-    document.head.appendChild(st);
-  }
 
   function mountAll(options) {
     var opts = Object.assign({}, lastOptions, options || {});
     lastOptions = opts;
     ensureStyles();
-    ensurePrintStyle();
     var editors = document.querySelectorAll(opts.editorSelector);
     Array.prototype.forEach.call(editors, function (el) {
       mount(el, opts);
@@ -100,7 +60,6 @@
     if (existing) return existing;
 
     ensureStyles();
-    ensurePrintStyle();
     var instance = createInstance(el, options || lastOptions);
     if (!instance) return null;
 
@@ -148,20 +107,8 @@
     el.classList.add('weditor__editable');
 
     instance.title = deriveTitle(instance);
-    instance.extraStyleMap = parseStyleMapAttribute(el.getAttribute('data-weditor-stylemap'));
-
-    var themeFromOptions = options && options.theme && typeof options.theme === 'object'
-      ? Object.assign({}, options.theme)
-      : {};
-    var themeFromAttr = parseThemeAttribute(el.getAttribute('data-weditor-theme'));
-    if (themeFromAttr) {
-      themeFromOptions = Object.assign(themeFromOptions, themeFromAttr);
-    }
-    instance.theme = Object.keys(themeFromOptions).length ? themeFromOptions : null;
-    applyThemeVariables(instance);
-    applyPageLayout(instance);
     attachSyncField(instance);
-    addTestingTools(instance); // Add testing button and show textarea
+    addTestingTools(instance);
 
     el.addEventListener('input', function () {
       setStatus(instance, 'Editing…', 1500);
@@ -651,222 +598,6 @@
     return '<p><br></p>';
   }
 
-  function parseStyleMapAttribute(value) {
-    if (!value) return [];
-    var trimmed = String(value).trim();
-    if (!trimmed) return [];
-    var parsed = [];
-    try {
-      var json = JSON.parse(trimmed);
-      if (Array.isArray(json)) {
-        for (var i = 0; i < json.length; i++) {
-          if (typeof json[i] === 'string' && json[i].trim()) parsed.push(json[i].trim());
-        }
-        if (parsed.length) return parsed;
-      }
-    } catch (err) {
-      // fall through to split
-    }
-    trimmed.split(/\s*;\s*/).forEach(function (entry) {
-      if (entry) parsed.push(entry.trim());
-    });
-    return parsed;
-  }
-
-  function parseThemeAttribute(value) {
-    if (!value) return null;
-    var trimmed = String(value).trim();
-    if (!trimmed) return null;
-    try {
-      var parsed = JSON.parse(trimmed);
-      if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) {
-        return parsed;
-      }
-    } catch (err) {
-      console.warn('[Weditor] Failed to parse theme attribute', err);
-    }
-    return null;
-  }
-
-  function applyThemeVariables(instance) {
-    if (!instance || !instance.theme) return;
-    var theme = instance.theme;
-    var target = instance.editorEl;
-    if (!target || !target.style) return;
-    var mapping = {
-      heading1: '--weditor-heading1-color',
-      heading2: '--weditor-heading2-color',
-      heading3: '--weditor-heading3-color',
-      heading4: '--weditor-heading4-color',
-      heading5: '--weditor-heading5-color',
-      heading6: '--weditor-heading6-color',
-      title: '--weditor-title-color',
-      subtitle: '--weditor-subtitle-color'
-    };
-    Object.keys(theme).forEach(function (key) {
-      if (!Object.prototype.hasOwnProperty.call(theme, key)) return;
-      var value = theme[key];
-      if (typeof value !== 'string' || !value.trim()) return;
-      var varName = mapping[key] || (key.indexOf('--') === 0 ? key : '--weditor-' + key.replace(/[^a-z0-9]+/gi, '-').toLowerCase());
-      target.style.setProperty(varName, value.trim());
-    });
-  }
-
-  function getPaperDims(paper) {
-    var map = { A4: { w: 210, h: 297 } };
-    return map[paper] || map.A4;
-  }
-
-  // parse dimension string to mm; supports "mm", "in" or plain number (assumed mm)
-  function parseDimMM(raw, fallback) {
-    try {
-      if (!raw) return fallback;
-      var s = String(raw).trim().toLowerCase();
-      if (!s) return fallback;
-      if (s.endsWith('in')) return Math.max(0, parseFloat(s) * 25.4) || fallback;
-      if (s.endsWith('mm')) return Math.max(0, parseFloat(s)) || fallback;
-      var n = parseFloat(s);
-      return isNaN(n) ? fallback : Math.max(0, n);
-    } catch (_) { return fallback; }
-  }
-
-  // parse font-size allowing pt/px/em/rem numbers or strings; returns CSS value or fallback
-  function parseFontSize(raw, fallback) {
-    try {
-      if (!raw) return fallback;
-      var s = String(raw).trim().toLowerCase();
-      if (!s) return fallback;
-      if (/(pt|px|em|rem)$/.test(s)) return s;
-      var n = parseFloat(s);
-      if (isNaN(n)) return fallback;
-      return n + 'px';
-    } catch (_) { return fallback; }
-  }
-
-  // Heuristic: infer base font, font-size, (optional) line-height from imported HTML inline styles
-  function inferAndApplyTypography(instance) {
-    try {
-      var root = instance && instance.editorEl;
-      if (!root) return;
-
-      var ff = null, fs = null, lh = null;
-
-      // helper to parse style string
-      function pick(prop, style) {
-        var re = new RegExp(prop + '\\s*:\\s*([^;]+)', 'i');
-        var m = re.exec(style || '');
-        return m ? m[1].trim() : null;
-      }
-
-      // scan limited number of candidates to keep fast
-      var candidates = root.querySelectorAll('[style]');
-      var maxScan = Math.min(200, candidates.length);
-      for (var i = 0; i < maxScan && (!(ff && fs && lh)); i++) {
-        var style = candidates[i].getAttribute('style') || '';
-        if (!ff) {
-          var fam = pick('font-family', style);
-          if (fam) {
-            // normalize quotes
-            ff = fam.replace(/\s*,\s*/g, ', ').replace(/"{2,}/g, '"');
-          }
-        }
-        if (!fs) {
-          var fsz = pick('font-size', style);
-          if (fsz) fs = parseFontSize(fsz, null);
-        }
-        if (!lh) {
-          var lhv = pick('line-height', style);
-          if (lhv) {
-            // numeric -> as-is; else trust css value
-            var n = parseFloat(lhv);
-            lh = isNaN(n) ? lhv : String(Math.max(1, n));
-          }
-        }
-      }
-
-      // apply as CSS vars so our editor styles adopt them
-      if (ff) root.style.setProperty('--weditor-font', ff);
-      if (fs) root.style.setProperty('--weditor-font-size', fs);
-      if (lh) root.style.setProperty('--weditor-line-height', lh);
-    } catch (_) { /* noop */ }
-  }
-
-  function readLayoutAttributes(instance) {
-    var el = instance && instance.editorEl;
-    var defaults = {
-      paper: 'A4',
-      orientation: 'portrait',
-      margin: 31.7,
-      widthMM: 210,
-      heightMM: 297,
-      lineHeight: 1.45,
-      indentMM: 0,
-      font: null,
-      fontSize: null
-    };
-    if (!el) return defaults;
-
-    var paper = (el.getAttribute('data-weditor-paper') || defaults.paper).toUpperCase();
-    var orientation = (el.getAttribute('data-weditor-orientation') || defaults.orientation).toLowerCase();
-
-    var margin = parseDimMM(el.getAttribute('data-weditor-margin'), defaults.margin);
-
-    var dim = getPaperDims(paper);
-    var W = orientation === 'landscape' ? dim.h : dim.w;
-    var H = orientation === 'landscape' ? dim.w : dim.h;
-
-    var lhRaw = el.getAttribute('data-weditor-line-height');
-    var lineHeight = (lhRaw && !isNaN(parseFloat(lhRaw))) ? Math.max(1, parseFloat(lhRaw)) : defaults.lineHeight;
-
-    var indentRaw = el.getAttribute('data-weditor-first-line-indent') || el.getAttribute('data-weditor-indent');
-    var indentMM = parseDimMM(indentRaw, defaults.indentMM);
-
-    // new: base font + font-size
-    var font = (el.getAttribute('data-weditor-font') || '').trim() || null;
-    var fontSize = parseFontSize(el.getAttribute('data-weditor-font-size'), defaults.fontSize);
-
-    return {
-      paper: paper,
-      orientation: orientation,
-      margin: margin,
-      widthMM: W,
-      heightMM: H,
-      lineHeight: lineHeight,
-      indentMM: indentMM,
-      font: font,
-      fontSize: fontSize
-    };
-  }
-
-  function applyPageLayout(instance, layout) {
-    try {
-      layout = layout || readLayoutAttributes(instance);
-      var el = instance && instance.editorEl;
-      if (!el || !el.style) return;
-
-      // page metrics
-      el.style.setProperty('--weditor-page-width', layout.widthMM + 'mm');
-      el.style.setProperty('--weditor-page-height', layout.heightMM + 'mm');
-      el.style.setProperty('--weditor-page-margin', layout.margin + 'mm');
-
-      // typography
-      el.style.setProperty('--weditor-line-height', String(layout.lineHeight));
-      el.style.setProperty('--weditor-first-line-indent', layout.indentMM + 'mm');
-      if (layout.font) el.style.setProperty('--weditor-font', layout.font);
-      if (layout.fontSize) el.style.setProperty('--weditor-font-size', layout.fontSize);
-
-      // expose on wrapper for debugging
-      if (instance && instance.wrapper && instance.wrapper.dataset) {
-        instance.wrapper.dataset.page = layout.paper + ':' + layout.orientation;
-      }
-
-      // sync @page for print based on current instance layout
-      var st = document.getElementById('weditor-lite-print');
-      if (st) {
-        st.textContent = '@page { size: ' + layout.paper + ' ' + layout.orientation + '; margin: ' + layout.margin + 'mm; }';
-      }
-    } catch (_) {}
-  }
 
   function ensureEmptyParagraphs(root) {
     try {
@@ -930,11 +661,6 @@
     focus: function (target) {
       var inst = resolveInstance(typeof target === 'undefined' ? 0 : target);
       if (inst) focusInstance(inst);
-    },
-    importFile: function (target, file) {
-      var inst = resolveInstance(typeof target === 'undefined' ? 0 : target);
-      if (!inst) return Promise.reject(new Error('No editor instance found'));
-      return importFile(inst, file);
     },
     instances: function () {
       return registry.map(function (inst) { return inst.editorEl; });

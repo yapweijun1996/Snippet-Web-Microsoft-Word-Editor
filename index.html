@@ -3,130 +3,65 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Weditor Demo</title>
+  <title>Weditor Minimal Demo</title>
   <style>
-    body {
-      margin: 0;
-      font-family: Arial, sans-serif;
-      padding: 16px;
-    }
-    .weditor-demo {
-      max-width: 900px;
-      margin: 0 auto;
-    }
-    .weditor-grid {
-      display: flex;
-      flex-wrap: wrap;
-      gap: 16px;
-    }
-    .weditor-instance {
-      flex: 1 1 360px;
-      border: 1px solid #ddd;
-      padding: 12px;
-    }
-    .weditor-instance__header {
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-      margin-bottom: 8px;
-    }
-    .weditor_fc_modal {
-      padding: 6px 12px;
-      border: 1px solid #333;
-      background: #f5f5f5;
-      cursor: pointer;
-    }
-    
+    body { font-family: Arial, sans-serif; padding: 16px; background-color: #f0f0f0; }
+    .editor-container { max-width: 900px; margin: 0 auto; border: 1px solid #ddd; padding: 12px; background-color: #fff; }
+    .editor-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; }
+    .fullscreen-btn { padding: 6px 12px; border: 1px solid #333; background: #f5f5f5; cursor: pointer; }
   </style>
 </head>
 <body>
-  <main class="weditor-demo">
-    <header>
-      <h1>Weditor Demo Playground</h1>
-      <p class="weditor-demo__intro">
-        Attach your JavaScript library to any element with the <code>.weditor</code> class and wire fullscreen
-        behavior through the matching <code>.weditor_fc_modal</code> button. Each block below is self-contained
-        so you can mount multiple editors on the same page without relying on IDs. Use the built-in font family,
-        size, and colour controls in the toolbar, and note that each editor keeps a hidden <code>textarea</code>
-        in sync so the HTML is ready to post back to your database.
-      </p>
-    </header>
 
-    <section class="weditor-grid">
-      <article class="weditor-instance" data-editor="overview">
-        <div class="weditor-instance__header">
-          <h2 class="weditor-instance__title">Overview</h2>
-          <button class="weditor_fc_modal" type="button">
-            Open Fullscreen
-          </button>
-        </div>
-        <div class="weditor" data-role="editor" contenteditable="true" aria-label="Overview editor">
-          <p>Use this space for a quick document summary or introduction.</p>
-        </div>
-        <textarea data-weditor-storage name="overview_html" hidden></textarea>
-      </article>
+  <!-- Minimal Weditor Implementation -->
+  <div class="editor-container" data-editor="weditor-1">
+    <div class="editor-header">
+      <h2>My Editor</h2>
+      <button class="weditor_fc_modal fullscreen-btn" type="button">
+        Fullscreen
+      </button>
+    </div>
+    <div class="weditor" contenteditable="true">
+      <p>This is a minimal Weditor instance.</p>
+    </div>
+    <textarea data-weditor-storage name="editor_content" hidden></textarea>
+  </div>
+  <!-- End of Weditor Implementation -->
 
-      <article class="weditor-instance" data-editor="requirements">
-        <div class="weditor-instance__header">
-          <h2 class="weditor-instance__title">Requirements</h2>
-          <button class="weditor_fc_modal" type="button">
-            Open Fullscreen
-          </button>
-        </div>
-        <div class="weditor" data-role="editor" contenteditable="true" aria-label="Requirements editor" data-weditor-stylemap="p[style-name='Action Item'] => p.weditor-action-item">
-          <ul>
-            <li>Outline key deliverables.</li>
-            <li>Track pending questions.</li>
-            <li>Document technical decisions.</li>
-          </ul>
-        </div>
-        <textarea data-weditor-storage name="requirements_html" hidden></textarea>
-      </article>
+  <!-- Minimal Weditor Implementation -->
+  <div class="editor-container" data-editor="weditor-2" style="margin-top: 16px;">
+    <div class="editor-header">
+      <h2>Another Editor</h2>
+      <button class="weditor_fc_modal fullscreen-btn" type="button">
+        Fullscreen
+      </button>
+    </div>
+    <div class="weditor" contenteditable="true">
+      <p>This is a second minimal Weditor instance.</p>
+    </div>
+    <textarea data-weditor-storage name="another_editor_content" hidden></textarea>
+  </div>
+  <!-- End of Weditor Implementation -->
 
-      <article class="weditor-instance" data-editor="notes">
-        <div class="weditor-instance__header">
-          <h2 class="weditor-instance__title">Notes</h2>
-          <button class="weditor_fc_modal" type="button">
-            Open Fullscreen
-          </button>
-        </div>
-        <div class="weditor" data-role="editor" contenteditable="true" aria-label="Notes editor">
-          <p>Capture meeting notes, action items, or brainstorming ideas right here.</p>
-        </div>
-        <textarea data-weditor-storage name="notes_html" hidden></textarea>
-      </article>
+  <!-- Minimal Weditor Implementation -->
+  <div class="editor-container" data-editor="weditor-2" style="margin-top: 16px;">
+    <div class="editor-header">
+      <h2>Another Editor</h2>
+      <button class="weditor_fc_modal fullscreen-btn" type="button">
+        Fullscreen
+      </button>
+    </div>
+    <div class="weditor" contenteditable="true">
+      <p>This is a third minimal Weditor instance.</p>
+    </div>
+    <textarea data-weditor-storage name="another_editor_content" hidden></textarea>
+  </div>
+  <!-- End of Weditor Implementation -->
 
-      <article class="weditor-instance" data-editor="appendix">
-        <div class="weditor-instance__header">
-          <h2 class="weditor-instance__title">Appendix</h2>
-          <button class="weditor_fc_modal" type="button">
-            Open Fullscreen
-          </button>
-        </div>
-        <div class="weditor" data-role="editor" contenteditable="true" aria-label="Appendix editor">
-          <p>Add reference materials, links, or supporting documents.</p>
-        </div>
-        <textarea data-weditor-storage name="appendix_html" hidden><p><strong>Stored appendix content:</strong> This HTML lives inside the textarea and is restored into the editor on mount.</p></textarea>
-      </article>
-    </section>
-  </main>
-
-  <!-- Include your Weditor bundle and bootstrap logic here -->
-  <script src="./libs/mammoth.browser.min.js"></script>
   <script src="./weditor.js"></script>
   <script>
-    // Demo bootstrap: replace with your actual class-based initialization logic.
-    if (window.Weditor?.mountAll) {
-      window.Weditor.mountAll({
-        editorSelector: '.weditor',
-        fullscreenButtonSelector: '.weditor_fc_modal',
-        theme: {
-          heading1: '#ff5e0e',
-          heading2: '#008575',
-          title: '#ff5e0e'
-        }
-      });
-    }
+    // The Weditor will automatically mount on any element with the '.weditor' class.
+    // No additional bootstrap script is required for basic functionality.
   </script>
 </body>
 </html>
