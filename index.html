@@ -1,21 +1,125 @@
-<input class="weditor_fc_modal" type="button" value="Open Fullscreen weditor"><!-- Open Word Editor at fullscreen modal -->
-<span class="weditor" style="width:600px; height: 400px;">
-    <!-- Show weditor at here -->
-</span>
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Weditor Demo</title>
+  <style>
+    body {
+      margin: 0;
+      font-family: Arial, sans-serif;
+      padding: 16px;
+    }
+    .weditor-demo {
+      max-width: 900px;
+      margin: 0 auto;
+    }
+    .weditor-grid {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 16px;
+    }
+    .weditor-instance {
+      flex: 1 1 360px;
+      border: 1px solid #ddd;
+      padding: 12px;
+    }
+    .weditor-instance__header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 8px;
+    }
+    .weditor_fc_modal {
+      padding: 6px 12px;
+      border: 1px solid #333;
+      background: #f5f5f5;
+      cursor: pointer;
+    }
+    .weditor {
+      min-height: 220px;
+      border: 1px solid #ccc;
+      padding: 8px;
+      background: #fff;
+    }
+  </style>
+</head>
+<body>
+  <main class="weditor-demo">
+    <header>
+      <h1>Weditor Demo Playground</h1>
+      <p class="weditor-demo__intro">
+        Attach your JavaScript library to any element with the <code>.weditor</code> class and wire fullscreen
+        behavior through the matching <code>.weditor_fc_modal</code> button. Each block below is self-contained
+        so you can mount multiple editors on the same page without relying on IDs.
+      </p>
+    </header>
 
-<input class="weditor_fc_modal" type="button" value="Open Fullscreen weditor"><!-- Open Word Editor at fullscreen modal -->
-<span class="weditor" style="width:600px; height: 400px;">
-    <!-- Show weditor at here -->
-</span>
+    <section class="weditor-grid">
+      <article class="weditor-instance" data-editor="overview">
+        <div class="weditor-instance__header">
+          <h2 class="weditor-instance__title">Overview</h2>
+          <button class="weditor_fc_modal" type="button">
+            Open Fullscreen
+          </button>
+        </div>
+        <div class="weditor" data-role="editor" contenteditable="true" aria-label="Overview editor">
+          <p>Use this space for a quick document summary or introduction.</p>
+        </div>
+      </article>
 
-<input class="weditor_fc_modal" type="button" value="Open Fullscreen weditor"><!-- Open Word Editor at fullscreen modal -->
-<span class="weditor" style="width:600px; height: 400px;">
-    <!-- Show weditor at here -->
-</span>
+      <article class="weditor-instance" data-editor="requirements">
+        <div class="weditor-instance__header">
+          <h2 class="weditor-instance__title">Requirements</h2>
+          <button class="weditor_fc_modal" type="button">
+            Open Fullscreen
+          </button>
+        </div>
+        <div class="weditor" data-role="editor" contenteditable="true" aria-label="Requirements editor">
+          <ul>
+            <li>Outline key deliverables.</li>
+            <li>Track pending questions.</li>
+            <li>Document technical decisions.</li>
+          </ul>
+        </div>
+      </article>
 
-<input class="weditor_fc_modal" type="button" value="Open Fullscreen weditor"><!-- Open Word Editor at fullscreen modal -->
-<span class="weditor" style="width:600px; height: 400px;">
-    <!-- Show weditor at here -->
-</span>
+      <article class="weditor-instance" data-editor="notes">
+        <div class="weditor-instance__header">
+          <h2 class="weditor-instance__title">Notes</h2>
+          <button class="weditor_fc_modal" type="button">
+            Open Fullscreen
+          </button>
+        </div>
+        <div class="weditor" data-role="editor" contenteditable="true" aria-label="Notes editor">
+          <p>Capture meeting notes, action items, or brainstorming ideas right here.</p>
+        </div>
+      </article>
 
-<script src="weditor.js"></script>
+      <article class="weditor-instance" data-editor="appendix">
+        <div class="weditor-instance__header">
+          <h2 class="weditor-instance__title">Appendix</h2>
+          <button class="weditor_fc_modal" type="button">
+            Open Fullscreen
+          </button>
+        </div>
+        <div class="weditor" data-role="editor" contenteditable="true" aria-label="Appendix editor">
+          <p>Add reference materials, links, or supporting documents.</p>
+        </div>
+      </article>
+    </section>
+  </main>
+
+  <!-- Include your Weditor bundle and bootstrap logic here -->
+  <!-- <script src="./dist/weditor.js"></script> -->
+  <script>
+    // Demo bootstrap: replace with your actual class-based initialization logic.
+    if (window.Weditor?.mountAll) {
+      window.Weditor.mountAll({
+        editorSelector: '.weditor',
+        fullscreenButtonSelector: '.weditor_fc_modal'
+      });
+    }
+  </script>
+</body>
+</html>
