@@ -6,6 +6,22 @@
     fullscreenButtonSelector: '.weditor_fc_modal'
   };
   var STYLE_ID = 'weditor-lite-style';
+  var CLASS_NAMES = {
+    wrapper: 'weditor__wrapper',
+    editor: 'weditor__editable',
+    toolbar: 'weditor__toolbar',
+    btn: 'weditor__btn',
+    divider: 'weditor__divider',
+    status: 'weditor-status',
+    wrapperActive: 'weditor__wrapper--active',
+    overlay: 'weditor-overlay',
+    overlayInner: 'weditor-overlay__inner',
+    overlayHeader: 'weditor-overlay__header',
+    overlayTitle: 'weditor-overlay__title',
+    overlayClose: 'weditor-overlay__close',
+    overlayBody: 'weditor-overlay__body',
+    syncField: 'weditor__field'
+  };
   var registry = [];
   var editorMap = new WeakMap();
   var overlay = null;
@@ -16,31 +32,55 @@
     if (document.getElementById(STYLE_ID)) return;
     var style = document.createElement('style');
     style.id = STYLE_ID;
+    var STYLES = {
+      wrapper: `display:flex;flex-direction:column;gap:8px;`,
+      editor: `min-height:200px;border:1px solid #ccc;padding:8px;background:#fff;`,
+      toolbar: `display:flex;flex-wrap:wrap;align-items:center;gap:6px;`,
+      btn: `border:1px solid #999;background:#f7f7f7;padding:4px 9px;cursor:pointer;font-size:13px;`,
+      btnHover: `background:#ececec;`,
+      divider: `width:1px;height:18px;background:#ccc;margin:0 4px;`,
+      status: `margin-left:auto;font-size:12px;color:#555;`,
+      activeEditor: `outline:1px solid #4c7ae5;outline-offset:2px;`,
+      overlay: `position:fixed;inset:0;display:none;align-items:center;justify-content:center;background:rgba(0,0,0,.5);z-index:10000;padding:16px;box-sizing:border-box;`,
+      overlayOpen: `display:flex;`,
+      overlayInner: `background:#fff;display:flex;flex-direction:column;width:100%;max-width:960px;height:100%;max-height:90vh;border-radius:6px;box-shadow:0 8px 24px rgba(0,0,0,.2);`,
+      overlayHeader: `display:flex;justify-content:space-between;align-items:center;padding:10px 14px;border-bottom:1px solid #ddd;`,
+      overlayTitle: `font-weight:600;font-size:15px;`,
+      overlayClose: `border:1px solid #999;background:#f7f7f7;padding:4px 12px;cursor:pointer;`,
+      overlayCloseHover: `background:#ececec;`,
+      overlayBody: `flex:1;overflow-y:auto;background:#e9e9e9;padding:32px 0;`,
+      fullscreenWrapper: `display:flex;flex-direction:column;width:var(--weditor-page-width,210mm);min-height:var(--weditor-page-height,297mm);margin:0 auto;background:#fff;box-shadow:0 4px 12px rgba(0,0,0,.15);`,
+      fullscreenEditor: `flex:1;border:0;padding:var(--weditor-page-margin,25.4mm);box-sizing:border-box;max-width:100%;`,
+      noScrollBody: `overflow:hidden;`
+    };
+
     style.textContent = [
-      '.weditor__wrapper{display:flex;flex-direction:column;gap:8px;}',
-      '.weditor__wrapper .weditor{min-height:200px;border:1px solid #ccc;padding:8px;background:#fff;}',
-      '.weditor__toolbar{display:flex;flex-wrap:wrap;align-items:center;gap:6px;}',
-      '.weditor__btn{border:1px solid #999;background:#f7f7f7;padding:4px 9px;cursor:pointer;font-size:13px;}',
-      '.weditor__btn:hover{background:#ececec;}',
-      '.weditor__divider{width:1px;height:18px;background:#ccc;margin:0 4px;}',
-      '.weditor-status{margin-left:auto;font-size:12px;color:#555;}',
-      '.weditor__wrapper--active .weditor{outline:1px solid #4c7ae5;outline-offset:2px;}',
-      '.weditor-overlay{position:fixed;inset:0;display:none;align-items:center;justify-content:center;background:rgba(0,0,0,.5);z-index:10000;padding:16px;box-sizing:border-box;}',
-      '.weditor-overlay[data-open="true"]{display:flex;}',
-      '.weditor-overlay__inner{background:#fff;display:flex;flex-direction:column;width:100%;max-width:960px;height:100%;max-height:90vh;border-radius:6px;box-shadow:0 8px 24px rgba(0,0,0,.2);} ',
-      '.weditor-overlay__header{display:flex;justify-content:space-between;align-items:center;padding:10px 14px;border-bottom:1px solid #ddd;}',
-      '.weditor-overlay__title{font-weight:600;font-size:15px;}',
-      '.weditor-overlay__close{border:1px solid #999;background:#f7f7f7;padding:4px 12px;cursor:pointer;}',
-      '.weditor-overlay__close:hover{background:#ececec;}',
-      '.weditor-overlay__body{flex:1;overflow-y:auto;background:#e9e9e9;padding:32px 0;}',
-      '.weditor__wrapper[data-mode="fullscreen"]{display:flex;flex-direction:column;width:var(--weditor-page-width,210mm);min-height:var(--weditor-page-height,297mm);margin:0 auto;background:#fff;box-shadow:0 4px 12px rgba(0,0,0,.15);}',
-      '.weditor__wrapper[data-mode="fullscreen"] .weditor{flex:1;border:0;padding:var(--weditor-page-margin,25.4mm);box-sizing:border-box;max-width:100%;}',
-      'body.weditor-no-scroll{overflow:hidden;}',
-      '@media print{body, .weditor-overlay__body{background:#fff;padding:0;margin:0;}.weditor__wrapper[data-mode="fullscreen"]{box-shadow:none;border:0;margin:0;width:100%;}}'
+      `.${CLASS_NAMES.wrapper}{${STYLES.wrapper}}`,
+      `.${CLASS_NAMES.wrapper} .weditor{${STYLES.editor}}`,
+      `.${CLASS_NAMES.toolbar}{${STYLES.toolbar}}`,
+      `.${CLASS_NAMES.btn}{${STYLES.btn}}`,
+      `.${CLASS_NAMES.btn}:hover{${STYLES.btnHover}}`,
+      `.${CLASS_NAMES.divider}{${STYLES.divider}}`,
+      `.${CLASS_NAMES.status}{${STYLES.status}}`,
+      `.${CLASS_NAMES.wrapperActive} .weditor{${STYLES.activeEditor}}`,
+      `.${CLASS_NAMES.overlay}{${STYLES.overlay}}`,
+      `.${CLASS_NAMES.overlay}[data-open="true"]{${STYLES.overlayOpen}}`,
+      `.${CLASS_NAMES.overlayInner}{${STYLES.overlayInner}}`,
+      `.${CLASS_NAMES.overlayHeader}{${STYLES.overlayHeader}}`,
+      `.${CLASS_NAMES.overlayTitle}{${STYLES.overlayTitle}}`,
+      `.${CLASS_NAMES.overlayClose}{${STYLES.overlayClose}}`,
+      `.${CLASS_NAMES.overlayClose}:hover{${STYLES.overlayCloseHover}}`,
+      `.${CLASS_NAMES.overlayBody}{${STYLES.overlayBody}}`,
+      `.${CLASS_NAMES.wrapper}[data-mode="fullscreen"]{${STYLES.fullscreenWrapper}}`,
+      `.${CLASS_NAMES.wrapper}[data-mode="fullscreen"] .weditor{${STYLES.fullscreenEditor}}`,
+      `body.weditor-no-scroll{${STYLES.noScrollBody}}`,
+      `@media print{body, .${CLASS_NAMES.overlayBody}{background:#fff;padding:0;margin:0;} .${CLASS_NAMES.wrapper}[data-mode="fullscreen"]{box-shadow:none;border:0;margin:0;width:100%;}}`
     ].join('');
     document.head.appendChild(style);
   }
 
+
+  var WeditorModules = {};
 
   function mountAll(options) {
     var opts = Object.assign({}, lastOptions, options || {});
@@ -48,19 +88,19 @@
     ensureStyles();
     var editors = document.querySelectorAll(opts.editorSelector);
     Array.prototype.forEach.call(editors, function (el) {
-      mount(el, opts);
+      WeditorModules.mount(el, opts);
     });
     setupFullscreenTriggers(opts);
     return registry.slice();
   }
 
-  function mount(el, options) {
+  WeditorModules.mount = function(el, options) {
     if (!el || el.nodeType !== 1) return null;
     var existing = editorMap.get(el);
     if (existing) return existing;
 
     ensureStyles();
-    var instance = createInstance(el, options || lastOptions);
+    var instance = WeditorModules.createInstance(el, options || lastOptions);
     if (!instance) return null;
 
     registry.push(instance);
@@ -70,7 +110,7 @@
     return instance;
   }
 
-  function createInstance(el, options) {
+  WeditorModules.createInstance = function(el, options) {
     if (!el.parentNode) return null;
 
     var instance = {
@@ -90,7 +130,7 @@
       syncTimer: null
     };
 
-    instance.wrapper.className = 'weditor__wrapper';
+    instance.wrapper.className = CLASS_NAMES.wrapper;
     instance.toolbar = createToolbar(instance);
     instance.wrapper.appendChild(instance.toolbar);
 
@@ -104,21 +144,22 @@
 
     if (!el.hasAttribute('contenteditable')) el.setAttribute('contenteditable', 'true');
     if (!el.hasAttribute('spellcheck')) el.setAttribute('spellcheck', 'true');
-    el.classList.add('weditor__editable');
+    el.classList.add(CLASS_NAMES.editor);
 
     instance.title = deriveTitle(instance);
     attachSyncField(instance);
     addTestingTools(instance);
+    makeImagesResizable(instance.editorEl);
 
     el.addEventListener('input', function () {
       setStatus(instance, 'Editing…', 1500);
       scheduleFieldSync(instance);
     });
     el.addEventListener('focus', function () {
-      instance.wrapper.classList.add('weditor__wrapper--active');
+      instance.wrapper.classList.add(CLASS_NAMES.wrapperActive);
     });
     el.addEventListener('blur', function () {
-      instance.wrapper.classList.remove('weditor__wrapper--active');
+      instance.wrapper.classList.remove(CLASS_NAMES.wrapperActive);
       pushEditorToField(instance);
     });
 
@@ -127,7 +168,7 @@
 
   function createToolbar(instance) {
     var toolbar = document.createElement('div');
-    toolbar.className = 'weditor__toolbar';
+    toolbar.className = CLASS_NAMES.toolbar;
 
     var controls = [
       { type: 'command', command: 'undo', label: '↺', title: 'Undo' },
@@ -148,13 +189,14 @@
       { type: 'command', command: 'removeFormat', label: 'Clean', title: 'Remove formatting' },
       { type: 'action', action: 'table', label: 'Tbl', title: 'Insert table' },
       { type: 'action', action: 'clear', label: 'Clear', title: 'Clear content' },
+      { type: 'action', action: 'insertImage', label: 'Img', title: 'Insert image' },
       { type: 'action', action: 'fullscreen', label: 'Full', title: 'Open fullscreen' }
     ];
 
     controls.forEach(function (cfg) {
       if (cfg.divider) {
         var divider = document.createElement('span');
-        divider.className = 'weditor__divider';
+        divider.className = CLASS_NAMES.divider;
         toolbar.appendChild(divider);
         return;
       }
@@ -192,7 +234,7 @@
       } else {
         var btn = document.createElement('button');
         btn.type = 'button';
-        btn.className = 'weditor__btn';
+        btn.className = CLASS_NAMES.btn;
         btn.innerHTML = cfg.label;
         if (cfg.title) btn.title = cfg.title;
         btn.addEventListener('click', function (ev) {
@@ -216,7 +258,7 @@
     });
 
     var status = document.createElement('span');
-    status.className = 'weditor-status';
+    status.className = CLASS_NAMES.status;
     toolbar.appendChild(status);
     instance.statusEl = status;
 
@@ -234,6 +276,8 @@
       enterFullscreen(instance, instance.title);
     } else if (action === 'table') {
       insertTable(instance, 3, 3);
+    } else if (action === 'insertImage') {
+      insertImage(instance);
     }
   }
 
@@ -247,7 +291,7 @@
       field.hidden = true;
       field.setAttribute('aria-hidden', 'true');
     }
-    field.classList.add('weditor__field');
+    field.classList.add(CLASS_NAMES.syncField);
     field.setAttribute('data-weditor-bound', 'true');
 
     if (field.value && field.value.trim()) {
@@ -419,6 +463,96 @@
     }
   }
 
+  function insertImage(instance) {
+    var url = prompt('Enter image URL:');
+    if (!url) return;
+    focusInstance(instance);
+    try {
+      document.execCommand('insertImage', false, url);
+      setStatus(instance, 'Image inserted', 1500);
+      scheduleFieldSync(instance);
+      setTimeout(function() {
+        var insertedImage = instance.editorEl.querySelector('img[src="' + url + '"]:not(.resizable)');
+        if (insertedImage) {
+          addResizeHandles(insertedImage);
+        }
+      }, 100);
+    } catch (err) {
+      console.warn('[Weditor] Image insert failed', err);
+      setStatus(instance, 'Image insert failed', 2000);
+    }
+  }
+
+  function makeImagesResizable(editor) {
+    var images = editor.querySelectorAll('img');
+    images.forEach(function(img) {
+      if (!img.classList.contains('resizable')) {
+        addResizeHandles(img);
+      }
+    });
+  }
+
+  function addResizeHandles(img) {
+    if (img.classList.contains('resizable')) return;
+    img.classList.add('resizable');
+
+    var wrapper = document.createElement('span');
+    wrapper.style.position = 'relative';
+    wrapper.style.display = 'inline-block';
+    img.parentNode.insertBefore(wrapper, img);
+    wrapper.appendChild(img);
+
+    var handles = ['nw', 'ne', 'sw', 'se'];
+    handles.forEach(function(corner) {
+      var handle = document.createElement('div');
+      handle.className = 'resize-handle resize-' + corner;
+      handle.style.cssText = 'position:absolute;width:8px;height:8px;background:#4c7ae5;border:1px solid #fff;z-index:10;';
+      var style = '';
+      if (corner === 'nw') style = 'top:-4px;left:-4px;cursor:nwse-resize;';
+      if (corner === 'ne') style = 'top:-4px;right:-4px;cursor:nesw-resize;';
+      if (corner === 'sw') style = 'bottom:-4px;left:-4px;cursor:nesw-resize;';
+      if (corner === 'se') style = 'bottom:-4px;right:-4px;cursor:nwse-resize;';
+      handle.style.cssText += style;
+      wrapper.appendChild(handle);
+
+      handle.addEventListener('mousedown', function(e) {
+        e.preventDefault();
+        e.stopPropagation();
+        startResize(e, img, corner);
+      });
+    });
+  }
+
+  function startResize(e, img, corner) {
+    var startX = e.clientX;
+    var startY = e.clientY;
+    var startWidth = img.offsetWidth;
+    var startHeight = img.offsetHeight;
+
+    function resize(e) {
+      var deltaX = e.clientX - startX;
+      var deltaY = e.clientY - startY;
+      var newWidth = startWidth;
+      var newHeight = startHeight;
+
+      if (corner.includes('e')) newWidth += deltaX;
+      if (corner.includes('w')) newWidth -= deltaX;
+      if (corner.includes('s')) newHeight += deltaY;
+      if (corner.includes('n')) newHeight -= deltaY;
+
+      img.style.width = Math.max(30, newWidth) + 'px';
+      img.style.height = 'auto'; // Maintain aspect ratio
+    }
+
+    function stopResize() {
+      document.removeEventListener('mousemove', resize);
+      document.removeEventListener('mouseup', stopResize);
+    }
+
+    document.addEventListener('mousemove', resize);
+    document.addEventListener('mouseup', stopResize);
+  }
+
   function deriveTitle(instance) {
     var host = instance.editorEl.closest('[data-editor]');
     if (host && host.getAttribute('data-editor')) {
@@ -493,22 +627,22 @@
       current: null
     };
 
-    overlay.root.className = 'weditor-overlay';
+    overlay.root.className = CLASS_NAMES.overlay;
     overlay.root.setAttribute('aria-hidden', 'true');
 
     overlay.inner = document.createElement('div');
-    overlay.inner.className = 'weditor-overlay__inner';
+    overlay.inner.className = CLASS_NAMES.overlayInner;
 
     overlay.header = document.createElement('div');
-    overlay.header.className = 'weditor-overlay__header';
+    overlay.header.className = CLASS_NAMES.overlayHeader;
 
     overlay.title = document.createElement('span');
-    overlay.title.className = 'weditor-overlay__title';
+    overlay.title.className = CLASS_NAMES.overlayTitle;
     overlay.title.textContent = 'Editor';
 
     overlay.closeBtn = document.createElement('button');
     overlay.closeBtn.type = 'button';
-    overlay.closeBtn.className = 'weditor-overlay__close';
+    overlay.closeBtn.className = CLASS_NAMES.overlayClose;
     overlay.closeBtn.textContent = 'Close';
     overlay.closeBtn.addEventListener('click', exitFullscreen);
 
@@ -516,7 +650,7 @@
     overlay.header.appendChild(overlay.closeBtn);
 
     overlay.body = document.createElement('div');
-    overlay.body.className = 'weditor-overlay__body';
+    overlay.body.className = CLASS_NAMES.overlayBody;
 
     overlay.inner.appendChild(overlay.header);
     overlay.inner.appendChild(overlay.body);
@@ -641,13 +775,13 @@
     mount: function (target, options) {
       if (!target) return null;
       if (target instanceof Element) {
-        return mount(target, options);
+        return WeditorModules.mount(target, options);
       }
       if (typeof target === 'string') {
         var nodeList = document.querySelectorAll(target);
         var mounted = [];
         Array.prototype.forEach.call(nodeList, function (el) {
-          mounted.push(mount(el, options));
+          mounted.push(WeditorModules.mount(el, options));
         });
         return mounted;
       }
