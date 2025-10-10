@@ -11,117 +11,6 @@
   var overlay = null;
   var formSyncRegistry = new WeakSet();
   var lastOptions = DEFAULTS;
-  var DEFAULT_MAMMOTH_STYLE_MAP = [
-    // Most aggressive generic rules - catch everything
-    "h1 => h1",
-    "h2 => h2",
-    "h3 => h3",
-    "h4 => h4",
-    "h5 => h5",
-    "h6 => h6",
-    "p => p",
-    "strong => strong",
-    "em => em",
-
-    // Specific style names as fallbacks
-    "p[style-name='Title'] => h1:fresh",
-    "p[style-name='title'] => h1:fresh",
-    "p[style-name='标题'] => h1:fresh",
-    "p[style-name='Subtitle'] => p.weditor-doc-subtitle:fresh",
-    "p[style-name='subtitle'] => p.weditor-doc-subtitle:fresh",
-    "p[style-name='副标题'] => p.weditor-doc-subtitle:fresh",
-
-    // Headings 1-9 (EN + CN) - Inline Styles
-    "p[style-name='Heading 1'] => h1:fresh",
-    "p[style-name='Heading1'] => h1:fresh",
-    "p[style-name='标题 1'] => h1:fresh",
-    "p[style-name='Heading 2'] => h2:fresh",
-    "p[style-name='Heading2'] => h2:fresh",
-    "p[style-name='标题 2'] => h2:fresh",
-    "p[style-name='Heading 3'] => h3:fresh",
-    "p[style-name='Heading3'] => h3:fresh",
-    "p[style-name='标题 3'] => h3:fresh",
-    "p[style-name='Heading 4'] => h4:fresh",
-    "p[style-name='Heading4'] => h4:fresh",
-    "p[style-name='标题 4'] => h4:fresh",
-    "p[style-name='Heading 5'] => h5:fresh",
-    "p[style-name='Heading5'] => h5:fresh",
-    "p[style-name='标题 5'] => h5:fresh",
-    "p[style-name='Heading 6'] => h6:fresh",
-    "p[style-name='Heading6'] => h6:fresh",
-    "p[style-name='标题 6'] => h6:fresh",
-
-    // APA/Academic Style Names
-    "p[style-name='Heading Level 1'] => h1:fresh",
-    "p[style-name='Heading Level 2'] => h2:fresh",
-    "p[style-name='Heading Level 3'] => h3:fresh",
-    "p[style-name='Heading Level 4'] => h4:fresh",
-    "p[style-name='Heading Level 5'] => h5:fresh",
-    "p[style-name='Abstract'] => p[style='margin:0 0 1.15em;']",
-
-    // Normal / Body / Spacing (EN + CN) - Inline Styles
-    "p[style-name='Normal'] => p[style='margin:0 0 1.15em;']",
-    "p:empty => p:empty[style='margin:0 0 1.15em;min-height:1em;']", // Preserve empty lines
-    "p[style-name='Normal (Web)'] => p[style='margin:0 0 1.15em;']",
-    "p[style-name='Body Text'] => p[style='margin:0 0 1.15em;']",
-    "p[style-name='BodyText'] => p[style='margin:0 0 1.15em;']",
-    "p[style-name='正文'] => p[style='margin:0 0 1.15em;']",
-    "p[style-name='正文文本'] => p[style='margin:0 0 1.15em;']",
-    "p[style-name='No Spacing'] => p[style='margin:0;']",
-    "p[style-name='NoSpacing'] => p[style='margin:0;']",
-    "p[style-name='无间距'] => p[style='margin:0;']",
-    "p[style-name='List Paragraph'] => p[style='margin:0 0 1.15em 32px; text-indent:0;']",
-    "p[style-name='ListParagraph'] => p[style='margin:0 0 1.15em 32px; text-indent:0;']",
-    "p[style-name='列表段落'] => p[style='margin:0 0 1.15em 32px; text-indent:0;']",
-
-    // Alignment - applied via style attribute
-    "p.weditor-align-center => p[style='text-align:center;']",
-    "p.weditor-align-right => p[style='text-align:right;']",
-    "p.weditor-align-justify => p[style='text-align:justify;']",
-
-    // Quotes / Captions - Inline Styles
-    "p[style-name='Quote'] => blockquote[style='border-left:4px solid #c6c6c6; background:#f9f9f9; margin:16px 0; padding:12px 16px;']:fresh",
-    "p[style-name='Intense Quote'] => blockquote[style='border-left:6px solid #000; background:#f1f1f1; font-style:italic; margin:16px 0; padding:12px 16px;']:fresh",
-    "p[style-name='引用'] => blockquote[style='border-left:4px solid #c6c6c6; background:#f9f9f9; margin:16px 0; padding:12px 16px;']:fresh",
-    "p[style-name='加强引用'] => blockquote[style='border-left:6px solid #000; background:#f1f1f1; font-style:italic; margin:16px 0; padding:12px 16px;']:fresh",
-    "p[style-name='Caption'] => p[style='font-size:13px; color:#5a5a5a; text-align:center; margin:8px 0 12px;']",
-    "p[style-name='题注'] => p[style='font-size:13px; color:#5a5a5a; text-align:center; margin:8px 0 12px;']",
-
-    // Character styles (for inline headings and emphasis)
-    "r[style-name='Heading 1 Char'] => strong",
-    "r[style-name='Heading 2 Char'] => strong",
-    "r[style-name='Heading 3 Char'] => strong",
-    "r[style-name='Heading 4 Char'] => strong",
-    "r[style-name='Heading 5 Char'] => strong",
-    "r[style-name='Hyperlink'] => a",
-    "r[style-name='Emphasis'] => em",
-    "r[style-name='Strong'] => strong",
-    "r[style-name='Code'] => code[style='font-family:Consolas, \"Courier New\", monospace; background:#f2f2f2; padding:0 2px;']",
-    "p[style-name='Code'] => pre[style='font-family:Consolas, \"Courier New\", monospace; background:#f8f8f8; border:1px solid #e0e0e0; padding:10px; overflow:auto;']:fresh",
-
-    // Tables - Basic structure, inline styles for tables are very complex, better to keep classes
-    "table => table[style='width:100%; border-collapse:collapse; margin:16px 0;']",
-    "table > tr > td => td[style='border:1px solid #c6c6c6; padding:6px 10px; text-align:left;']",
-    "table > tr > th => th[style='border:1px solid #c6c6c6; padding:6px 10px; text-align:left; background:#f3f3f3; font-weight:600;']"
-  ];
-  var FONT_FAMILY_OPTIONS = [
-    { label: 'Font', value: '', placeholder: true },
-    { label: 'Default', value: 'Segoe UI, Calibri, "Helvetica Neue", Arial, sans-serif' },
-    { label: 'Calibri', value: 'Calibri' },
-    { label: 'Arial', value: 'Arial' },
-    { label: 'Times New Roman', value: 'Times New Roman' },
-    { label: 'Georgia', value: 'Georgia' },
-    { label: 'Verdana', value: 'Verdana' },
-    { label: 'Courier New', value: '"Courier New", Courier, monospace' }
-  ];
-  var FONT_SIZE_OPTIONS = [
-    { label: 'Size', value: '', placeholder: true },
-    { label: 'Normal (15px)', value: '3' },
-    { label: 'Small (12px)', value: '2' },
-    { label: 'Large (18px)', value: '4' },
-    { label: 'Heading (24px)', value: '5' },
-    { label: 'Display (32px)', value: '6' }
-  ];
 
   function ensureStyles() {
     if (document.getElementById(STYLE_ID)) return;
@@ -230,7 +119,6 @@
       options: options,
       wrapper: document.createElement('div'),
       toolbar: null,
-      fileInput: null,
       statusEl: null,
       statusTimer: null,
       placeholder: null,
@@ -251,8 +139,6 @@
     parent.insertBefore(instance.wrapper, el);
     instance.wrapper.appendChild(el);
 
-    instance.fileInput = createFileInput(instance);
-    instance.wrapper.appendChild(instance.fileInput);
 
     instance.placeholder = document.createComment('weditor-origin');
     instance.wrapper.parentNode.insertBefore(instance.placeholder, instance.wrapper.nextSibling);
@@ -304,14 +190,10 @@
       { type: 'command', command: 'italic', label: '<i>I</i>', title: 'Italic' },
       { type: 'command', command: 'underline', label: '<u>U</u>', title: 'Underline' },
       { divider: true },
-      { type: 'command', command: 'justifyLeft', label: '⯇', title: 'Align left' },
-      { type: 'command', command: 'justifyCenter', label: '⇔', title: 'Align center' },
-      { type: 'command', command: 'justifyRight', label: '⯈', title: 'Align right' },
-      { type: 'command', command: 'justifyFull', label: '⯌', title: 'Justify' },
-      { divider: true },
-      { type: 'select', action: 'fontName', title: 'Font family', options: FONT_FAMILY_OPTIONS },
-      { type: 'select', action: 'fontSize', title: 'Font size', options: FONT_SIZE_OPTIONS },
-      { type: 'color', action: 'foreColor', title: 'Text colour' },
+      { type: 'command', command: 'justifyLeft', label: '<svg width="16" height="16" viewBox="0 0 16 16"><path fill="currentColor" d="M2 3h12v2H2zm0 4h8v2H2zm0 4h12v2H2z"/></svg>', title: 'Align left' },
+      { type: 'command', command: 'justifyCenter', label: '<svg width="16" height="16" viewBox="0 0 16 16"><path fill="currentColor" d="M2 3h12v2H2zm2 4h8v2H4zm-2 4h12v2H2z"/></svg>', title: 'Align center' },
+      { type: 'command', command: 'justifyRight', label: '<svg width="16" height="16" viewBox="0 0 16 16"><path fill="currentColor" d="M2 3h12v2H2zm4 4h8v2H6zm-4 4h12v2H2z"/></svg>', title: 'Align right' },
+      { type: 'command', command: 'justifyFull', label: '<svg width="16" height="16" viewBox="0 0 16 16"><path fill="currentColor" d="M2 3h12v2H2zm0 4h12v2H2zm0 4h12v2H2z"/></svg>', title: 'Justify' },
       { divider: true },
       { type: 'command', command: 'insertUnorderedList', label: '• List', title: 'Bulleted list' },
       { type: 'command', command: 'insertOrderedList', label: '1. List', title: 'Numbered list' },
@@ -319,7 +201,6 @@
       { type: 'command', command: 'removeFormat', label: 'Clean', title: 'Remove formatting' },
       { type: 'action', action: 'table', label: 'Tbl', title: 'Insert table' },
       { type: 'action', action: 'clear', label: 'Clear', title: 'Clear content' },
-      { type: 'action', action: 'open', label: 'Open', title: 'Import file (.docx/.html/.txt)' },
       { type: 'action', action: 'fullscreen', label: 'Full', title: 'Open fullscreen' }
     ];
 
@@ -402,8 +283,6 @@
       setStatus(instance, 'Cleared', 1500);
       instance.editorEl.focus({ preventScroll: true });
       pushEditorToField(instance);
-    } else if (action === 'open') {
-      if (instance.fileInput) instance.fileInput.click();
     } else if (action === 'fullscreen') {
       enterFullscreen(instance, instance.title);
     } else if (action === 'table') {
@@ -566,19 +445,6 @@
     }
   }
 
-  function createFileInput(instance) {
-    var input = document.createElement('input');
-    input.type = 'file';
-    input.accept = '.html,.htm,.txt,.docx';
-    input.style.display = 'none';
-    input.addEventListener('change', function (ev) {
-      var file = ev.target.files && ev.target.files[0];
-      input.value = '';
-      if (!file) return;
-      importFile(instance, file);
-    });
-    return input;
-  }
 
   function insertTable(instance, rows, cols) {
     if (!instance) return;
@@ -1024,96 +890,6 @@
     }
   }
 
-  function resolveMammothOptions(instance) {
-    var userOptions = instance && instance.options && instance.options.mammothOptions
-      ? instance.options.mammothOptions
-      : {};
-    var merged = Object.assign({}, userOptions);
-    var styleMap = DEFAULT_MAMMOTH_STYLE_MAP.slice();
-    if (merged.styleMap) {
-      if (Array.isArray(merged.styleMap)) {
-        styleMap = styleMap.concat(merged.styleMap);
-      } else if (typeof merged.styleMap === 'string') {
-        styleMap.push(merged.styleMap);
-      }
-    }
-    if (instance && instance.extraStyleMap && instance.extraStyleMap.length) {
-      styleMap = styleMap.concat(instance.extraStyleMap);
-    }
-    merged.styleMap = styleMap;
-    if (typeof merged.includeDefaultStyleMap === 'undefined') {
-      merged.includeDefaultStyleMap = true;
-    }
-    return merged;
-  }
-
-  async function importFile(instance, file) {
-    if (!instance || !file) return;
-    setStatus(instance, 'Importing ' + file.name + '…', 0);
-    try {
-      var html;
-      if (/\.docx$/i.test(file.name)) {
-        if (window.mammoth && typeof window.mammoth.convertToHtml === 'function') {
-          var arrayBuffer = await file.arrayBuffer();
-          var result = await window.mammoth.convertToHtml(
-            { arrayBuffer: arrayBuffer },
-            resolveMammothOptions(instance)
-          );
-          html = result && result.value ? result.value : '';
-        } else {
-          console.warn('[Weditor] Mammoth.js not available for DOCX import.');
-          setStatus(instance, 'DOCX support requires mammoth.js', 4000);
-          return;
-        }
-      } else {
-        html = await file.text();
-      }
-      instance.editorEl.innerHTML = html || defaultEmpty();
-      ensureEmptyParagraphs(instance.editorEl);
-      applyPageLayout(instance);
-      // new: try to infer base typography (font, size, line-height) from imported HTML
-      inferAndApplyTypography(instance);
-      initializeFontMetrics();
-      applyWordTypography(instance.editorEl);
-      pushEditorToField(instance);
-      setStatus(instance, 'Loaded ' + file.name, 4000);
-      focusInstance(instance);
-    } catch (err) {
-      console.error('[Weditor] Import failed', err);
-      setStatus(instance, 'Import failed', 4000);
-    }
-  }
-  function initializeFontMetrics() {
-    if ('fonts' in document) {
-      document.fonts.ready.then(function() {
-        // 确保中文字体正确加载
-        const chineseFonts = ['宋体', 'SimSun', '微软雅黑', 'Microsoft YaHei'];
-        chineseFonts.forEach(font => {
-          document.fonts.load(`12px "${font}"`);
-        });
-      });
-    }
-  }
-
-  // 应用Word精确的排版规则
-  function applyWordTypography(element) {
-    // 字符间距标准化
-    const textNodes = element.querySelectorAll('*');
-    textNodes.forEach(node => {
-      if (node.nodeType === Node.TEXT_NODE && node.textContent.trim()) {
-        // 确保标点符号正确间距
-        node.textContent = node.textContent.replace(/([，。！？；：])([^，。！？；：\s])/g, '$1 $2');
-      }
-    });
-    
-    // 段落首行缩进标准化
-    const paragraphs = element.querySelectorAll('p');
-    paragraphs.forEach(p => {
-      if (!p.style.textIndent && !p.querySelector('ul, ol, table, blockquote')) {
-        p.style.textIndent = '2em';
-      }
-    });
-  }
 
   function resolveInstance(target) {
     if (typeof target === 'number') {
