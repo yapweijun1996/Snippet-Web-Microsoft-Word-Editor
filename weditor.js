@@ -525,6 +525,52 @@
     }
   }
 
+  // Ensure status elements exist (words/chars/save) before word_editor.js calls updateStats
+  function ensureStatusBlock(){
+    try{
+      var wordsEl = document.getElementById('weditor_statWords');
+      var charsEl = document.getElementById('weditor_statChars');
+      var saveEl  = document.getElementById('weditor_saveStatus');
+      if (wordsEl && charsEl && saveEl) return;
+
+      var modal = document.getElementById('weditor_editorModal');
+      if (!modal) return;
+
+      var status = modal.querySelector('.weditor_status');
+      if (!status){
+        status = document.createElement('div');
+        status.className = 'weditor_status';
+        status.innerHTML = '<div>Words: <span id="weditor_statWords">0</span> &nbsp; Characters: <span id="weditor_statChars">0</span></div><div id="weditor_saveStatus">Ready</div>';
+        modal.appendChild(status);
+      } else {
+        // Repair missing children if necessary
+        if (!document.getElementById('weditor_statWords') || !document.getElementById('weditor_statChars')){
+          status.innerHTML = '<div>Words: <span id="weditor_statWords">0</span> &nbsp; Characters: <span id="weditor_statChars">0</span></div><div id="weditor_saveStatus">Ready</div>';
+        } else if (!document.getElementById('weditor_saveStatus')){
+          var right = document.createElement('div');
+          right.id = 'weditor_saveStatus';
+          right.textContent = 'Ready';
+          status.appendChild(right);
+        }
+      }
+    }catch(e){ console.warn('[WEditor] ensureStatusBlock failed', e); }
+  }
+
+  // Patch updateStats to be resilient if called before status exists
+  function patchUpdateStatsSafe(){
+    try{
+      var original = window.updateStats;
+      if (!original) return;
+      if (original._weditorPatched) return;
+      function safeUpdate(){
+        ensureStatusBlock();
+        try{ return original.apply(this, arguments); }catch(e){ console.warn('[WEditor] updateStats guarded', e); }
+      }
+      safeUpdate._weditorPatched = true;
+      window.updateStats = safeUpdate;
+    }catch(e){ /* noop */ }
+  }
+
   // Override open to perform: ensure assets + inject DOM + delay-load scripts + open + set content
   function ensureInlineStyle(){
   var id='weditor_inlineStyle';
