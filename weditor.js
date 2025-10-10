@@ -94,8 +94,13 @@
       pair.trigger._weditorBound = true;
       pair.trigger.addEventListener('click', function (ev) {
         ev.preventDefault();
-        // For now, just route to API.open (stub)
-        API.open(idx);
+        // Open as fullscreen modal when trigger is clicked
+        if (window.WEditor && typeof window.WEditor.openModal === 'function') {
+          window.WEditor.openModal(idx);
+        } else {
+          // Fallback to inline open if modal API not patched yet
+          API.open(idx);
+        }
       });
     });
 
@@ -104,6 +109,14 @@
       console.warn('[WEditor] No pairs found. Please add elements with classes "weditor_fc_modal" (trigger) and "weditor" (container).');
     } else {
       console.log('[WEditor] Bootstrap ready. Pairs:', state.pairs.length);
+      // Auto open inline editor on the first host by default
+      setTimeout(function () {
+        try {
+          if (window.WEditor && typeof window.WEditor.open === 'function') {
+            window.WEditor.open(0);
+          }
+        } catch (_) {}
+      }, 0);
     }
   }
 
@@ -515,11 +528,24 @@
       btn.addEventListener('click', function(){
         try { writeBackToHost(); } catch(_) {}
         try {
-          if (window.WEditor && typeof window.WEditor._unmountToModal === 'function') window.WEditor._unmountToModal();
-          if (window.WEditor && window.WEditor._currentHost) {
-            window.WEditor._currentHost.classList.remove('weditor_inline-host');
+          var wasModal = window.WEditor && window.WEditor._mode === 'modal';
+          if (wasModal) {
+            // Hide modal overlay and move back inline to current host
+            var _modalEl = document.getElementById('weditor_editorModal');
+            if (_modalEl) { _modalEl.classList.remove('weditor_active'); }
+            if (document && document.body && document.body.classList) { document.body.classList.remove('weditor_modal-open'); }
+            if (window.WEditor && typeof window.WEditor._mountInline === 'function' && window.WEditor._currentHost) {
+              window.WEditor._mountInline(window.WEditor._currentHost);
+              window.WEditor._mode = 'inline';
+            }
+          } else {
+            // Closing inline editor: unmount back to modal root and clear state
+            if (window.WEditor && typeof window.WEditor._unmountToModal === 'function') window.WEditor._unmountToModal();
+            if (window.WEditor && window.WEditor._currentHost) {
+              window.WEditor._currentHost.classList.remove('weditor_inline-host');
+            }
+            if (window.WEditor) { window.WEditor._currentHost = null; window.WEditor._currentIndex = -1; }
           }
-          if (window.WEditor) { window.WEditor._currentHost = null; window.WEditor._currentIndex = -1; }
         } catch(_) {}
       });
     }
@@ -635,6 +661,7 @@ var prevOpen = window.WEditor.open;
         return;
       }
       var pair = pairs[index];
+      if (window.WEditor._currentHost && window.WEditor._currentHost !== pair.host) { try { writeBackToHost(); } catch(_) {} }
       window.WEditor._currentIndex = index;
       window.WEditor._currentHost = pair.host;
 
@@ -666,6 +693,8 @@ var prevOpen = window.WEditor.open;
         // Inline mount into host: move the editor shell into the target container and hide modal overlay
         if (window.WEditor && typeof window.WEditor._ensureInlineStyle === 'function') { window.WEditor._ensureInlineStyle(); }
         if (window.WEditor && typeof window.WEditor._mountInline === 'function') { window.WEditor._mountInline(pair.host); }
+        // Mark mode
+        if (window.WEditor) { window.WEditor._mode = 'inline'; }
         var _modalEl = document.getElementById('weditor_editorModal');
         if (_modalEl) { _modalEl.classList.remove('weditor_active'); }
         if (document && document.body && document.body.classList) { document.body.classList.remove('weditor_modal-open'); }
@@ -679,6 +708,60 @@ var prevOpen = window.WEditor.open;
     } catch (e) {
       console.error('[WEditor] open failed:', e);
       alert('WEditor failed to open. See console for details.');
+    }
+  };
+  
+  // Open fullscreen modal for the given index (moves single instance into modal overlay)
+  window.WEditor.openModal = async function (index) {
+    try {
+      var pairs = (window.WEditor.list && window.WEditor.list()) || [];
+      if (!(typeof index === 'number') || index < 0 || index >= pairs.length) {
+        console.warn('[WEditor] Invalid index:', index);
+        return;
+      }
+      var pair = pairs[index];
+      if (window.WEditor._currentHost && window.WEditor._currentHost !== pair.host) { try { writeBackToHost(); } catch(_) {} }
+      window.WEditor._currentIndex = index;
+      window.WEditor._currentHost = pair.host;
+
+      ensureHeadAssets();
+      ensureModalDOM();
+      await loadEditorScriptsOnce();
+      ensureStatusBlock();
+      patchUpdateStatsSafe();
+
+      // Sync content from host into editor
+      var ed = document.getElementById('weditor_editor');
+      if (ed) {
+        ed.innerHTML = (pair.host && pair.host.innerHTML) ? pair.host.innerHTML : '<p><br></p>';
+        if (typeof window.resetHistory === 'function') {
+          try { window.resetHistory(); } catch (_) {}
+        }
+      }
+
+      // Show modal and ensure shell is inside modal root
+      if (typeof window.openEditorModal === 'function') {
+        if (!window.WEditor._loadDispatched) {
+          try { window.dispatchEvent(new Event('load')); } catch (e) {}
+          window.WEditor._loadDispatched = true;
+        }
+        window.openEditorModal();
+      }
+      if (typeof window.WEditor._unmountToModal === 'function') { window.WEditor._unmountToModal(); }
+      var _modalEl = document.getElementById('weditor_editorModal');
+      if (_modalEl) { _modalEl.classList.add('weditor_active'); }
+      if (document && document.body && document.body.classList) { document.body.classList.add('weditor_modal-open'); }
+
+      window.WEditor._mode = 'modal';
+
+      hookCloseButton();
+
+      if (typeof window.WEditor.onOpen === 'function') {
+        try { window.WEditor.onOpen({ index: index, host: pair.host, trigger: pair.trigger }); } catch (_) {}
+      }
+    } catch (e) {
+      console.error('[WEditor] openModal failed:', e);
+      alert('WEditor failed to open in modal. See console for details.');
     }
   };
 
@@ -726,13 +809,26 @@ var prevOpen = window.WEditor.open;
         if (ed && window.WEditor && window.WEditor._currentHost) {
           window.WEditor._currentHost.innerHTML = ed.innerHTML;
         }
-        // unmount back to modal and clean host class/state
-        try {
-          if (window.WEditor && typeof window.WEditor._unmountToModal === 'function') window.WEditor._unmountToModal();
-          if (window.WEditor && window.WEditor._currentHost) {
-            window.WEditor._currentHost.classList.remove('weditor_inline-host');
+        var wasModal = window.WEditor && window.WEditor._mode === 'modal';
+        if (wasModal) {
+          // Return to inline editing in the current host
+          var _modalEl = document.getElementById('weditor_editorModal');
+          if (_modalEl) { _modalEl.classList.remove('weditor_active'); }
+          if (document && document.body && document.body.classList) { document.body.classList.remove('weditor_modal-open'); }
+          if (window.WEditor && typeof window.WEditor._mountInline === 'function' && window.WEditor._currentHost) {
+            window.WEditor._mountInline(window.WEditor._currentHost);
+            window.WEditor._mode = 'inline';
           }
-        } catch(_) {}
+        } else {
+          // Closing inline: unmount and clear state
+          try {
+            if (window.WEditor && typeof window.WEditor._unmountToModal === 'function') window.WEditor._unmountToModal();
+            if (window.WEditor && window.WEditor._currentHost) {
+              window.WEditor._currentHost.classList.remove('weditor_inline-host');
+            }
+          } catch(_) {}
+          if (window.WEditor) { window.WEditor._currentHost = null; window.WEditor._currentIndex = -1; }
+        }
         if (typeof window.WEditor.onClose === 'function') {
           try {
             window.WEditor.onClose({
@@ -741,7 +837,6 @@ var prevOpen = window.WEditor.open;
             });
           } catch (_) {}
         }
-        if (window.WEditor) { window.WEditor._currentHost = null; window.WEditor._currentIndex = -1; }
       } finally {
         _closing = false;
       }
@@ -755,14 +850,27 @@ var prevOpen = window.WEditor.open;
       if (ed && window.WEditor && window.WEditor._currentHost) {
         window.WEditor._currentHost.innerHTML = ed.innerHTML;
       }
-      try {
-        if (window.WEditor && typeof window.WEditor._unmountToModal === 'function') window.WEditor._unmountToModal();
-        if (window.WEditor && window.WEditor._currentHost) {
-          window.WEditor._currentHost.classList.remove('weditor_inline-host');
+      var wasModal = window.WEditor && window.WEditor._mode === 'modal';
+      if (wasModal) {
+        // Return to inline
+        var _modalEl = document.getElementById('weditor_editorModal');
+        if (_modalEl) { _modalEl.classList.remove('weditor_active'); }
+        if (document && document.body && document.body.classList) { document.body.classList.remove('weditor_modal-open'); }
+        if (window.WEditor && typeof window.WEditor._mountInline === 'function' && window.WEditor._currentHost) {
+          window.WEditor._mountInline(window.WEditor._currentHost);
+          window.WEditor._mode = 'inline';
         }
-      } catch(_) {}
-      if (typeof window.closeEditorModal === 'function') {
-        window.closeEditorModal();
+      } else {
+        try {
+          if (window.WEditor && typeof window.WEditor._unmountToModal === 'function') window.WEditor._unmountToModal();
+          if (window.WEditor && window.WEditor._currentHost) {
+            window.WEditor._currentHost.classList.remove('weditor_inline-host');
+          }
+        } catch(_) {}
+        if (typeof window.closeEditorModal === 'function') {
+          window.closeEditorModal();
+        }
+        if (window.WEditor) { window.WEditor._currentHost = null; window.WEditor._currentIndex = -1; }
       }
       if (typeof window.WEditor.onClose === 'function') {
         try {
@@ -772,7 +880,6 @@ var prevOpen = window.WEditor.open;
           });
         } catch (_) {}
       }
-      if (window.WEditor) { window.WEditor._currentHost = null; window.WEditor._currentIndex = -1; }
     } catch (e) {
       console.warn('[WEditor] close() encountered an issue:', e);
     }
