@@ -286,7 +286,9 @@
       <p class="weditor-demo__intro">
         Attach your JavaScript library to any element with the <code>.weditor</code> class and wire fullscreen
         behavior through the matching <code>.weditor_fc_modal</code> button. Each block below is self-contained
-        so you can mount multiple editors on the same page without relying on IDs.
+        so you can mount multiple editors on the same page without relying on IDs. Use the built-in font family,
+        size, and colour controls in the toolbar, and note that each editor keeps a hidden <code>textarea</code>
+        in sync so the HTML is ready to post back to your database.
       </p>
     </header>
 
@@ -301,6 +303,7 @@
         <div class="weditor" data-role="editor" contenteditable="true" aria-label="Overview editor">
           <p>Use this space for a quick document summary or introduction.</p>
         </div>
+        <textarea data-weditor-storage name="overview_html" hidden></textarea>
       </article>
 
       <article class="weditor-instance" data-editor="requirements">
@@ -317,6 +320,7 @@
             <li>Document technical decisions.</li>
           </ul>
         </div>
+        <textarea data-weditor-storage name="requirements_html" hidden></textarea>
       </article>
 
       <article class="weditor-instance" data-editor="notes">
@@ -329,6 +333,7 @@
         <div class="weditor" data-role="editor" contenteditable="true" aria-label="Notes editor">
           <p>Capture meeting notes, action items, or brainstorming ideas right here.</p>
         </div>
+        <textarea data-weditor-storage name="notes_html" hidden></textarea>
       </article>
 
       <article class="weditor-instance" data-editor="appendix">
@@ -341,6 +346,7 @@
         <div class="weditor" data-role="editor" contenteditable="true" aria-label="Appendix editor">
           <p>Add reference materials, links, or supporting documents.</p>
         </div>
+        <textarea data-weditor-storage name="appendix_html" hidden><p><strong>Stored appendix content:</strong> This HTML lives inside the textarea and is restored into the editor on mount.</p></textarea>
       </article>
     </section>
   </main>
