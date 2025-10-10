@@ -1,0 +1,571 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>Snippet Web Microsoft Word Editor — with Page & Image Controls</title>
+<style>
+  /* --- Reset / Base --- */
+  * { box-sizing: border-box; }
+  html, body { height: 100%; }
+  body {
+    margin: 0;
+    font-family: Calibri, "Segoe UI", Arial, sans-serif;
+    background: #f5f5f5;
+    color: #222;
+  }
+  body.weditor_modal-open { overflow: hidden; }
+  .weditor_launch-bar {
+    padding: 48px 24px;
+    text-align: center;
+    background: linear-gradient(135deg, #f5f5f5 30%, #e1e9ff 100%);
+    min-height: 100vh;
+    display: grid;
+    place-items: center;
+  }
+  .weditor_launch-card {
+    background: #fff;
+    border-radius: 12px;
+    box-shadow: 0 12px 30px rgba(43,87,154,0.15);
+    padding: 36px 48px;
+    max-width: 420px;
+  }
+  .weditor_launch-card h1 { margin: 0 0 12px; font-size: 22px; color: #2b579a; }
+  .weditor_launch-card p { margin: 0 0 24px; color: #4a4a4a; line-height: 1.6; }
+  .weditor_launch-btn {
+    display: inline-flex; align-items: center; gap: 8px;
+    background: #2b579a; color: #fff; border: none;
+    border-radius: 6px; padding: 12px 24px; cursor: pointer;
+    font-size: 15px; font-weight: 600;
+    box-shadow: 0 8px 20px rgba(43,87,154,0.25);
+  }
+  .weditor_launch-btn:hover { background: #244b86; }
+  body.weditor_modal-open .weditor_launch-bar { display: none; }
+  .weditor_pill {
+    display: inline-block;
+    padding: 0 10px;
+    height: 24px;
+    line-height: 24px;
+    border-radius: 12px;
+    background: #d2e3fc;
+    color: #1a3d7c;
+    font-size: 12px;
+    font-weight: 600;
+  }
+  .weditor_editor-modal {
+    position: fixed; inset: 0; background: rgba(0,0,0,0.45);
+    display: none; align-items: stretch; justify-content: center;
+    z-index: 3000; padding: 0;
+    overflow: hidden;
+  }
+  .weditor_editor-modal.weditor_active { display: flex; }
+  .weditor_editor-shell {
+    background: #fff; border-radius: 0; width: 100%; max-width: none;
+    display: flex; flex-direction: column; overflow: hidden;
+    box-shadow: none;
+    height: 100vh;
+  }
+  .weditor_editor-frame {
+    background: #f5f5f5;
+    flex: 1;
+    display: flex; flex-direction: column;
+    min-height: 0;
+  }
+  .weditor_header {
+    background: #2b579a; color: #fff; padding: 8px 12px;
+    display: flex; align-items: center; justify-content: space-between;
+  }
+  .weditor_header h1 { font-size: 16px; font-weight: 600; margin: 0; }
+  .weditor_header-actions { display: flex; gap: 8px; align-items: center; }
+  .weditor_toolbar {
+    position: sticky; top: 0; z-index: 100; background: #f1f1f1;
+    border-bottom: 1px solid #ddd; padding: 6px 8px; display: flex; flex-wrap: wrap; gap: 8px;
+  }
+  .weditor_group { display: inline-flex; align-items: center; gap: 6px; padding-right: 10px; border-right: 1px solid #ddd; }
+  .weditor_group:last-child { border-right: 0; }
+  .weditor_btn {
+    height: 28px; min-width: 28px; padding: 0 8px; border: 1px solid #ddd; background: #fff;
+    border-radius: 3px; cursor: pointer; font-size: 13px; display: inline-flex; align-items: center; justify-content: center;
+  }
+  .weditor_btn:hover { background: #e8f0fe; border-color: #1976d2; }
+  .weditor_btn.weditor_active { background: #d2e3fc; border-color: #1976d2; }
+  .weditor_btn:disabled {
+    opacity: 0.45;
+    cursor: not-allowed;
+    background: #f5f5f5;
+    border-color: #ddd;
+  }
+  select, input[type="number"], input[type="text"] {
+    height: 28px; border: 1px solid #ddd; background: #fff; padding: 0 6px; border-radius: 3px; font-size: 13px;
+  }
+  .weditor_color-btn {
+    width: 28px; height: 28px; border: 1px solid #ddd; background: #fff; position: relative; border-radius: 3px;
+    display: inline-flex; align-items: center; justify-content: center; cursor: pointer; font-weight: 700;
+  }
+  .weditor_color-preview { position: absolute; left: 0; right: 0; bottom: 2px; height: 6px; border-top: 1px solid #eee; }
+  .weditor_sr-file {
+    position: fixed;
+    top: -1000px;
+    left: -1000px;
+    width: 0.1px;
+    height: 0.1px;
+    opacity: 0;
+    pointer-events: none;
+  }
+
+  /* --- Canvas / Page --- */
+  .weditor_canvas {
+    flex: 1;
+    overflow: auto;
+    background: #e8e8e8;
+    padding: 20px 0 60px;
+    min-height: 0;
+  }
+  .weditor_page-wrap {
+    margin: 0 auto;
+    box-shadow: 0 0 5px rgba(0,0,0,.15);
+    background: #fff;
+    position: relative;
+    transform-origin: top center;
+  }
+  .weditor_page-content {
+    outline: none;
+    min-height: 10mm;
+  }
+  /* default (will be overridden by JS per selection) */
+  .weditor_page-wrap { width: 210mm; }
+  .weditor_page-content { padding: 20mm; font-size: 11pt; line-height: 1.5; }
+
+  .weditor_page-break {
+    height: 0; margin: 12px 0; border-top: 2px dashed #9aa0a6;
+    position: relative; break-after: page; page-break-after: always;
+  }
+  .weditor_page-break::after {
+    content: "Page Break";
+    position: absolute; top: -12px; left: 50%; transform: translateX(-50%);
+    font-size: 11px; color: #5f6368; background: #f5f5f5; padding: 0 6px;
+  }
+  .weditor_undo-flash {
+    animation: undoFlash 0.8s ease-out;
+  }
+  @keyframes undoFlash {
+    0% { background: rgba(255, 236, 179, 0.9); }
+    100% { background: transparent; }
+  }
+
+  /* --- Feedback & overlays --- */
+  .weditor_offline-banner {
+    background: #fff4d7;
+    color: #8a5300;
+    text-align: center;
+    font-size: 12px;
+    font-weight: 600;
+    padding: 6px 12px;
+    border-bottom: 1px solid rgba(0,0,0,0.1);
+  }
+  .weditor_offline-banner[hidden] { display: none !important; }
+
+  .weditor_toast-stack {
+    position: fixed;
+    top: 24px;
+    right: 24px;
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    max-width: min(320px, 80vw);
+    z-index: 5000;
+    pointer-events: none;
+  }
+  .weditor_toast {
+    pointer-events: auto;
+    border-radius: 6px;
+    border: 1px solid #d1d5db;
+    padding: 10px 14px;
+    font-size: 13px;
+    line-height: 1.4;
+    box-shadow: 0 12px 24px rgba(0,0,0,0.18);
+    background: #fff;
+    opacity: 0;
+    transform: translateY(-8px) scale(0.98);
+    transition: opacity 0.18s ease, transform 0.18s ease;
+  }
+  .weditor_toast--visible {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+  .weditor_toast--info { background: #e3f2fd; color: #0d47a1; border-color: #90caf9; }
+  .weditor_toast--success { background: #e6f4ea; color: #0b5d1e; border-color: #9dd59f; }
+  .weditor_toast--error { background: #fdecea; color: #8a1c1c; border-color: #f5b1ab; }
+  .weditor_toast--warning { background: #fff4d7; color: #8a5300; border-color: #f9d19f; }
+
+  .weditor_import-progress {
+    position: fixed;
+    top: 24px;
+    left: 50%;
+    transform: translateX(-50%);
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 10px 16px;
+    border-radius: 8px;
+    background: #fff;
+    border: 1px solid #d1d5db;
+    box-shadow: 0 12px 24px rgba(0,0,0,0.18);
+    z-index: 5100;
+  }
+  .weditor_import-progress[hidden] { display: none !important; }
+  .weditor_import-progress__spinner {
+    width: 16px;
+    height: 16px;
+    border-radius: 50%;
+    border: 2px solid #d2e3fc;
+    border-top-color: #2b579a;
+    animation: spin 0.9s linear infinite;
+  }
+  .weditor_import-progress__message {
+    font-size: 13px;
+    color: #1f1f1f;
+  }
+  @keyframes spin {
+    to { transform: rotate(360deg); }
+  }
+
+  /* --- Status bar --- */
+  .weditor_status {
+    position: sticky;
+    bottom: 0;
+    background: #f1f1f1; border-top: 1px solid #ddd;
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 6px 12px; font-size: 12px; z-index: 10;
+  }
+
+  /* --- Modals (simple) --- */
+  .weditor_modal { display: none; position: fixed; inset: 0; background: rgba(0,0,0,.45); align-items: center; justify-content: center; z-index: 2000; }
+  .weditor_modal.weditor_active { display: flex; }
+  .weditor_modal-card { background: #fff; width: min(92vw, 520px); padding: 16px; border-radius: 6px; }
+  .weditor_modal-head { display:flex; align-items:center; justify-content:space-between; margin-bottom: 10px; }
+  .weditor_close-x { font-size: 22px; cursor: pointer; color: #777; }
+  .weditor_form-row { margin-bottom: 10px; display: grid; grid-template-columns: 140px 1fr; gap: 10px; align-items: center; }
+  .weditor_modal-actions { display: flex; gap: 8px; justify-content: flex-end; }
+
+  /* --- Image selection adornments --- */
+  .weditor_img-selected { outline: 2px solid #4285f4; }
+  .weditor_img-handle {
+    position: absolute; width: 10px; height: 10px; background: #4285f4; border-radius: 50%;
+    right: -5px; bottom: -5px; cursor: se-resize; z-index: 50;
+  }
+  .weditor_img-toolbar, .weditor_table-toolbar {
+    position: fixed; z-index: 3000; background: #fff; border: 1px solid #ddd; border-radius: 6px;
+    box-shadow: 0 4px 18px rgba(0,0,0,.12); padding: 8px; display: none; min-width: 280px;
+  }
+  .weditor_img-toolbar .weditor_row, .weditor_table-toolbar .weditor_row { display: flex; align-items: center; gap: 6px; margin: 6px 0; flex-wrap: wrap; }
+  .weditor_img-toolbar label, .weditor_table-toolbar label { font-size: 12px; color: #555; }
+  td.weditor_cell-selected, th.weditor_cell-selected { outline: 2px solid #34a853; outline-offset: -2px; }
+
+  /* --- Printing --- */
+  @media print {
+    body { background: #fff; }
+    .weditor_header, .weditor_toolbar, .weditor_status, .weditor_img-toolbar, .weditor_table-toolbar, .weditor_toast-stack, .weditor_import-progress, .weditor_offline-banner { display: none !important; }
+    .weditor_editor-modal, .weditor_editor-shell, .weditor_editor-frame {
+      position: static;
+      display: block;
+      height: auto !important;
+      overflow: visible !important;
+    }
+    .weditor_canvas {
+      padding: 0;
+      overflow: visible !important;
+      height: auto !important;
+    }
+    .weditor_page-wrap { box-shadow: none; margin: 0; width: auto; transform: none !important; }
+    .weditor_page-content { padding: 0; }
+    .weditor_page-break { border: none; height: 0; }
+    .weditor_page-break::after { display: none !important; }
+  }
+</style>
+
+<!-- dynamic print style for @page will be injected here -->
+<style id="weditor_printStyle">
+  @page { size: A4 portrait; margin: 20mm; }
+</style>
+</head>
+<body>
+  <div class="weditor_launch-bar">
+    <div class="weditor_launch-card">
+      <h1>Snippet Web Microsoft Word Editor</h1>
+      <p>Paste or import Word documents into a front-end-only workspace with A4 pagination, autosave, and export.</p>
+      <button class="weditor_launch-btn" id="weditor_launchEditor">🚀 Launch Editor</button>
+    </div>
+  </div>
+
+<div class="weditor_editor-modal" id="weditor_editorModal" role="dialog" aria-modal="true" aria-labelledby="weditor_editorTitle">
+    <div class="weditor_editor-shell">
+      <div class="weditor_offline-banner" id="weditor_offlineBanner" role="status" aria-live="polite" hidden></div>
+      <div class="weditor_editor-frame">
+  <div class="weditor_header">
+    <h1 id="weditor_editorTitle">📝 Web Word-like Editor</h1>
+    <div class="weditor_header-actions">
+      <button type="button" class="weditor_btn" id="weditor_btnNew">New</button>
+      <button type="button" class="weditor_btn" id="weditor_btnOpen">Open</button>
+      <button type="button" class="weditor_btn" id="weditor_btnSave">Save</button>
+      <button type="button" class="weditor_btn" id="weditor_btnPrint">Print</button>
+      <button type="button" class="weditor_btn" id="weditor_btnCloseEditor" title="Close editor">×</button>
+    </div>
+  </div>
+
+  <!-- Toolbar -->
+  <div class="weditor_toolbar" role="toolbar" aria-label="Editor toolbar">
+    <!-- Undo/Redo -->
+    <div class="weditor_group">
+      <button type="button" class="weditor_btn" id="weditor_btnUndo" title="Undo">↶</button>
+      <button type="button" class="weditor_btn" id="weditor_btnRedo" title="Redo">↷</button>
+    </div>
+
+    <!-- Clipboard -->
+    <div class="weditor_group">
+      <button class="weditor_btn" data-cmd="cut" title="Cut">✂</button>
+      <button class="weditor_btn" data-cmd="copy" title="Copy">📋</button>
+      <button class="weditor_btn" id="weditor_btnPaste" title="Paste">📌</button>
+    </div>
+
+    <!-- Font -->
+    <div class="weditor_group">
+      <select id="weditor_fontName" title="Font family">
+        <option value="">Font</option>
+        <option>Arial</option>
+        <option selected>Calibri</option>
+        <option>Cambria</option>
+        <option>Courier New</option>
+        <option>Georgia</option>
+        <option>Times New Roman</option>
+        <option>Verdana</option>
+      </select>
+      <select id="weditor_fontSize" title="Font size (pt)">
+        <option value="">Size</option>
+        <option>8</option><option>9</option><option>10</option><option>11</option><option>12</option>
+        <option>14</option><option>16</option><option>18</option><option>20</option><option>22</option>
+        <option>24</option><option>28</option><option>36</option><option>48</option><option>72</option>
+      </select>
+      <button class="weditor_btn" data-cmd="bold"><b>B</b></button>
+      <button class="weditor_btn" data-cmd="italic"><i>I</i></button>
+      <button class="weditor_btn" data-cmd="underline"><u>U</u></button>
+      <button class="weditor_btn" data-cmd="strikeThrough"><s>S</s></button>
+      <button class="weditor_btn" data-cmd="subscript">x₂</button>
+      <button class="weditor_btn" data-cmd="superscript">x²</button>
+    </div>
+
+    <!-- Colors -->
+    <div class="weditor_group">
+      <button class="weditor_color-btn" id="weditor_btnColorText" title="Text color">A<div class="weditor_color-preview" id="weditor_cpText" style="background:black;"></div></button>
+      <input type="color" id="weditor_colorText" style="display:none" value="#000000"/>
+      <button class="weditor_color-btn" id="weditor_btnColorHilite" title="Highlight">A<div class="weditor_color-preview" id="weditor_cpHilite" style="background:yellow;"></div></button>
+      <input type="color" id="weditor_colorHilite" style="display:none" value="#ffff00"/>
+    </div>
+
+    <!-- Align & Lists -->
+    <div class="weditor_group">
+      <button class="weditor_btn" data-cmd="justifyLeft" title="Align left">⬅</button>
+      <button class="weditor_btn" data-cmd="justifyCenter" title="Align center">⬌</button>
+      <button class="weditor_btn" data-cmd="justifyRight" title="Align right">➡</button>
+      <button class="weditor_btn" data-cmd="justifyFull" title="Justify">☰</button>
+      <button class="weditor_btn" data-cmd="insertOrderedList" title="Numbered list">1.</button>
+      <button class="weditor_btn" data-cmd="insertUnorderedList" title="Bulleted list">•</button>
+      <button class="weditor_btn" data-cmd="outdent" title="Outdent">⇤</button>
+      <button class="weditor_btn" data-cmd="indent" title="Indent">⇥</button>
+      <select id="weditor_listStyle" title="List style">
+        <option value="">List style</option>
+        <option value="ul:disc">• Disc</option>
+        <option value="ul:circle">○ Circle</option>
+        <option value="ul:square">■ Square</option>
+        <option value="ol:decimal">1. Decimal</option>
+        <option value="ol:lower-alpha">a. Lower alpha</option>
+        <option value="ol:upper-alpha">A. Upper alpha</option>
+        <option value="ol:lower-roman">i. Lower roman</option>
+        <option value="ol:upper-roman">I. Upper roman</option>
+      </select>
+    </div>
+
+    <!-- Insert -->
+    <div class="weditor_group">
+      <button class="weditor_btn" id="weditor_btnLink" title="Insert link">🔗</button>
+      <button class="weditor_btn" id="weditor_btnImage" title="Insert image">🖼</button>
+      <button class="weditor_btn" id="weditor_btnTable" title="Insert table">⊞</button>
+      <button type="button" class="weditor_btn" data-cmd="insertHorizontalRule" title="Horizontal line">—</button>
+      <button class="weditor_btn" id="weditor_btnPageBreak" title="Insert page break">⤓</button>
+    </div>
+
+    <!-- Page Setup -->
+    <div class="weditor_group" title="Page setup">
+      <span style="font-size:12px;color:#555;">Paper:</span>
+      <span class="weditor_pill" aria-label="Paper size locked to A4">A4</span>
+      <select id="weditor_orientation">
+        <option>portrait</option>
+        <option>landscape</option>
+      </select>
+      <label style="font-size:12px;color:#555;">Margins (mm):</label>
+      <input type="number" id="weditor_margin" value="20" min="5" max="50" style="width:64px" />
+      <label style="font-size:12px;color:#555;">Zoom:</label>
+      <select id="weditor_zoom">
+        <option>80%</option><option>90%</option><option selected>100%</option><option>110%</option><option>125%</option><option>150%</option>
+      </select>
+    </div>
+
+    <!-- Tools -->
+    <div class="weditor_group">
+      <button type="button" class="weditor_btn" id="weditor_btnFind" title="Find & Replace">🔍</button>
+      <button type="button" class="weditor_btn" id="weditor_btnClearFormat" title="Clear formatting">✖</button>
+    </div>
+  </div>
+
+  <!-- Canvas / Page -->
+  <div class="weditor_canvas">
+    <div class="weditor_page-wrap" id="weditor_pageWrap">
+      <div class="weditor_page-content" id="weditor_editor" contenteditable="true" spellcheck="true">
+        <h1 style="text-align:center;">Welcome!</h1>
+        <p>Paste from Word and keep your formatting (bold, italic, underline, alignment, lists, tables, etc.).</p>
+        <p>Try inserting an image — click it to control size, alignment, wrap, border, radius, shadow, or drag the corner handle to resize.</p>
+        <p>You can also insert a <em>Page Break</em>, and dial in A4 orientation + margins with real mm units. Print uses real <code>@page</code> rules.</p>
+      </div>
+    </div>
+  </div>
+      </div>
+
+  <!-- Status -->
+  <div class="weditor_status">
+    <div>Words: <span id="weditor_statWords">0</span> &nbsp; Characters: <span id="weditor_statChars">0</span></div>
+    <div id="weditor_saveStatus">Ready</div>
+  </div>
+
+  <!-- Hidden inputs -->
+  <input type="file" id="weditor_fileOpen" accept=".html,.htm,.txt,.docx" class="weditor_sr-file" tabindex="-1" />
+  <input type="file" id="weditor_fileImg" accept="image/*" class="weditor_sr-file" tabindex="-1" />
+    </div>
+  <!-- Link modal -->
+  <div class="weditor_modal" id="weditor_modalLink">
+    <div class="weditor_modal-card">
+      <div class="weditor_modal-head">
+        <h3>Insert Link</h3>
+        <span class="weditor_close-x" data-close="weditor_modalLink">×</span>
+      </div>
+      <div class="weditor_form-row">
+        <label>URL</label>
+        <input type="text" id="weditor_linkURL" placeholder="https://example.com"/>
+      </div>
+      <div class="weditor_form-row">
+        <label>Text (optional)</label>
+        <input type="text" id="weditor_linkText" placeholder="Text to display"/>
+      </div>
+      <div class="weditor_modal-actions">
+        <button class="weditor_btn" data-close="weditor_modalLink">Cancel</button>
+        <button class="weditor_btn" id="weditor_doInsertLink" style="background:#1976d2;color:#fff;border:0;">Insert</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Table modal -->
+  <div class="weditor_modal" id="weditor_modalTable">
+    <div class="weditor_modal-card">
+      <div class="weditor_modal-head">
+        <h3>Insert Table</h3>
+        <span class="weditor_close-x" data-close="weditor_modalTable">×</span>
+      </div>
+      <div class="weditor_form-row">
+        <label>Rows</label><input type="number" id="weditor_tblRows" min="1" max="100" value="3"/>
+      </div>
+      <div class="weditor_form-row">
+        <label>Columns</label><input type="number" id="weditor_tblCols" min="1" max="20" value="3"/>
+      </div>
+      <div class="weditor_modal-actions">
+        <button class="weditor_btn" data-close="weditor_modalTable">Cancel</button>
+        <button class="weditor_btn" id="weditor_doInsertTable" style="background:#1976d2;color:#fff;border:0;">Insert</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Find/Replace modal -->
+  <div class="weditor_modal" id="weditor_modalFind">
+    <div class="weditor_modal-card">
+      <div class="weditor_modal-head">
+        <h3>Find & Replace</h3>
+        <span class="weditor_close-x" data-close="weditor_modalFind">×</span>
+      </div>
+      <div class="weditor_form-row">
+        <label>Find</label><input type="text" id="weditor_findTxt"/>
+      </div>
+      <div class="weditor_form-row">
+        <label>Replace</label><input type="text" id="weditor_replTxt"/>
+      </div>
+      <div class="weditor_modal-actions">
+        <button class="weditor_btn" id="weditor_doFind">Find next</button>
+        <button class="weditor_btn" id="weditor_doReplace">Replace</button>
+        <button class="weditor_btn" id="weditor_doReplaceAll" style="background:#1976d2;color:#fff;border:0;">Replace all</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Floating Image Toolbar -->
+  <div class="weditor_img-toolbar" id="weditor_imgToolbar" role="dialog" aria-label="Image tools">
+    <div class="weditor_row">
+      <label>Width:</label>
+      <input type="range" id="weditor_imgWidth" min="20" max="1600" value="300" style="width:140px"/>
+      <label><input type="checkbox" id="weditor_imgLock" checked/> Lock ratio</label>
+      <span id="weditor_imgSizeLabel" style="font-size:12px;color:#555;">300×—</span>
+    </div>
+    <div class="weditor_row">
+      <label>Align:</label>
+      <button class="weditor_btn" id="weditor_imgAlignLeft">Left</button>
+      <button class="weditor_btn" id="weditor_imgAlignCenter">Center</button>
+      <button class="weditor_btn" id="weditor_imgAlignRight">Right</button>
+      <button class="weditor_btn" id="weditor_imgFloatLeft" title="Wrap left">Wrap ⬅</button>
+      <button class="weditor_btn" id="weditor_imgFloatRight" title="Wrap right">Wrap ➡</button>
+      <button class="weditor_btn" id="weditor_imgFloatNone" title="No wrap">No wrap</button>
+    </div>
+    <div class="weditor_row">
+      <label>Border:</label>
+      <button class="weditor_btn" id="weditor_imgBorderToggle">On/Off</button>
+      <label>Radius</label><input type="range" id="weditor_imgRadius" min="0" max="40" value="0" style="width:100px"/>
+      <label>Shadow</label><button class="weditor_btn" id="weditor_imgShadowToggle">On/Off</button>
+    </div>
+    <div class="weditor_row">
+      <button class="weditor_btn" id="weditor_imgReplace">Replace URL</button>
+      <button class="weditor_btn" id="weditor_imgUpload">Upload…</button>
+      <button class="weditor_btn" id="weditor_imgRemove" style="color:#b00020;border-color:#f3cbd0;">Remove</button>
+    </div>
+  </div>
+
+  <div class="weditor_table-toolbar" id="weditor_tableToolbar" role="dialog" aria-label="Table tools">
+    <div class="weditor_row">
+      <button class="weditor_btn" id="weditor_tblAddRowAbove" title="Add row above">Row ↑</button>
+      <button class="weditor_btn" id="weditor_tblAddRowBelow" title="Add row below">Row ↓</button>
+      <button class="weditor_btn" id="weditor_tblAddColLeft" title="Add column left">Col ←</button>
+      <button class="weditor_btn" id="weditor_tblAddColRight" title="Add column right">Col →</button>
+      <button class="weditor_btn" id="weditor_tblDeleteRow" title="Delete row" style="color:#b00020;">Del Row</button>
+      <button class="weditor_btn" id="weditor_tblDeleteCol" title="Delete column" style="color:#b00020;">Del Col</button>
+    </div>
+    <div class="weditor_row">
+      <button class="weditor_btn" id="weditor_tblToggleHeader" title="Toggle header row">Header</button>
+      <label>Align:</label>
+      <button class="weditor_btn" id="weditor_tblAlignLeft">Left</button>
+      <button class="weditor_btn" id="weditor_tblAlignCenter">Center</button>
+      <button class="weditor_btn" id="weditor_tblAlignRight">Right</button>
+    </div>
+    <div class="weditor_row">
+      <label>Borders:</label>
+      <button class="weditor_btn" data-border="all">All</button>
+      <button class="weditor_btn" data-border="none">None</button>
+      <button class="weditor_btn" data-border="top">Top</button>
+      <button class="weditor_btn" data-border="right">Right</button>
+      <button class="weditor_btn" data-border="bottom">Bottom</button>
+      <button class="weditor_btn" data-border="left">Left</button>
+    </div>
+  </div>
+</div>
+<div class="weditor_toast-stack" id="weditor_toastStack" aria-live="polite" aria-atomic="true"></div>
+<div class="weditor_import-progress" id="weditor_importProgress" role="status" aria-live="polite" hidden>
+  <span class="weditor_import-progress__spinner" aria-hidden="true"></span>
+  <span class="weditor_import-progress__message" id="weditor_importProgressMessage">Preparing...</span>
+</div>
+<script src="libs/mammoth.browser.min.js"></script>
+<script src="word_editor.js"></script>
+</body>
+</html>
