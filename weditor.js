@@ -74,7 +74,8 @@
       `.${CLASS_NAMES.wrapper}[data-mode="fullscreen"]{${STYLES.fullscreenWrapper}}`,
       `.${CLASS_NAMES.wrapper}[data-mode="fullscreen"] .weditor{${STYLES.fullscreenEditor}}`,
       `body.weditor-no-scroll{${STYLES.noScrollBody}}`,
-      `@media print{body, .${CLASS_NAMES.overlayBody}{background:#fff;padding:0;margin:0;} .${CLASS_NAMES.wrapper}[data-mode="fullscreen"]{box-shadow:none;border:0;margin:0;width:100%;}}`
+      `@media print{body, .${CLASS_NAMES.overlayBody}{background:#fff;padding:0;margin:0;} .${CLASS_NAMES.wrapper}[data-mode="fullscreen"]{box-shadow:none;border:0;margin:0;width:100%;}}`,
+      // REMOVED: CSS-driven visibility. Handles will now always be visible.
     ].join('');
     document.head.appendChild(style);
   }
@@ -149,30 +150,11 @@
     instance.title = deriveTitle(instance);
     attachSyncField(instance);
     addTestingTools(instance);
+    console.log('[WEDITOR DEBUG] Instance created. Calling makeImagesResizable...');
     makeImagesResizable(instance.editorEl);
     setupContextMenu(instance);
 
-    // Click to activate image resizing (点击图片激活缩放, 点击空白取消)
-    el.addEventListener('click', function (ev) {
-      var t = ev.target;
-      // Keep active when clicking on handles
-      if (t && t.classList && t.classList.contains('resize-handle')) {
-        return;
-      }
-      var img = t && (t.tagName === 'IMG' ? t : (t.closest ? t.closest('img') : null));
-      if (img) {
-        if (!img.classList.contains('resizable')) {
-          addResizeHandles(img);
-        }
-        var wrapper = (img.parentNode && img.parentNode.getAttribute && img.parentNode.getAttribute('data-weditor-img-wrapper') === '1') ? img.parentNode : null;
-        if (wrapper) {
-          setActiveImage(instance, wrapper);
-        }
-      } else {
-        // Clicked outside image: deactivate all
-        deactivateAllImages(instance);
-      }
-    });
+    // REMOVED: All activation logic is removed for simplicity.
 
     el.addEventListener('paste', function () {
       // Defer to allow DOM update after paste (中文解释: 等待粘贴完成再处理DOM)
@@ -513,14 +495,10 @@
             setStatus(instance, 'Image inserted', 1500);
             scheduleFieldSync(instance);
             setTimeout(function() {
-              // Find the newly inserted image to make it resizable and active.
+              // Find the newly inserted image and make it resizable. Activation will be handled by the mousedown event.
               var insertedImage = instance.editorEl.querySelector('img[src^="data:"]:not(.resizable)');
               if (insertedImage) {
                 addResizeHandles(insertedImage);
-                var wrapper = insertedImage.parentNode;
-                if (wrapper) {
-                  setActiveImage(instance, wrapper);
-                }
               }
             }, 100);
           } catch (err) {
@@ -544,19 +522,31 @@
   }
 
   function makeImagesResizable(editor) {
+    console.log('[WEDITOR DEBUG] makeImagesResizable: Searching for images...');
     var images = editor.querySelectorAll('img');
-    images.forEach(function(img) {
-      if (!img.classList.contains('resizable')) {
-        addResizeHandles(img);
-      }
+    console.log(`[WEDITOR DEBUG] makeImagesResizable: Found ${images.length} images.`);
+    images.forEach(function(img, index) {
+      // We call addResizeHandles every time now. The function itself will check if wrapping is needed.
+      console.log(`[WEDITOR DEBUG] makeImagesResizable: Processing image ${index}. Calling addResizeHandles.`);
+      addResizeHandles(img);
     });
   }
 
   function addResizeHandles(img) {
-    if (img.classList.contains('resizable')) return;
+    console.log('[WEDITOR DEBUG] addResizeHandles: Called for image:', img.src.substring(0, 50) + '...');
+    // FINAL FIX: If a wrapper exists, remove it and rebuild everything to ensure consistency.
+    var existingWrapper = img.parentNode;
+    if (existingWrapper && existingWrapper.getAttribute('data-weditor-img-wrapper') === '1') {
+      console.log('[WEDITOR DEBUG] addResizeHandles: Found existing wrapper. Removing it before rebuilding.');
+      existingWrapper.parentNode.insertBefore(img, existingWrapper);
+      existingWrapper.parentNode.removeChild(existingWrapper);
+    }
+    
+    // Ensure the class is there, but don't rely on it for the check.
     img.classList.add('resizable');
 
     var wrapper = document.createElement('span');
+    console.log('[WEDITOR DEBUG] addResizeHandles: Created wrapper span.');
     wrapper.style.position = 'relative';
     wrapper.style.display = 'inline-block';
     wrapper.setAttribute('data-weditor-img-wrapper', '1');
@@ -574,34 +564,27 @@
       if (corner === 'sw') style = 'bottom:-4px;left:-4px;cursor:nesw-resize;';
       if (corner === 'se') style = 'bottom:-4px;right:-4px;cursor:nwse-resize;';
       handle.style.cssText += style;
-      handle.style.display = 'none'; // hidden by default; shown when active
       wrapper.appendChild(handle);
  
       handle.addEventListener('mousedown', function(e) {
-        // Ignore right-click to allow native/context menus (中文解释: 右键不参与缩放)
-        if (e && e.button === 2) {
-          return;
-        }
-        // Activate this image's handles on left-click
-        var editorEl = img.closest ? img.closest('.weditor') : null;
-        var inst = resolveInstance(editorEl || img);
-        if (inst) {
-          setActiveImage(inst, wrapper);
-        }
+        console.log(`[WEDITOR DEBUG] Mousedown on resize handle (${corner}). Calling startResize.`);
         e.preventDefault();
         e.stopPropagation();
         startResize(e, img, corner);
       });
     });
+    console.log('[WEDITOR DEBUG] addResizeHandles: Finished adding handles.');
   }
 
   function startResize(e, img, corner) {
+    console.log(`[WEDITOR DEBUG] startResize: Resizing started from corner ${corner}. Initial size: ${img.offsetWidth}x${img.offsetHeight}`);
     var startX = e.clientX;
     var startY = e.clientY;
     var startWidth = img.offsetWidth;
     var startHeight = img.offsetHeight;
 
     function resize(e) {
+      console.log('[WEDITOR DEBUG] resize: Mouse move detected.');
       var deltaX = e.clientX - startX;
       var deltaY = e.clientY - startY;
       var newWidth = startWidth;
@@ -625,32 +608,7 @@
     document.addEventListener('mouseup', stopResize);
   }
 
-  // --- Image selection helpers: click to activate resize handles ---
-  function toggleHandles(wrapper, show) {
-    if (!wrapper) return;
-    var hs = wrapper.querySelectorAll('.resize-handle');
-    for (var i = 0; i < hs.length; i++) {
-      hs[i].style.display = show ? 'block' : 'none';
-    }
-  }
-
-  function deactivateAllImages(instance) {
-    if (!instance || !instance.editorEl) return;
-    var active = instance.editorEl.querySelectorAll('span[data-weditor-img-wrapper="1"][data-active="true"]');
-    for (var i = 0; i < active.length; i++) {
-      active[i].removeAttribute('data-active');
-      active[i].style.outline = '';
-      toggleHandles(active[i], false);
-    }
-  }
-
-  function setActiveImage(instance, wrapper) {
-    if (!instance || !wrapper) return;
-    deactivateAllImages(instance);
-    wrapper.setAttribute('data-active', 'true');
-    wrapper.style.outline = '1px dashed #4c7ae5';
-    toggleHandles(wrapper, true);
-  }
+  // REMOVED: All activation functions are no longer needed.
 
   function setupContextMenu(instance) {
     var menu = null;
@@ -700,43 +658,40 @@
     }
 
     instance.editorEl.addEventListener('contextmenu', function(e) {
-      // If the target is a resize handle, do nothing and allow default behavior.
-      if (e.target && e.target.classList && e.target.classList.contains('resize-handle')) {
-        return;
-      }
-
-      e.preventDefault();
       hideMenu(); // Hide previous menu if any
       currentTarget = e.target;
-      
+
       var img = currentTarget.closest('img');
-      if (img && img.parentNode.style.position === 'relative') {
-        var imgWrapper = img.parentNode;
-        setActiveImage(instance, imgWrapper);
+      var imgWrapper = img ? img.parentNode : null;
+
+      if (img && imgWrapper && imgWrapper.getAttribute('data-weditor-img-wrapper') === '1') {
+        // Show image-specific context menu
+        e.preventDefault();
         showMenu(e);
         addMenuItem('Align Left', function() {
-            imgWrapper.style.float = 'left';
-            imgWrapper.style.display = 'inline-block';
-            imgWrapper.style.marginLeft = '';
-            imgWrapper.style.marginRight = '10px';
-            scheduleFieldSync(instance);
+          imgWrapper.style.float = 'left';
+          imgWrapper.style.display = 'inline-block';
+          imgWrapper.style.marginLeft = '';
+          imgWrapper.style.marginRight = '10px';
+          scheduleFieldSync(instance);
         });
         addMenuItem('Align Center', function() {
-            imgWrapper.style.float = 'none';
-            imgWrapper.style.display = 'block';
-            imgWrapper.style.marginLeft = 'auto';
-            imgWrapper.style.marginRight = 'auto';
-            scheduleFieldSync(instance);
+          imgWrapper.style.float = 'none';
+          imgWrapper.style.display = 'block';
+          imgWrapper.style.marginLeft = 'auto';
+          imgWrapper.style.marginRight = 'auto';
+          scheduleFieldSync(instance);
         });
         addMenuItem('Align Right', function() {
-            imgWrapper.style.float = 'right';
-            imgWrapper.style.display = 'inline-block';
-            imgWrapper.style.marginLeft = '10px';
-            imgWrapper.style.marginRight = '';
-            scheduleFieldSync(instance);
+          imgWrapper.style.float = 'right';
+          imgWrapper.style.display = 'inline-block';
+          imgWrapper.style.marginLeft = '10px';
+          imgWrapper.style.marginRight = '';
+          scheduleFieldSync(instance);
         });
-      } else {
-        // Placeholder for general context menu
+      } else if (!currentTarget.closest('.weditor-context-menu')) {
+        // General context menu, only if not clicking inside another context menu
+        e.preventDefault();
         showMenu(e);
         addMenuItem('Copy', function() { document.execCommand('copy'); });
         addMenuItem('Paste', function() { document.execCommand('paste'); });
