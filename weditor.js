@@ -12,7 +12,16 @@
   var formSyncRegistry = new WeakSet();
   var lastOptions = DEFAULTS;
   var DEFAULT_MAMMOTH_STYLE_MAP = [
-    // Titles (EN + CN) - Inline Styles
+    // Generic, "brute-force" style mappings for elements. This is more robust.
+    "h1 => h1[style='font-size:26px; font-weight:700; color:#000; margin:18px 0 8px; line-height:1.2; text-align:center;']",
+    "h2 => h2[style='font-size:22px; font-weight:600; color:#000; margin:18px 0 8px; line-height:1.2;']",
+    "h3 => h3[style='font-size:18px; font-weight:600; color:#000; margin:18px 0 8px; line-height:1.2;']",
+    "h4 => h4[style='font-size:16px; font-weight:600; color:#000; margin:18px 0 8px; line-height:1.2;']",
+    "h5 => h5[style='font-size:14px; font-weight:600; color:#000; margin:18px 0 8px; line-height:1.2;']",
+    "h6 => h6[style='font-size:13px; font-weight:600; color:#000; margin:18px 0 8px; line-height:1.2;']",
+    "p => p[style='margin:0 0 1.15em;']",
+
+    // Specific style names as fallbacks
     "p[style-name='Title'] => h1[style='font-size:30px; font-weight:600; color:#000; text-align:center; margin:12px 0 6px;']:fresh",
     "p[style-name='title'] => h1[style='font-size:30px; font-weight:600; color:#000; text-align:center; margin:12px 0 6px;']:fresh",
     "p[style-name='标题'] => h1[style='font-size:30px; font-weight:600; color:#000; text-align:center; margin:12px 0 6px;']:fresh",
@@ -866,9 +875,6 @@
             { arrayBuffer: arrayBuffer },
             resolveMammothOptions(instance)
           );
-          // --- TEMPORARY DEBUGGING LOG ---
-          console.log('Mammoth conversion result:', result);
-          // --- END DEBUGGING LOG ---
           html = result && result.value ? result.value : '';
         } else {
           console.warn('[Weditor] Mammoth.js not available for DOCX import.');
