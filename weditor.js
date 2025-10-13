@@ -5,7 +5,7 @@
   const STYLE_ID = "weditor-lite-style";
   const CSS_TEXT = `
 .weditor-wrap{border:1px solid #ccc;margin:8px 0;background:#fff;display:flex;flex-direction:column}
-.weditor-toolbar{display:flex;flex-wrap:wrap;gap:4px;padding:6px;border-bottom:1px solid #ddd;background:#f7f7f7}
+.weditor-toolbar{display:flex;flex-wrap:wrap;gap:4px;padding:6px;border-bottom:1px solid #ddd;background:#f7f7f7;position:relative}
 .weditor-toolbar button{padding:4px 8px;border:1px solid #ccc;background:#fff;cursor:pointer}
 .weditor-toolbar button:disabled{opacity:.5;cursor:not-allowed}
 .weditor-area{min-height:160px;padding:10px;outline:0;overflow-y:auto}
@@ -18,6 +18,13 @@ body.weditor-fullscreen-active{overflow:hidden}
 .weditor-area table{border-collapse:collapse;width:100%}
 .weditor-area td,.weditor-area th{border:1px solid #ccc;padding:6px;vertical-align:top}
 .weditor-area td:empty::after,.weditor-area th:empty::after{content:"\\00a0"}
+.weditor-table-popup{position:absolute;top:100%;left:4px;margin-top:6px;padding:10px;border:1px solid #ccc;background:#fff;box-shadow:0 4px 12px rgba(0,0,0,0.12);border-radius:4px;display:none;flex-direction:column;gap:8px;min-width:180px;z-index:1000}
+.weditor-table-popup[data-open="true"]{display:flex}
+.weditor-table-popup label{display:flex;align-items:center;justify-content:space-between;font-size:13px;color:#333;gap:8px}
+.weditor-table-popup input{width:72px;padding:4px;border:1px solid #bbb;border-radius:3px}
+.weditor-table-popup .actions{display:flex;justify-content:flex-end;gap:6px}
+.weditor-table-popup .actions button{padding:4px 10px}
+.weditor-table-popup button{border:1px solid #bbb;background:#f8f8f8;cursor:pointer}
 `.trim();
   (function ensureStyle(){
     if (!document.getElementById(STYLE_ID)){
@@ -525,6 +532,150 @@ body.weditor-fullscreen-active{overflow:hidden}
       divEditor.dispatchEvent(new Event("input",{bubbles:true}));
     }
 
+    // track last caret inside editor (for popup actions)
+    let savedEditorRange = null;
+    function saveEditorSelection(){
+      const sel = window.getSelection();
+      if (!sel || !sel.rangeCount) return;
+      const range = sel.getRangeAt(0);
+      if (!isNodeInside(range.commonAncestorContainer, divEditor)) return;
+      savedEditorRange = range.cloneRange();
+    }
+    function restoreEditorSelection(){
+      const sel = window.getSelection();
+      if (!savedEditorRange || !sel) return false;
+      sel.removeAllRanges();
+      sel.addRange(savedEditorRange);
+      return true;
+    }
+    divEditor.addEventListener("mouseup", saveEditorSelection);
+    divEditor.addEventListener("keyup", saveEditorSelection);
+
+    // ------ Insert Table Popup ------
+    const insertTablePopup = (() => {
+      let node = null;
+      let outsideHandler = null;
+      let lastRows = 2;
+      let lastCols = 2;
+
+      function ensurePopup() {
+        if (node) return node;
+        node = el("div", { class: "weditor-table-popup" }, [
+          el("label", null, [
+            "Rows",
+            el("input", { type: "number", min: "1", step: "1", value: String(lastRows), name: "rows" })
+          ]),
+          el("label", null, [
+            "Columns",
+            el("input", { type: "number", min: "1", step: "1", value: String(lastCols), name: "cols" })
+          ]),
+          el("div", { class: "actions" }, [
+            el("button", { type: "button", "data-action": "cancel" }, ["Cancel"]),
+            el("button", { type: "button", "data-action": "ok" }, ["Insert"])
+          ])
+        ]);
+
+        const handleOk = () => {
+          if (!node) return;
+          const rowsInput = node.querySelector('input[name="rows"]');
+          const colsInput = node.querySelector('input[name="cols"]');
+          const rows = parseInt(rowsInput.value, 10);
+          const cols = parseInt(colsInput.value, 10);
+          if (!Number.isFinite(rows) || rows <= 0) {
+            rowsInput.focus();
+            rowsInput.select();
+            return;
+          }
+          if (!Number.isFinite(cols) || cols <= 0) {
+            colsInput.focus();
+            colsInput.select();
+            return;
+          }
+          lastRows = rows;
+          lastCols = cols;
+          closePopup();
+          if (!restoreEditorSelection()) {
+            divEditor.focus();
+            moveCaretToEnd(divEditor);
+          } else {
+            divEditor.focus();
+          }
+          insertTableAtCaret(divEditor, rows, cols);
+          saveEditorSelection();
+        };
+
+        node.addEventListener("click", (evt) => {
+          const action = evt.target && evt.target.dataset ? evt.target.dataset.action : null;
+          if (!action) return;
+          evt.preventDefault();
+          if (action === "cancel") {
+            closePopup();
+          } else if (action === "ok") {
+            handleOk();
+          }
+        });
+
+        node.addEventListener("keydown", (evt) => {
+          if (evt.key === "Escape") {
+            evt.preventDefault();
+            closePopup();
+          } else if (evt.key === "Enter") {
+            evt.preventDefault();
+            handleOk();
+          }
+        });
+
+        return node;
+      }
+
+      function positionPopup(anchor, popup) {
+        const toolbarRect = toolbar.getBoundingClientRect();
+        const buttonRect = anchor.getBoundingClientRect();
+        const rawLeft = buttonRect.left - toolbarRect.left;
+        const maxLeft = Math.max(4, toolbarRect.width - popup.offsetWidth - 8);
+        const left = Math.min(Math.max(4, rawLeft), maxLeft);
+        popup.style.left = left + "px";
+      }
+
+      function openPopup(anchor) {
+        closePopup();
+        saveEditorSelection();
+        const popup = ensurePopup();
+        const rowsInput = popup.querySelector('input[name="rows"]');
+        const colsInput = popup.querySelector('input[name="cols"]');
+        rowsInput.value = String(lastRows);
+        colsInput.value = String(lastCols);
+        toolbar.appendChild(popup);
+        popup.setAttribute("data-open", "true");
+        requestAnimationFrame(() => {
+          positionPopup(anchor, popup);
+          rowsInput.focus();
+          rowsInput.select();
+        });
+        outsideHandler = (evt) => {
+          if (!popup.contains(evt.target) && !anchor.contains(evt.target)) {
+            closePopup();
+          }
+        };
+        document.addEventListener("mousedown", outsideHandler, true);
+      }
+
+      function closePopup() {
+        if (!node) return;
+        node.removeAttribute("data-open");
+        if (node.parentNode) node.parentNode.removeChild(node);
+        if (outsideHandler) {
+          document.removeEventListener("mousedown", outsideHandler, true);
+          outsideHandler = null;
+        }
+      }
+
+      return {
+        open: openPopup,
+        close: closePopup
+      };
+    })();
+
     // ------ Column / Table Resize via Drag ------
     let colResizeState = null; // { table, colIndex, startX, startWidthPx }
     let tableResizeState = null; // { table, startX, startWidth, ratios, minWidth }
@@ -750,10 +901,9 @@ body.weditor-fullscreen-active{overflow:hidden}
     }
 
     // ------ Table Buttons ------
-    const btnTbl = addBtn("Tbl","Insert table", ()=>{
-      const r = prompt("Rows?", "2");
-      const c = prompt("Cols?", "2");
-      insertTableAtCaret(divEditor, r, c);
+    const btnTbl = addBtn("Tbl","Insert table", (evt)=>{
+      evt.preventDefault();
+      insertTablePopup.open(evt.currentTarget || btnTbl);
     });
     addBtn("+Row","Insert row below", ()=>insertRow(true));
     addBtn("^Row","Insert row above", ()=>insertRow(false));
