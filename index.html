@@ -1,67 +1,13 @@
-<!DOCTYPE html>
-<html lang="en">
-<head>
-  <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Weditor Minimal Demo</title>
-  <style>
-    body { font-family: Arial, sans-serif; padding: 16px; background-color: #f0f0f0; }
-    .editor-container { max-width: 900px; margin: 0 auto; border: 1px solid #ddd; padding: 12px; background-color: #fff; }
-    .editor-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; }
-    .fullscreen-btn { padding: 6px 12px; border: 1px solid #333; background: #f5f5f5; cursor: pointer; }
-  </style>
-</head>
-<body>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1" />
 
-  <!-- Minimal Weditor Implementation -->
-  <div class="editor-container" data-editor="weditor-1">
-    <div class="editor-header">
-      <h2>My Editor</h2>
-      <button class="weditor_fc_modal fullscreen-btn" type="button">
-        Fullscreen
-      </button>
-    </div>
-    <div class="weditor" contenteditable="true">
-      <p>This is a minimal Weditor instance.</p>
-    </div>
-    <textarea data-weditor-storage name="editor_content" hidden></textarea>
-  </div>
-  <!-- End of Weditor Implementation -->
+<div class="weditor"></div>
+<textarea class="weditor_textarea" style="display:none;" name="test001"></textarea>
 
-  <!-- Minimal Weditor Implementation -->
-  <div class="editor-container" data-editor="weditor-2" style="margin-top: 16px;">
-    <div class="editor-header">
-      <h2>Another Editor</h2>
-      <button class="weditor_fc_modal fullscreen-btn" type="button">
-        Fullscreen
-      </button>
-    </div>
-    <div class="weditor" contenteditable="true">
-      <p>This is a second minimal Weditor instance.</p>
-    </div>
-    <textarea data-weditor-storage name="another_editor_content" hidden></textarea>
-  </div>
-  <!-- End of Weditor Implementation -->
+<div class="weditor"></div>
+<textarea class="weditor_textarea" style="display:none;" name="test002"></textarea>
 
-  <!-- Minimal Weditor Implementation -->
-  <div class="editor-container" data-editor="weditor-2" style="margin-top: 16px;">
-    <div class="editor-header">
-      <h2>Another Editor</h2>
-      <button class="weditor_fc_modal fullscreen-btn" type="button">
-        Fullscreen
-      </button>
-    </div>
-    <div class="weditor" contenteditable="true">
-      <p>This is a third minimal Weditor instance.</p>
-    </div>
-    <textarea data-weditor-storage name="another_editor_content" hidden></textarea>
-  </div>
-  <!-- End of Weditor Implementation -->
+<div class="weditor"></div>
+<textarea class="weditor_textarea" style="display:none;" name="test003"></textarea>
 
-  <script src="./weditor.js"></script>
-  <script>
-    // The Weditor will automatically mount on any element with the '.weditor' class.
-    // No additional bootstrap script is required for basic functionality.
-  </script>
-</body>
-</html>
+<script src="./weditor.js"></script>

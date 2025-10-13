@@ -1,1040 +1,598 @@
-(function (window, document) {
-  'use strict';
+(function(){
+  "use strict";
 
-  var DEFAULTS = {
-    editorSelector: '.weditor',
-    fullscreenButtonSelector: '.weditor_fc_modal'
-  };
-  var STYLE_ID = 'weditor-lite-style';
-  var CLASS_NAMES = {
-    wrapper: 'weditor__wrapper',
-    editor: 'weditor__editable',
-    toolbar: 'weditor__toolbar',
-    btn: 'weditor__btn',
-    divider: 'weditor__divider',
-    status: 'weditor-status',
-    wrapperActive: 'weditor__wrapper--active',
-    overlay: 'weditor-overlay',
-    overlayInner: 'weditor-overlay__inner',
-    overlayHeader: 'weditor-overlay__header',
-    overlayTitle: 'weditor-overlay__title',
-    overlayClose: 'weditor-overlay__close',
-    overlayBody: 'weditor-overlay__body',
-    syncField: 'weditor__field'
-  };
-  var registry = [];
-  var editorMap = new WeakMap();
-  var overlay = null;
-  var formSyncRegistry = new WeakSet();
-  var lastOptions = DEFAULTS;
+  // ---------- Inject CSS via JS (snippet-friendly) ----------
+  const STYLE_ID = "weditor-lite-style";
+  const CSS_TEXT = `
+.weditor-wrap{border:1px solid #ccc;margin:8px 0;background:#fff;display:flex;flex-direction:column}
+.weditor-toolbar{display:flex;flex-wrap:wrap;gap:4px;padding:6px;border-bottom:1px solid #ddd;background:#f7f7f7}
+.weditor-toolbar button{padding:4px 8px;border:1px solid #ccc;background:#fff;cursor:pointer}
+.weditor-toolbar button:disabled{opacity:.5;cursor:not-allowed}
+.weditor-area{min-height:160px;padding:10px;outline:0;overflow-y:auto}
+.weditor_textarea{display:none}
+body.weditor-fullscreen-active{overflow:hidden}
+.weditor-wrap.weditor-fullscreen{position:fixed;top:0;left:0;width:100%;height:100%;z-index:9999;margin:0;border:0}
+.weditor-wrap.weditor-fullscreen .weditor-area{flex:1;min-height:0}
 
-  function ensureStyles() {
-    if (document.getElementById(STYLE_ID)) return;
-    var style = document.createElement('style');
-    style.id = STYLE_ID;
-    var STYLES = {
-      wrapper: `display:flex;flex-direction:column;gap:8px;`,
-      editor: `min-height:200px;border:1px solid #ccc;padding:8px;background:#fff;`,
-      toolbar: `display:flex;flex-wrap:wrap;align-items:center;gap:6px;`,
-      btn: `border:1px solid #999;background:#f7f7f7;padding:4px 9px;cursor:pointer;font-size:13px;`,
-      btnHover: `background:#ececec;`,
-      divider: `width:1px;height:18px;background:#ccc;margin:0 4px;`,
-      status: `margin-left:auto;font-size:12px;color:#555;`,
-      activeEditor: `outline:1px solid #4c7ae5;outline-offset:2px;`,
-      overlay: `position:fixed;inset:0;display:none;align-items:center;justify-content:center;background:rgba(0,0,0,.5);z-index:10000;padding:16px;box-sizing:border-box;`,
-      overlayOpen: `display:flex;`,
-      overlayInner: `background:#fff;display:flex;flex-direction:column;width:100%;max-width:960px;height:100%;max-height:90vh;border-radius:6px;box-shadow:0 8px 24px rgba(0,0,0,.2);`,
-      overlayHeader: `display:flex;justify-content:space-between;align-items:center;padding:10px 14px;border-bottom:1px solid #ddd;`,
-      overlayTitle: `font-weight:600;font-size:15px;`,
-      overlayClose: `border:1px solid #999;background:#f7f7f7;padding:4px 12px;cursor:pointer;`,
-      overlayCloseHover: `background:#ececec;`,
-      overlayBody: `flex:1;overflow-y:auto;background:#e9e9e9;padding:32px 0;`,
-      fullscreenWrapper: `display:flex;flex-direction:column;width:var(--weditor-page-width,210mm);min-height:var(--weditor-page-height,297mm);margin:0 auto;background:#fff;box-shadow:0 4px 12px rgba(0,0,0,.15);`,
-      fullscreenEditor: `flex:1;border:0;padding:var(--weditor-page-margin,25.4mm);box-sizing:border-box;max-width:100%;`,
-      noScrollBody: `overflow:hidden;`
-    };
-
-    style.textContent = [
-      `.${CLASS_NAMES.wrapper}{${STYLES.wrapper}}`,
-      `.${CLASS_NAMES.wrapper} .weditor{${STYLES.editor}}`,
-      `.${CLASS_NAMES.toolbar}{${STYLES.toolbar}}`,
-      `.${CLASS_NAMES.btn}{${STYLES.btn}}`,
-      `.${CLASS_NAMES.btn}:hover{${STYLES.btnHover}}`,
-      `.${CLASS_NAMES.divider}{${STYLES.divider}}`,
-      `.${CLASS_NAMES.status}{${STYLES.status}}`,
-      `.${CLASS_NAMES.wrapperActive} .weditor{${STYLES.activeEditor}}`,
-      `.${CLASS_NAMES.overlay}{${STYLES.overlay}}`,
-      `.${CLASS_NAMES.overlay}[data-open="true"]{${STYLES.overlayOpen}}`,
-      `.${CLASS_NAMES.overlayInner}{${STYLES.overlayInner}}`,
-      `.${CLASS_NAMES.overlayHeader}{${STYLES.overlayHeader}}`,
-      `.${CLASS_NAMES.overlayTitle}{${STYLES.overlayTitle}}`,
-      `.${CLASS_NAMES.overlayClose}{${STYLES.overlayClose}}`,
-      `.${CLASS_NAMES.overlayClose}:hover{${STYLES.overlayCloseHover}}`,
-      `.${CLASS_NAMES.overlayBody}{${STYLES.overlayBody}}`,
-      `.${CLASS_NAMES.wrapper}[data-mode="fullscreen"]{${STYLES.fullscreenWrapper}}`,
-      `.${CLASS_NAMES.wrapper}[data-mode="fullscreen"] .weditor{${STYLES.fullscreenEditor}}`,
-      `body.weditor-no-scroll{${STYLES.noScrollBody}}`,
-      `@media print{body, .${CLASS_NAMES.overlayBody}{background:#fff;padding:0;margin:0;} .${CLASS_NAMES.wrapper}[data-mode="fullscreen"]{box-shadow:none;border:0;margin:0;width:100%;}}`,
-      // REMOVED: CSS-driven visibility. Handles will now always be visible.
-    ].join('');
-    document.head.appendChild(style);
-  }
-
-
-  var WeditorModules = {};
-
-  function mountAll(options) {
-    var opts = Object.assign({}, lastOptions, options || {});
-    lastOptions = opts;
-    ensureStyles();
-    var editors = document.querySelectorAll(opts.editorSelector);
-    Array.prototype.forEach.call(editors, function (el) {
-      WeditorModules.mount(el, opts);
-    });
-    setupFullscreenTriggers(opts);
-    return registry.slice();
-  }
-
-  WeditorModules.mount = function(el, options) {
-    if (!el || el.nodeType !== 1) return null;
-    var existing = editorMap.get(el);
-    if (existing) return existing;
-
-    ensureStyles();
-    var instance = WeditorModules.createInstance(el, options || lastOptions);
-    if (!instance) return null;
-
-    registry.push(instance);
-    instance.index = registry.length - 1;
-    el.dataset.weditorIndex = String(instance.index);
-    editorMap.set(el, instance);
-    return instance;
-  }
-
-  WeditorModules.createInstance = function(el, options) {
-    if (!el.parentNode) return null;
-
-    var instance = {
-      editorEl: el,
-      options: options,
-      wrapper: document.createElement('div'),
-      toolbar: null,
-      statusEl: null,
-      statusTimer: null,
-      placeholder: null,
-      title: null,
-      index: -1,
-      isFullscreen: false,
-      extraStyleMap: [],
-      theme: null,
-      syncField: null,
-      syncTimer: null
-    };
-
-    instance.wrapper.className = CLASS_NAMES.wrapper;
-    instance.toolbar = createToolbar(instance);
-    instance.wrapper.appendChild(instance.toolbar);
-
-    var parent = el.parentNode;
-    parent.insertBefore(instance.wrapper, el);
-    instance.wrapper.appendChild(el);
-
-
-    instance.placeholder = document.createComment('weditor-origin');
-    instance.wrapper.parentNode.insertBefore(instance.placeholder, instance.wrapper.nextSibling);
-
-    if (!el.hasAttribute('contenteditable')) el.setAttribute('contenteditable', 'true');
-    if (!el.hasAttribute('spellcheck')) el.setAttribute('spellcheck', 'true');
-    el.classList.add(CLASS_NAMES.editor);
-
-    instance.title = deriveTitle(instance);
-    attachSyncField(instance);
-    addTestingTools(instance);
-    console.log('[WEDITOR DEBUG] Instance created. Calling makeImagesResizable...');
-    makeImagesResizable(instance.editorEl);
-    setupContextMenu(instance);
-
-    // REMOVED: All activation logic is removed for simplicity.
-
-    el.addEventListener('paste', function () {
-      // Defer to allow DOM update after paste (中文解释: 等待粘贴完成再处理DOM)
-      setTimeout(function () {
-        makeImagesResizable(instance.editorEl);
-        scheduleFieldSync(instance);
-      }, 0);
-    });
-
-    el.addEventListener('input', function () {
-      setStatus(instance, 'Editing…', 1500);
-      scheduleFieldSync(instance);
-    });
-    el.addEventListener('focus', function () {
-      instance.wrapper.classList.add(CLASS_NAMES.wrapperActive);
-    });
-    el.addEventListener('blur', function () {
-      instance.wrapper.classList.remove(CLASS_NAMES.wrapperActive);
-      pushEditorToField(instance);
-    });
-
-    return instance;
-  }
-
-  function createToolbar(instance) {
-    var toolbar = document.createElement('div');
-    toolbar.className = CLASS_NAMES.toolbar;
-
-    var controls = [
-      { type: 'command', command: 'undo', label: '↺', title: 'Undo' },
-      { type: 'command', command: 'redo', label: '↻', title: 'Redo' },
-      { divider: true },
-      { type: 'command', command: 'bold', label: '<b>B</b>', title: 'Bold' },
-      { type: 'command', command: 'italic', label: '<i>I</i>', title: 'Italic' },
-      { type: 'command', command: 'underline', label: '<u>U</u>', title: 'Underline' },
-      { divider: true },
-      { type: 'command', command: 'justifyLeft', label: '<svg width="16" height="16" viewBox="0 0 16 16"><path fill="currentColor" d="M2 3h12v2H2zm0 4h8v2H2zm0 4h12v2H2z"/></svg>', title: 'Align left' },
-      { type: 'command', command: 'justifyCenter', label: '<svg width="16" height="16" viewBox="0 0 16 16"><path fill="currentColor" d="M2 3h12v2H2zm2 4h8v2H4zm-2 4h12v2H2z"/></svg>', title: 'Align center' },
-      { type: 'command', command: 'justifyRight', label: '<svg width="16" height="16" viewBox="0 0 16 16"><path fill="currentColor" d="M2 3h12v2H2zm4 4h8v2H6zm-4 4h12v2H2z"/></svg>', title: 'Align right' },
-      { type: 'command', command: 'justifyFull', label: '<svg width="16" height="16" viewBox="0 0 16 16"><path fill="currentColor" d="M2 3h12v2H2zm0 4h12v2H2zm0 4h12v2H2z"/></svg>', title: 'Justify' },
-      { divider: true },
-      { type: 'command', command: 'insertUnorderedList', label: '• List', title: 'Bulleted list' },
-      { type: 'command', command: 'insertOrderedList', label: '1. List', title: 'Numbered list' },
-      { divider: true },
-      { type: 'command', command: 'removeFormat', label: 'Clean', title: 'Remove formatting' },
-      { type: 'action', action: 'table', label: 'Tbl', title: 'Insert table' },
-      { type: 'action', action: 'clear', label: 'Clear', title: 'Clear content' },
-      { type: 'action', action: 'insertImage', label: 'Img', title: 'Insert image' },
-      { type: 'action', action: 'fullscreen', label: 'Full', title: 'Open fullscreen' }
-    ];
-
-    controls.forEach(function (cfg) {
-      if (cfg.divider) {
-        var divider = document.createElement('span');
-        divider.className = CLASS_NAMES.divider;
-        toolbar.appendChild(divider);
-        return;
-      }
-      if (cfg.type === 'select') {
-        var select = document.createElement('select');
-        select.className = 'weditor__select';
-        if (cfg.title) select.title = cfg.title;
-        cfg.options.forEach(function (optConfig) {
-          var option = document.createElement('option');
-          option.textContent = optConfig.label || '';
-          option.value = String(typeof optConfig.value === 'undefined' ? '' : optConfig.value);
-          if (optConfig.placeholder) {
-            option.disabled = true;
-            option.selected = true;
-          }
-          select.appendChild(option);
-        });
-        select.addEventListener('change', function (ev) {
-          var value = ev.target.value;
-          if (!value) return;
-          executeFormattingCommand(instance, cfg.action, value, cfg.title || cfg.action);
-          select.selectedIndex = 0;
-        });
-        toolbar.appendChild(select);
-      } else if (cfg.type === 'color') {
-        var input = document.createElement('input');
-        input.type = 'color';
-        input.className = 'weditor__color';
-        if (cfg.title) input.title = cfg.title;
-        input.value = '#1f1f1f';
-        input.addEventListener('input', function (ev) {
-          executeFormattingCommand(instance, cfg.action, ev.target.value, cfg.title || cfg.action);
-        });
-        toolbar.appendChild(input);
-      } else {
-        var btn = document.createElement('button');
-        btn.type = 'button';
-        btn.className = CLASS_NAMES.btn;
-        btn.innerHTML = cfg.label;
-        if (cfg.title) btn.title = cfg.title;
-        btn.addEventListener('click', function (ev) {
-          ev.preventDefault();
-          instance.editorEl.focus({ preventScroll: true });
-          if (cfg.type === 'command') {
-            try {
-              document.execCommand(cfg.command, false, cfg.value || null);
-              setStatus(instance, cfg.title || cfg.command, 1200);
-              scheduleFieldSync(instance);
-            } catch (err) {
-              console.warn('[Weditor] Command failed:', cfg.command, err);
-              setStatus(instance, 'Command failed', 2000);
-            }
-          } else if (cfg.type === 'action') {
-            handleToolbarAction(instance, cfg.action);
-          }
-        });
-        toolbar.appendChild(btn);
-      }
-    });
-
-    var status = document.createElement('span');
-    status.className = CLASS_NAMES.status;
-    toolbar.appendChild(status);
-    instance.statusEl = status;
-
-    return toolbar;
-  }
-
-  function handleToolbarAction(instance, action) {
-    if (!instance) return;
-    if (action === 'clear') {
-      instance.editorEl.innerHTML = defaultEmpty();
-      setStatus(instance, 'Cleared', 1500);
-      instance.editorEl.focus({ preventScroll: true });
-      pushEditorToField(instance);
-    } else if (action === 'fullscreen') {
-      enterFullscreen(instance, instance.title);
-    } else if (action === 'table') {
-      insertTable(instance, 3, 3);
-    } else if (action === 'insertImage') {
-      insertImage(instance);
+/* 轻量表格可视化增强（可删） */
+.weditor-area table{border-collapse:collapse;width:100%}
+.weditor-area td,.weditor-area th{border:1px solid #ccc;padding:6px;vertical-align:top}
+.weditor-area td:empty::after,.weditor-area th:empty::after{content:"\\00a0"}
+`.trim();
+  (function ensureStyle(){
+    if (!document.getElementById(STYLE_ID)){
+      const tag = document.createElement("style");
+      tag.id = STYLE_ID;
+      tag.appendChild(document.createTextNode(CSS_TEXT));
+      (document.head || document.documentElement).appendChild(tag);
     }
+  })();
+
+  // ---------- Helpers ----------
+  const $$ = (s, r=document)=>Array.from(r.querySelectorAll(s));
+  const el = (tag, attrs, kids=[])=>{
+    const n = document.createElement(tag);
+    if (attrs) for (const k in attrs) {
+      if (k==="class") n.className = attrs[k];
+      else if (k==="style") Object.assign(n.style, attrs[k]);
+      else n.setAttribute(k, attrs[k]);
+    }
+    kids.forEach(c=>n.appendChild(typeof c==="string"?document.createTextNode(c):c));
+    return n;
+  };
+  const isHttpUrl = (u)=>/^https?:\/\//i.test(String(u||""));
+
+  function isNodeInside(node, container){
+    if (!node) return false;
+    let cur = (node.nodeType===1?node:node.parentElement);
+    while(cur){
+      if (cur === container) return true;
+      cur = cur.parentElement;
+    }
+    return false;
   }
 
-  function attachSyncField(instance) {
-    if (!instance || !instance.editorEl) return;
-    var field = findSyncField(instance);
-    if (!field) return;
+  function moveCaretToEnd(container){
+    const range = document.createRange();
+    range.selectNodeContents(container);
+    range.collapse(false);
+    const sel = window.getSelection();
+    sel.removeAllRanges();
+    sel.addRange(range);
+  }
 
-    instance.syncField = field;
-    if (field._weditorCreated && !field.hasAttribute('data-weditor-visible')) {
-      field.hidden = true;
-      field.setAttribute('aria-hidden', 'true');
+  function placeCaretInside(el){
+    const range = document.createRange();
+    const sel = window.getSelection();
+    range.selectNodeContents(el);
+    range.collapse(true);
+    sel.removeAllRanges();
+    sel.addRange(range);
+  }
+
+  function insertTableAtCaret(editor, rows=2, cols=2){
+    rows = Math.max(1, parseInt(rows||2,10));
+    cols = Math.max(1, parseInt(cols||2,10));
+    const table = el("table",{border:"1",style:{borderCollapse:"collapse",width:"100%"}});
+    for (let r=0;r<rows;r++){
+      const tr = el("tr");
+      for (let c=0;c<cols;c++){
+        tr.appendChild(el("td",{style:{padding:"6px",verticalAlign:"top"}},["\u00A0"]));
+      }
+      table.appendChild(tr);
     }
-    field.classList.add(CLASS_NAMES.syncField);
-    field.setAttribute('data-weditor-bound', 'true');
-
-    if (field.value && field.value.trim()) {
-      instance.editorEl.innerHTML = field.value;
+    const sel = window.getSelection();
+    if (sel && sel.rangeCount){
+      const range = sel.getRangeAt(0);
+      range.deleteContents();
+      range.insertNode(table);
     } else {
-      pushEditorToField(instance);
+      editor.appendChild(table);
     }
-
-    var syncFromField = function () {
-      if (!instance.syncField) return;
-      instance.editorEl.innerHTML = field.value ? field.value : defaultEmpty();
-    };
-    field.addEventListener('input', syncFromField);
-    field.addEventListener('change', syncFromField);
-
-    if (field.form && !formSyncRegistry.has(field.form)) {
-      formSyncRegistry.add(field.form);
-      field.form.addEventListener('submit', function () {
-        syncAllToFields();
-      });
-    }
+    const firstCell = table.querySelector("td");
+    if (firstCell) placeCaretInside(firstCell);
+    editor.dispatchEvent(new Event("input",{bubbles:true}));
   }
 
-  function findSyncField(instance) {
-    var editor = instance && instance.editorEl ? instance.editorEl : null;
-    if (!editor) return null;
-    var selector = editor.getAttribute('data-weditor-field');
-    var field = null;
+  // ---------- Build one editor (div.weditor + next textarea.weditor_textarea) ----------
+  function buildEditor(divEditor){
+    // find paired textarea
+    let pair = divEditor.nextElementSibling;
+    while (pair && !pair.classList.contains("weditor_textarea")) pair = pair.nextElementSibling;
+    if (!pair) { console.warn("No paired .weditor_textarea for", divEditor); return; }
 
-    if (selector) {
-      try {
-        field = document.querySelector(selector);
-      } catch (err) {
-        console.warn('[Weditor] Unable to resolve data-weditor-field selector:', selector, err);
-      }
-      if (!field) {
-        try {
-          field = instance.wrapper.querySelector(selector);
-        } catch (_) {
-          // ignore
-        }
-      }
+    // UI skeleton
+    const wrap = el("div",{class:"weditor-wrap"});
+    const toolbar = el("div",{class:"weditor-toolbar"});
+
+    // Editable area (reuse given div)
+    divEditor.classList.add("weditor-area");
+    divEditor.setAttribute("contenteditable","true");
+    if (pair.value && pair.value.trim()){
+      divEditor.innerHTML = pair.value;
+    } else if (!divEditor.innerHTML.trim()){
+      divEditor.innerHTML = "<p><br></p>";
     }
 
-    if (field && field.tagName !== 'TEXTAREA') {
-      field = null;
-    }
-
-    if (!field) {
-      var host = editor.closest('[data-editor]') || instance.wrapper;
-      if (host) {
-        field = host.querySelector('textarea[data-weditor-source], textarea[data-weditor-storage], textarea[data-role="weditor-source"]');
+    // Exec helper（保证选区在编辑器内）
+    function exec(cmd, val=null){
+      const sel = window.getSelection();
+      if (!sel || !sel.rangeCount || !isNodeInside(sel.anchorNode, divEditor)) {
+        divEditor.focus();
+        moveCaretToEnd(divEditor);
       }
+      document.execCommand(cmd, false, val);
+      divEditor.dispatchEvent(new Event("input",{bubbles:true}));
     }
 
-    if (!field) {
-      var sibling = editor.nextElementSibling;
-      while (sibling) {
-        if (sibling.tagName === 'TEXTAREA') {
-          field = sibling;
-          break;
-        }
-        sibling = sibling.nextElementSibling;
+    // ---------- History manager (with redo-safe undo) ----------
+    let showingSource = false;
+    function getHTML(){ return showingSource ? divEditor.textContent : divEditor.innerHTML; }
+    function setHTML(v, opts={}){
+      const silent = !!opts.silent;
+      if (showingSource) divEditor.textContent = v;
+      else divEditor.innerHTML = v;
+      if (!silent){
+        divEditor.dispatchEvent(new Event("input",{bubbles:true}));
+      } else {
+        pair.value = getHTML();
       }
     }
 
-    if (!field) {
-      var nameAttr = editor.getAttribute('data-weditor-name');
-      if (nameAttr) {
-        field = document.createElement('textarea');
-        field.name = nameAttr;
-        field._weditorCreated = true;
-        instance.wrapper.appendChild(field);
+    let btnUndo = null, btnRedo = null;
+    function updateUndoRedoButtons(){
+      if (btnUndo) btnUndo.disabled = !history.canUndo();
+      if (btnRedo) btnRedo.disabled = !history.canRedo();
+    }
+
+    const history = {
+      stack: [],
+      index: -1,
+      max: 50,
+      push(html){
+        if (this.index < this.stack.length - 1) this.stack.splice(this.index+1);
+        this.stack.push({html});
+        if (this.stack.length > this.max) this.stack.shift();
+        this.index = this.stack.length - 1;
+        updateUndoRedoButtons();
+      },
+      current(){ return this.index>=0 ? this.stack[this.index].html : null; },
+      canUndo(){ return this.index > 0; },
+      canRedo(){ return this.index >= 0 && this.index < this.stack.length - 1; },
+      undo(){
+        if (!this.canUndo()) return;
+        this.index--;
+        cancelSnapshotTimer();
+        const html = this.stack[this.index].html;
+        setHTML(html, {silent:true});
+        lastSaved = html;
+        updateUndoRedoButtons();
+      },
+      redo(){
+        if (!this.canRedo()) return;
+        this.index++;
+        cancelSnapshotTimer();
+        const html = this.stack[this.index].html;
+        setHTML(html, {silent:true});
+        lastSaved = html;
+        updateUndoRedoButtons();
       }
-    }
-
-    return field && field.tagName === 'TEXTAREA' ? field : null;
-  }
-
-  function scheduleFieldSync(instance) {
-    if (!instance || !instance.syncField) return;
-    if (instance.syncTimer) {
-      clearTimeout(instance.syncTimer);
-    }
-    instance.syncTimer = window.setTimeout(function () {
-      instance.syncTimer = null;
-      pushEditorToField(instance);
-    }, 120);
-  }
-
-  function pushEditorToField(instance) {
-    if (!instance || !instance.syncField || !instance.editorEl) return;
-    var html = instance.editorEl.innerHTML || '';
-    instance.syncField.value = hasMeaningfulContent(html) ? html : '';
-  }
-
-  function syncAllToFields() {
-    for (var i = 0; i < registry.length; i++) {
-      pushEditorToField(registry[i]);
-    }
-  }
-
-  function hasMeaningfulContent(html) {
-    if (!html) return false;
-    var stripped = String(html)
-      .replace(/<style[\s\S]*?<\/style>/gi, '')
-      .replace(/<script[\s\S]*?<\/script>/gi, '')
-      .replace(/<\/?[^>]+>/g, '')
-      .replace(/&nbsp;/gi, ' ')
-      .trim();
-    return stripped.length > 0;
-  }
-
-  function executeFormattingCommand(instance, command, value, statusText) {
-    if (!instance || !command) return;
-    focusInstance(instance);
-    var needsCss = command === 'foreColor' || command === 'fontSize';
-    var cssEnabled = false;
-    if (needsCss) {
-      try {
-        document.execCommand('styleWithCSS', true);
-        cssEnabled = true;
-      } catch (err) {
-        cssEnabled = false;
-      }
-    }
-    try {
-      document.execCommand(command, false, value);
-      setStatus(instance, statusText || command, 1500);
-      scheduleFieldSync(instance);
-    } catch (err) {
-      console.warn('[Weditor] Command failed:', command, err);
-      setStatus(instance, 'Command failed', 2000);
-    } finally {
-      if (needsCss && cssEnabled) {
-        try {
-          document.execCommand('styleWithCSS', false);
-        } catch (err2) {
-          // ignore
-        }
-      }
-    }
-  }
-
-
-  function insertTable(instance, rows, cols) {
-    if (!instance) return;
-    var r = typeof rows === 'number' && rows > 0 ? rows : 2;
-    var c = typeof cols === 'number' && cols > 0 ? cols : 2;
-    var temp = document.createElement('div');
-    var table = '<table style="width:100%;border-collapse:collapse;">';
-    for (var i = 0; i < r; i++) {
-      table += '<tr>';
-      for (var j = 0; j < c; j++) {
-        table += '<td style="border:1px solid #999;padding:6px;"><br></td>';
-      }
-      table += '</tr>';
-    }
-    table += '</table><p><br></p>';
-    temp.innerHTML = table;
-    instance.editorEl.focus({ preventScroll: true });
-    try {
-      document.execCommand('insertHTML', false, temp.innerHTML);
-      setStatus(instance, 'Inserted table', 1600);
-      scheduleFieldSync(instance);
-    } catch (err) {
-      console.warn('[Weditor] Table insert failed', err);
-      setStatus(instance, 'Table insert failed', 2000);
-    }
-  }
-
-  function insertImage(instance) {
-    var input = document.createElement('input');
-    input.type = 'file';
-    input.accept = 'image/*';
-    input.style.display = 'none';
-
-    input.addEventListener('change', function () {
-      if (input.files && input.files[0]) {
-        var file = input.files[0];
-        var reader = new FileReader();
-
-        reader.onload = function (e) {
-          var dataUrl = e.target.result;
-          focusInstance(instance);
-          try {
-            document.execCommand('insertImage', false, dataUrl);
-            setStatus(instance, 'Image inserted', 1500);
-            scheduleFieldSync(instance);
-            setTimeout(function() {
-              // Find the newly inserted image and make it resizable. Activation will be handled by the mousedown event.
-              var insertedImage = instance.editorEl.querySelector('img[src^="data:"]:not(.resizable)');
-              if (insertedImage) {
-                addResizeHandles(insertedImage);
-              }
-            }, 100);
-          } catch (err) {
-            console.warn('[Weditor] Image insert failed', err);
-            setStatus(instance, 'Image insert failed', 2000);
-          }
-        };
-
-        reader.onerror = function () {
-          console.error('[Weditor] Failed to read file.');
-          setStatus(instance, 'Failed to read file', 2000);
-        };
-
-        reader.readAsDataURL(file);
-      }
-      document.body.removeChild(input);
-    });
-
-    document.body.appendChild(input);
-    input.click();
-  }
-
-  function makeImagesResizable(editor) {
-    console.log('[WEDITOR DEBUG] makeImagesResizable: Searching for images...');
-    var images = editor.querySelectorAll('img');
-    console.log(`[WEDITOR DEBUG] makeImagesResizable: Found ${images.length} images.`);
-    images.forEach(function(img, index) {
-      // We call addResizeHandles every time now. The function itself will check if wrapping is needed.
-      console.log(`[WEDITOR DEBUG] makeImagesResizable: Processing image ${index}. Calling addResizeHandles.`);
-      addResizeHandles(img);
-    });
-  }
-
-  function addResizeHandles(img) {
-    console.log('[WEDITOR DEBUG] addResizeHandles: Called for image:', img.src.substring(0, 50) + '...');
-    // FINAL FIX: If a wrapper exists, remove it and rebuild everything to ensure consistency.
-    var existingWrapper = img.parentNode;
-    if (existingWrapper && existingWrapper.getAttribute('data-weditor-img-wrapper') === '1') {
-      console.log('[WEDITOR DEBUG] addResizeHandles: Found existing wrapper. Removing it before rebuilding.');
-      existingWrapper.parentNode.insertBefore(img, existingWrapper);
-      existingWrapper.parentNode.removeChild(existingWrapper);
-    }
-    
-    // Ensure the class is there, but don't rely on it for the check.
-    img.classList.add('resizable');
-
-    var wrapper = document.createElement('span');
-    console.log('[WEDITOR DEBUG] addResizeHandles: Created wrapper span.');
-    wrapper.style.position = 'relative';
-    wrapper.style.display = 'inline-block';
-    wrapper.setAttribute('data-weditor-img-wrapper', '1');
-    img.parentNode.insertBefore(wrapper, img);
-    wrapper.appendChild(img);
-
-    var handles = ['nw', 'ne', 'sw', 'se'];
-    handles.forEach(function(corner) {
-      var handle = document.createElement('div');
-      handle.className = 'resize-handle resize-' + corner;
-      handle.style.cssText = 'position:absolute;width:8px;height:8px;background:#4c7ae5;border:1px solid #fff;z-index:10;';
-      var style = '';
-      if (corner === 'nw') style = 'top:-4px;left:-4px;cursor:nwse-resize;';
-      if (corner === 'ne') style = 'top:-4px;right:-4px;cursor:nesw-resize;';
-      if (corner === 'sw') style = 'bottom:-4px;left:-4px;cursor:nesw-resize;';
-      if (corner === 'se') style = 'bottom:-4px;right:-4px;cursor:nwse-resize;';
-      handle.style.cssText += style;
-      wrapper.appendChild(handle);
- 
-      handle.addEventListener('mousedown', function(e) {
-        console.log(`[WEDITOR DEBUG] Mousedown on resize handle (${corner}). Calling startResize.`);
-        e.preventDefault();
-        e.stopPropagation();
-        startResize(e, img, corner);
-      });
-    });
-    console.log('[WEDITOR DEBUG] addResizeHandles: Finished adding handles.');
-  }
-
-  function startResize(e, img, corner) {
-    console.log(`[WEDITOR DEBUG] startResize: Resizing started from corner ${corner}. Initial size: ${img.offsetWidth}x${img.offsetHeight}`);
-    var startX = e.clientX;
-    var startY = e.clientY;
-    var startWidth = img.offsetWidth;
-    var startHeight = img.offsetHeight;
-
-    function resize(e) {
-      console.log('[WEDITOR DEBUG] resize: Mouse move detected.');
-      var deltaX = e.clientX - startX;
-      var deltaY = e.clientY - startY;
-      var newWidth = startWidth;
-      var newHeight = startHeight;
-
-      if (corner.includes('e')) newWidth += deltaX;
-      if (corner.includes('w')) newWidth -= deltaX;
-      if (corner.includes('s')) newHeight += deltaY;
-      if (corner.includes('n')) newHeight -= deltaY;
-
-      img.style.width = Math.max(30, newWidth) + 'px';
-      img.style.height = 'auto'; // Maintain aspect ratio
-    }
-
-    function stopResize() {
-      document.removeEventListener('mousemove', resize);
-      document.removeEventListener('mouseup', stopResize);
-    }
-
-    document.addEventListener('mousemove', resize);
-    document.addEventListener('mouseup', stopResize);
-  }
-
-  // REMOVED: All activation functions are no longer needed.
-
-  function setupContextMenu(instance) {
-    var menu = null;
-    var currentTarget = null;
-
-    function createMenu() {
-      if (menu) return;
-      menu = document.createElement('div');
-      menu.className = 'weditor-context-menu';
-      menu.style.cssText = 'position:absolute;display:none;background:#fff;box-shadow:0 4px 12px rgba(0,0,0,.2);border-radius:6px;padding:6px;z-index:10001;min-width:150px;';
-      document.body.appendChild(menu);
-
-      document.addEventListener('click', function(e) {
-        if (menu && menu.style.display !== 'none' && !menu.contains(e.target)) {
-          hideMenu();
-        }
-      }, true);
-    }
-
-    function hideMenu() {
-      if (menu) {
-        menu.style.display = 'none';
-        menu.innerHTML = '';
-      }
-      currentTarget = null;
-    }
-
-    function showMenu(e) {
-      createMenu();
-      menu.style.display = 'block';
-      menu.style.top = e.clientY + 'px';
-      menu.style.left = e.clientX + 'px';
-    }
-    
-    function addMenuItem(label, onClick) {
-        var item = document.createElement('div');
-        item.textContent = label;
-        item.style.cssText = 'padding:6px 12px;cursor:pointer;font-size:14px;';
-        item.addEventListener('mouseenter', function() { item.style.backgroundColor = '#f0f0f0'; });
-        item.addEventListener('mouseleave', function() { item.style.backgroundColor = '#fff'; });
-        item.addEventListener('click', function(e) {
-            e.stopPropagation();
-            onClick();
-            hideMenu();
-        });
-        menu.appendChild(item);
-    }
-
-    instance.editorEl.addEventListener('contextmenu', function(e) {
-      hideMenu(); // Hide previous menu if any
-      currentTarget = e.target;
-
-      var img = currentTarget.closest('img');
-      var imgWrapper = img ? img.parentNode : null;
-
-      if (img && imgWrapper && imgWrapper.getAttribute('data-weditor-img-wrapper') === '1') {
-        // Show image-specific context menu
-        e.preventDefault();
-        showMenu(e);
-        addMenuItem('Align Left', function() {
-          imgWrapper.style.float = 'left';
-          imgWrapper.style.display = 'inline-block';
-          imgWrapper.style.marginLeft = '';
-          imgWrapper.style.marginRight = '10px';
-          scheduleFieldSync(instance);
-        });
-        addMenuItem('Align Center', function() {
-          imgWrapper.style.float = 'none';
-          imgWrapper.style.display = 'block';
-          imgWrapper.style.marginLeft = 'auto';
-          imgWrapper.style.marginRight = 'auto';
-          scheduleFieldSync(instance);
-        });
-        addMenuItem('Align Right', function() {
-          imgWrapper.style.float = 'right';
-          imgWrapper.style.display = 'inline-block';
-          imgWrapper.style.marginLeft = '10px';
-          imgWrapper.style.marginRight = '';
-          scheduleFieldSync(instance);
-        });
-      } else if (!currentTarget.closest('.weditor-context-menu')) {
-        // General context menu, only if not clicking inside another context menu
-        e.preventDefault();
-        showMenu(e);
-        addMenuItem('Copy', function() { document.execCommand('copy'); });
-        addMenuItem('Paste', function() { document.execCommand('paste'); });
-        addMenuItem('Cut', function() { document.execCommand('cut'); });
-      }
-    });
-  }
-
-  function deriveTitle(instance) {
-    var host = instance.editorEl.closest('[data-editor]');
-    if (host && host.getAttribute('data-editor')) {
-      return host.getAttribute('data-editor');
-    }
-    if (instance.wrapper && instance.wrapper.previousElementSibling) {
-      var heading = instance.wrapper.previousElementSibling.querySelector && instance.wrapper.previousElementSibling.querySelector('h1, h2, h3, h4, h5, h6');
-      if (heading) return heading.textContent.trim();
-    }
-    var fallbackHeading = instance.editorEl.closest('article, section');
-    if (fallbackHeading) {
-      var headerNode = fallbackHeading.querySelector('h1, h2, h3, h4, h5, h6');
-      if (headerNode) return headerNode.textContent.trim();
-    }
-    return 'Editor';
-  }
-
-  function setupFullscreenTriggers(options) {
-    if (!options || !options.fullscreenButtonSelector) return;
-    var triggers = document.querySelectorAll(options.fullscreenButtonSelector);
-    Array.prototype.forEach.call(triggers, function (btn) {
-      if (btn._weditorBound) return;
-      btn._weditorBound = true;
-      btn.addEventListener('click', function (ev) {
-        ev.preventDefault();
-        var inst = findInstanceByButton(btn, options);
-        if (inst) {
-          var title = deriveTitleFromButton(btn, inst);
-          enterFullscreen(inst, title);
-        }
-      });
-    });
-  }
-
-  function findInstanceByButton(btn, options) {
-    var idxAttr = btn.getAttribute('data-editor-index');
-    if (idxAttr) {
-      var parsed = parseInt(idxAttr, 10);
-      if (!isNaN(parsed) && registry[parsed]) return registry[parsed];
-    }
-
-    var host = btn.closest('[data-editor]');
-    if (host) {
-      var editor = host.querySelector(options.editorSelector);
-      if (editor && editorMap.has(editor)) return editorMap.get(editor);
-    }
-
-    if (btn.nextElementSibling && btn.nextElementSibling.matches(options.editorSelector)) {
-      var inst = editorMap.get(btn.nextElementSibling);
-      if (inst) return inst;
-    }
-
-    return registry.length ? registry[0] : null;
-  }
-
-  function deriveTitleFromButton(btn, instance) {
-    var label = (btn.getAttribute('aria-label') || btn.textContent || '').trim();
-    if (label) return label;
-    return instance && instance.title ? instance.title : 'Editor';
-  }
-
-  function ensureOverlay() {
-    if (overlay) return overlay;
-
-    overlay = {
-      root: document.createElement('div'),
-      inner: null,
-      header: null,
-      title: null,
-      body: null,
-      closeBtn: null,
-      current: null
     };
 
-    overlay.root.className = CLASS_NAMES.overlay;
-    overlay.root.setAttribute('aria-hidden', 'true');
+    // initial snapshot
+    history.push(getHTML());
 
-    overlay.inner = document.createElement('div');
-    overlay.inner.className = CLASS_NAMES.overlayInner;
+    // snapshot merge / timers
+    let histTimer=null, lastSaved=getHTML();
+    function cancelSnapshotTimer(){ clearTimeout(histTimer); histTimer=null; }
+    function scheduleSnapshot(){
+      cancelSnapshotTimer();
+      histTimer = setTimeout(()=>{
+        const now = getHTML();
+        if (now !== lastSaved){
+          history.push(now);
+          lastSaved = now;
+        }
+      }, 500);
+    }
 
-    overlay.header = document.createElement('div');
-    overlay.header.className = CLASS_NAMES.overlayHeader;
+    // Sync to textarea
+    let syncTimer=null;
+    function syncToTextarea(){
+      clearTimeout(syncTimer);
+      syncTimer = setTimeout(()=>{ pair.value = getHTML(); }, 120);
+    }
 
-    overlay.title = document.createElement('span');
-    overlay.title.className = CLASS_NAMES.overlayTitle;
-    overlay.title.textContent = 'Editor';
-
-    overlay.closeBtn = document.createElement('button');
-    overlay.closeBtn.type = 'button';
-    overlay.closeBtn.className = CLASS_NAMES.overlayClose;
-    overlay.closeBtn.textContent = 'Close';
-    overlay.closeBtn.addEventListener('click', exitFullscreen);
-
-    overlay.header.appendChild(overlay.title);
-    overlay.header.appendChild(overlay.closeBtn);
-
-    overlay.body = document.createElement('div');
-    overlay.body.className = CLASS_NAMES.overlayBody;
-
-    overlay.inner.appendChild(overlay.header);
-    overlay.inner.appendChild(overlay.body);
-    overlay.root.appendChild(overlay.inner);
-
-    overlay.root.addEventListener('click', function (ev) {
-      if (ev.target === overlay.root) exitFullscreen();
+    divEditor.addEventListener("input", scheduleSnapshot);
+    divEditor.addEventListener("input", syncToTextarea);
+    divEditor.addEventListener("blur",  ()=>{
+      syncToTextarea();
+      const now = getHTML();
+      if (now !== history.current()){
+        history.push(now);
+        lastSaved = now;
+      }
     });
 
-    document.addEventListener('keydown', handleEscape);
-    document.body.appendChild(overlay.root);
-    return overlay;
-  }
-
-  function enterFullscreen(instance, title) {
-    if (!instance || instance.isFullscreen) return;
-    var ov = ensureOverlay();
-
-    if (instance.wrapper && instance.wrapper.parentNode) {
-      instance.wrapper.dataset.mode = 'fullscreen';
+    // Toolbar helpers
+    function addBtn(text, title, fn){
+      const b = el("button",{type:"button",title},[text]);
+      b.addEventListener("click", fn);
+      toolbar.appendChild(b);
+      return b;
     }
 
-    ov.body.innerHTML = '';
-    ov.body.appendChild(instance.wrapper);
-    ov.title.textContent = title || instance.title || 'Editor';
-
-    ov.root.setAttribute('data-open', 'true');
-    ov.root.setAttribute('aria-hidden', 'false');
-    document.body.classList.add('weditor-no-scroll');
-
-    ov.current = instance;
-    instance.isFullscreen = true;
-    focusInstance(instance);
-  }
-
-  function exitFullscreen() {
-    if (!overlay || !overlay.current) return;
-    var instance = overlay.current;
-    var placeholder = instance.placeholder;
-
-    if (placeholder && placeholder.parentNode) {
-      placeholder.parentNode.insertBefore(instance.wrapper, placeholder);
-    }
-    instance.wrapper.dataset.mode = '';
-    instance.isFullscreen = false;
-
-    overlay.body.innerHTML = '';
-    overlay.current = null;
-    overlay.root.removeAttribute('data-open');
-    overlay.root.setAttribute('aria-hidden', 'true');
-    document.body.classList.remove('weditor-no-scroll');
-    focusInstance(instance);
-  }
-
-  function handleEscape(ev) {
-    if (ev.key === 'Escape') {
-      exitFullscreen();
-    }
-  }
-
-  function setStatus(instance, text, timeout) {
-    if (!instance || !instance.statusEl) return;
-    if (instance.statusTimer) {
-      clearTimeout(instance.statusTimer);
-      instance.statusTimer = null;
-    }
-    instance.statusEl.textContent = text || '';
-    if (text && timeout) {
-      instance.statusTimer = window.setTimeout(function () {
-        if (instance.statusEl.textContent === text) {
-          instance.statusEl.textContent = '';
-        }
-        instance.statusTimer = null;
-      }, timeout);
-    }
-  }
-
-  function defaultEmpty() {
-    return '<p><br></p>';
-  }
-
-
-  function ensureEmptyParagraphs(root) {
-    try {
-      var ps = root ? root.querySelectorAll('p') : null;
-      if (!ps) return;
-      for (var i = 0; i < ps.length; i++) {
-        var p = ps[i];
-        var stripped = p.innerHTML.replace(/<br\s*\/?>/gi, '').replace(/&nbsp;|\s+/gi, '').trim();
-        if (!stripped) {
-          p.innerHTML = '<br>';
+    // Core buttons
+    addBtn("B","Bold", ()=>exec("bold"));
+    addBtn("I","Italic", ()=>exec("italic"));
+    addBtn("U","Underline", ()=>exec("underline"));
+    addBtn("H1","Heading 1", ()=>exec("formatBlock","<h1>"));
+    addBtn("H2","Heading 2", ()=>exec("formatBlock","<h2>"));
+    addBtn("P","Paragraph", ()=>exec("formatBlock","<p>"));
+    addBtn("•","Bulleted list", ()=>exec("insertUnorderedList"));
+    addBtn("1.","Numbered list", ()=>exec("insertOrderedList"));
+    addBtn("⟸","Align left", ()=>exec("justifyLeft"));
+    addBtn("⟷","Center", ()=>exec("justifyCenter"));
+    addBtn("⟹","Align right", ()=>exec("justifyRight"));
+    addBtn("Link","Insert link", ()=>{
+      const u = prompt("Link URL:");
+      if (!u) return;
+      if (!isHttpUrl(u)) { alert("只支持 http(s) 链接"); return; }
+      exec("createLink", u);
+      const sel = window.getSelection();
+      if (sel && sel.anchorNode) {
+        let a = sel.anchorNode.nodeType===1? sel.anchorNode : sel.anchorNode.parentElement;
+        if (a && a.tagName === "A") {
+          a.setAttribute("target","_blank");
+          a.setAttribute("rel","noopener noreferrer");
         }
       }
-    } catch (_) {}
-  }
+    });
+    addBtn("Img","Insert image (URL)", ()=>{
+      const u = prompt("Image URL:");
+      if (!u) return;
+      if (!isHttpUrl(u)) { alert("只支持 http(s) 图片链接"); return; }
+      exec("insertImage", u);
+    });
+    addBtn("—","Horizontal rule", ()=>exec("insertHorizontalRule"));
+    addBtn("Clr","Clear formatting", ()=>exec("removeFormat"));
 
-  function focusInstance(instance) {
-    try {
-      instance.editorEl.focus({ preventScroll: true });
-    } catch (_) {
-      instance.editorEl.focus();
-    }
-  }
-
-
-  function resolveInstance(target) {
-    if (typeof target === 'number') {
-      return registry[target] || null;
-    }
-    if (!target) return null;
-    if (editorMap.has(target)) return editorMap.get(target);
-    if (target.editorEl && editorMap.has(target.editorEl)) return editorMap.get(target.editorEl);
-    for (var i = 0; i < registry.length; i++) {
-      var inst = registry[i];
-      if (inst.editorEl === target || inst.wrapper === target) return inst;
-    }
-    return null;
-  }
-
-  var api = {
-    mountAll: mountAll,
-    mount: function (target, options) {
-      if (!target) return null;
-      if (target instanceof Element) {
-        return WeditorModules.mount(target, options);
+    // Undo / Redo / HTML (redo-safe)
+    btnUndo = addBtn("Undo","Undo (Ctrl/Cmd+Z)", ()=>history.undo());
+    btnRedo = addBtn("Redo","Redo (Ctrl+Y or Shift+Ctrl/Cmd+Z)", ()=>history.redo());
+    addBtn("HTML","Toggle HTML view", ()=>{
+      const before = getHTML();
+      if (before !== history.current()){
+        history.push(before);
+        lastSaved = before;
       }
-      if (typeof target === 'string') {
-        var nodeList = document.querySelectorAll(target);
-        var mounted = [];
-        Array.prototype.forEach.call(nodeList, function (el) {
-          mounted.push(WeditorModules.mount(el, options));
+      if (!showingSource){
+        divEditor.textContent = divEditor.innerHTML;
+        showingSource = true;
+      } else {
+        divEditor.innerHTML = divEditor.textContent;
+        showingSource = false;
+      }
+      const after = getHTML();
+      if (after !== history.current()){
+        history.push(after);
+        lastSaved = after;
+      }
+      cancelSnapshotTimer();
+      pair.value = after;
+      updateUndoRedoButtons();
+    });
+
+    // Fullscreen
+    let isFullScreen = false;
+    const btnFs = addBtn("⛶", "Fullscreen", toggleFullScreen);
+    function handleEscKey(e) {
+      if (isFullScreen && e.key === "Escape") {
+        e.preventDefault();
+        toggleFullScreen();
+      }
+    }
+    function toggleFullScreen() {
+      isFullScreen = !isFullScreen;
+      wrap.classList.toggle("weditor-fullscreen", isFullScreen);
+      document.body.classList.toggle("weditor-fullscreen-active", isFullScreen);
+      btnFs.textContent = isFullScreen ? "✕" : "⛶";
+      btnFs.title = isFullScreen ? "Exit Fullscreen" : "Fullscreen";
+      if (isFullScreen) {
+        document.addEventListener("keydown", handleEscKey);
+        divEditor.focus();
+      } else {
+        document.removeEventListener("keydown", handleEscKey);
+      }
+    }
+
+    updateUndoRedoButtons();
+
+    // Keyboard shortcuts
+    divEditor.addEventListener("keydown",(e)=>{
+      const mod = e.ctrlKey || e.metaKey;
+      if (!mod) return;
+      const k = e.key.toLowerCase();
+      if (k === "z" && !e.shiftKey){
+        e.preventDefault();
+        history.undo();
+      } else if (k === "y" || (k === "z" && e.shiftKey)){
+        e.preventDefault();
+        history.redo();
+      }
+    });
+
+    // Mount DOM
+    const parent = divEditor.parentNode;
+    parent.insertBefore(wrap, divEditor);
+    wrap.appendChild(toolbar);
+    wrap.appendChild(divEditor);
+
+    // ---------- 外部：Textarea → Editor 同步 ----------
+    function setEditorHTMLFromTextarea(v) {
+      const val = (v == null || v === "") ? "<p><br></p>" : String(v);
+      setHTML(val, { silent: true });
+      cancelSnapshotTimer();
+      history.push(val);
+      lastSaved = val;
+      updateUndoRedoButtons();
+    }
+    pair.addEventListener("input", () => setEditorHTMLFromTextarea(pair.value));
+    pair.addEventListener("change", () => setEditorHTMLFromTextarea(pair.value));
+    const mo = new MutationObserver(() => setEditorHTMLFromTextarea(pair.value));
+    mo.observe(pair, { characterData: true, subtree: true });
+
+    // ====================== Table Utilities & UX ======================
+    function getCellFromSelection() {
+      const sel = window.getSelection();
+      if (!sel || !sel.anchorNode) return null;
+      const el = sel.anchorNode.nodeType === 1 ? sel.anchorNode : sel.anchorNode.parentElement;
+      return el ? el.closest("td,th") : null;
+    }
+    function getTableContext() {
+      const cell = getCellFromSelection();
+      if (!cell) return null;
+      const row = cell.parentElement;
+      const table = cell.closest("table");
+      if (!table) return null;
+      const rowIndex = Array.from(row.parentElement.children).indexOf(row);
+      let colIndex = 0;
+      for (const td of row.children) {
+        if (td === cell) break;
+        colIndex += parseInt(td.getAttribute("colspan") || "1", 10);
+      }
+      return { table, row, cell, rowIndex, colIndex };
+    }
+    function normalizeTable(table) {
+      if (!table) return;
+      if (!table.tBodies || table.tBodies.length === 0) {
+        const tb = document.createElement("tbody");
+        while (table.firstChild) tb.appendChild(table.firstChild);
+        table.appendChild(tb);
+      }
+      table.querySelectorAll("td,th").forEach(td=>{
+        if (!td.innerHTML || td.innerHTML === "") td.innerHTML = "&nbsp;";
+        td.style.verticalAlign = td.style.verticalAlign || "top";
+      });
+      table.style.borderCollapse = table.style.borderCollapse || "collapse";
+      if (!table.style.width) table.style.width = "100%";
+    }
+
+    function insertRow(after = true) {
+      const ctx = getTableContext(); if (!ctx) return;
+      normalizeTable(ctx.table);
+      const { table, row, rowIndex } = ctx;
+      const refIndex = after ? rowIndex + 1 : rowIndex;
+      const cols = Array.from(row.children).reduce((n, td)=> n + parseInt(td.getAttribute("colspan") || "1", 10), 0);
+      const tr = document.createElement("tr");
+      for (let i=0;i<cols;i++) {
+        const td = document.createElement("td");
+        td.style.padding = "6px";
+        td.style.verticalAlign = "top";
+        td.innerHTML = "&nbsp;";
+        tr.appendChild(td);
+      }
+      (table.tBodies[0]||table).insertBefore(tr, (table.tBodies[0]||table).children[refIndex] || null);
+      placeCaretInside(tr.children[0]);
+      divEditor.dispatchEvent(new Event("input",{bubbles:true}));
+    }
+    function deleteRow() {
+      const ctx = getTableContext(); if (!ctx) return;
+      const { table, row } = ctx;
+      const body = table.tBodies[0] || table;
+      if (body.rows.length <= 1) { table.remove(); }
+      else { row.remove(); }
+      divEditor.dispatchEvent(new Event("input",{bubbles:true}));
+    }
+    function insertCol(after = true) {
+      const ctx = getTableContext(); if (!ctx) return;
+      normalizeTable(ctx.table);
+      const { table, colIndex } = ctx;
+      const idx = after ? colIndex + 1 : colIndex;
+      Array.from(table.rows).forEach(tr=>{
+        const tdList = Array.from(tr.children);
+        let vIndex = 0, insertBefore = null;
+        for (const cell of tdList) {
+          const span = parseInt(cell.getAttribute("colspan") || "1", 10);
+          if (vIndex + span > idx) { insertBefore = cell.nextSibling; break; }
+          vIndex += span;
+        }
+        const td = document.createElement("td");
+        td.style.padding = "6px";
+        td.style.verticalAlign = "top";
+        td.innerHTML = "&nbsp;";
+        tr.insertBefore(td, insertBefore);
+      });
+      divEditor.dispatchEvent(new Event("input",{bubbles:true}));
+    }
+    function deleteCol() {
+      const ctx = getTableContext(); if (!ctx) return;
+      const { table, colIndex } = ctx;
+      Array.from(table.rows).forEach(tr=>{
+        let vIndex = 0;
+        for (const cell of Array.from(tr.children)) {
+          const span = parseInt(cell.getAttribute("colspan") || "1", 10);
+          if (vIndex <= colIndex && colIndex < vIndex + span) { cell.remove(); break; }
+          vIndex += span;
+        }
+      });
+      divEditor.dispatchEvent(new Event("input",{bubbles:true}));
+    }
+    function distributeColumns() {
+      const ctx = getTableContext(); if (!ctx) return;
+      const { table } = ctx;
+      normalizeTable(table);
+      const firstRow = table.rows[0];
+      if (!firstRow) return;
+      const colCount = Array.from(firstRow.children).reduce((n, td)=> n + parseInt(td.getAttribute("colspan") || "1", 10), 0);
+      if (colCount === 0) return;
+      const pct = (100 / colCount).toFixed(3) + "%";
+      Array.from(table.rows).forEach(tr=>{
+        Array.from(tr.children).forEach(td=>{
+          const span = parseInt(td.getAttribute("colspan") || "1", 10);
+          td.style.width = (span === 1) ? pct : ""; // 简化：跨列不设置
         });
-        return mounted;
-      }
-      return null;
-    },
-    open: function (target) {
-      var inst = resolveInstance(typeof target === 'undefined' ? 0 : target);
-      if (inst) enterFullscreen(inst, inst.title);
-    },
-    close: exitFullscreen,
-    focus: function (target) {
-      var inst = resolveInstance(typeof target === 'undefined' ? 0 : target);
-      if (inst) focusInstance(inst);
-    },
-    instances: function () {
-      return registry.map(function (inst) { return inst.editorEl; });
+      });
+      divEditor.dispatchEvent(new Event("input",{bubbles:true}));
     }
-  };
+    function autofitColumns() {
+      const ctx = getTableContext(); if (!ctx) return;
+      const { table } = ctx;
+      normalizeTable(table);
+      table.querySelectorAll("td,th").forEach(td=>{
+        td.style.width = ""; // 交给浏览器布局
+        td.style.whiteSpace = ""; // 可按需设置 'nowrap'
+      });
+      divEditor.dispatchEvent(new Event("input",{bubbles:true}));
+    }
+    function setCurrentColumnWidth() {
+      const ctx = getTableContext(); if (!ctx) return;
+      const { table, colIndex } = ctx;
+      const val = prompt("列宽（例如 120px 或 20%）：", "120px");
+      if (!val) return;
+      if (!/^\s*\d+(\.\d+)?(px|%)\s*$/.test(val)) { alert("请输入有效的 px 或 % 值"); return; }
+      const width = val.trim();
+      Array.from(table.rows).forEach(tr=>{
+        let vIndex = 0;
+        for (const cell of Array.from(tr.children)) {
+          const span = parseInt(cell.getAttribute("colspan") || "1", 10);
+          if (vIndex <= colIndex && colIndex < vIndex + span) { cell.style.width = width; break; }
+          vIndex += span;
+        }
+      });
+      divEditor.dispatchEvent(new Event("input",{bubbles:true}));
+    }
 
-  window.Weditor = Object.assign({}, window.Weditor || {}, api);
+    // ------ Column Resize via Drag ------
+    let colResizeState = null; // { table, colIndex, startX, startWidthPx }
+    const EDGE = 6;
 
-  if (document.readyState === 'loading') {
-    document.addEventListener('DOMContentLoaded', function () {
-      window.Weditor.mountAll();
-    }, { once: true });
-  } else {
-    window.Weditor.mountAll();
-  }
+    function getColIndexFromHit(cell, clientX) {
+      const rect = cell.getBoundingClientRect();
+      const nearRight = (rect.right - clientX) <= EDGE && (rect.right - clientX) >= -2;
+      if (!nearRight) return -1;
+      const row = cell.parentElement;
+      let colIndex = 0;
+      for (const td of row.children) {
+        const span = parseInt(td.getAttribute("colspan") || "1", 10);
+        if (td === cell) break;
+        colIndex += span;
+      }
+      return colIndex;
+    }
 
-  function addTestingTools(instance) {
-    if (!instance || !instance.syncField) return;
-
-    // 1. Make the textarea visible for inspection
-    instance.syncField.hidden = false;
-    instance.syncField.style.width = '100%';
-    instance.syncField.style.minHeight = '100px';
-    instance.syncField.style.marginTop = '8px';
-    instance.syncField.style.fontSize = '12px';
-    instance.syncField.style.fontFamily = 'monospace';
-    instance.syncField.style.boxSizing = 'border-box';
-
-    // 2. Create and add the "Test in New Tab" button
-    var testBtn = document.createElement('button');
-    testBtn.textContent = 'Test in New Tab';
-    testBtn.style.marginLeft = '8px';
-    testBtn.type = 'button';
-
-    testBtn.addEventListener('click', function () {
-      var htmlContent = instance.syncField.value;
-      if (!htmlContent) {
-        setStatus(instance, 'Textarea is empty', 2000);
+    divEditor.addEventListener("mousemove", (e)=>{
+      const cell = e.target.closest && e.target.closest("td,th");
+      if (!cell || !isNodeInside(cell, divEditor)) {
+        divEditor.style.cursor = "";
         return;
       }
-      try {
-        // Get the entire stylesheet content from the main page.
-        var mainStylesheet = document.getElementById(STYLE_ID);
-        var styles = mainStylesheet ? mainStylesheet.textContent : '';
-
-        // Construct the full HTML for the new tab as a string.
-        var fullHtml = `
-        <!DOCTYPE html>
-        <html>
-          <head>
-            <title>Weditor Content Test</title>
-            <style>${styles}</style>
-            <style>
-              /* Additional styles for the test page itself */
-              body { background: #e9e9e9; padding: 32px 0; }
-              .weditor { margin: 0 auto; } /* Center the editor content */
-            </style>
-          </head>
-          <body>
-            <div class="weditor">${htmlContent}</div>
-          </body>
-        </html>`;
-
-        // Use the Blob and Object URL method for robust new tab creation.
-        var blob = new Blob([fullHtml], { type: 'text/html' });
-        var url = URL.createObjectURL(blob);
-        var newTab = window.open(url, '_blank');
-        if (!newTab) {
-          setStatus(instance, 'Popup blocked?', 3000);
-        }
-        // Revoke the object URL after a short delay to allow the browser to load it.
-        setTimeout(function() { URL.revokeObjectURL(url); }, 1000);
-        setStatus(instance, 'Opened in new tab', 2000);
-      } catch (err) {
-        console.error('[Weditor] Could not open new tab.', err);
-        setStatus(instance, 'Failed to open tab', 3000);
-      }
+      const idx = getColIndexFromHit(cell, e.clientX);
+      divEditor.style.cursor = idx >= 0 ? "col-resize" : "";
     });
 
-    // Find the header to append the button to
-    var host = instance.editorEl.closest('.weditor-instance');
-    if (host) {
-      var header = host.querySelector('.weditor-instance__header');
-      if (header) {
-        // Add it before the fullscreen button for better layout
-        var fullscreenBtn = header.querySelector('.weditor_fc_modal');
-        if (fullscreenBtn) {
-          header.insertBefore(testBtn, fullscreenBtn);
-        } else {
-          header.appendChild(testBtn);
+    divEditor.addEventListener("mousedown", (e)=>{
+      const cell = e.target.closest && e.target.closest("td,th");
+      if (!cell || !isNodeInside(cell, divEditor)) return;
+      const idx = getColIndexFromHit(cell, e.clientX);
+      if (idx < 0) return;
+
+      const table = cell.closest("table");
+      normalizeTable(table);
+      e.preventDefault();
+      e.stopPropagation();
+
+      let sampleCell = null;
+      for (const tr of Array.from(table.rows)) {
+        let vIndex = 0;
+        for (const td of Array.from(tr.children)) {
+          const span = parseInt(td.getAttribute("colspan") || "1", 10);
+          if (vIndex <= idx && idx < vIndex + span) { sampleCell = td; break; }
+          vIndex += span;
         }
+        if (sampleCell) break;
       }
+      if (!sampleCell) return;
+      const startWidthPx = sampleCell.offsetWidth;
+
+      colResizeState = {
+        table, colIndex: idx,
+        startX: e.clientX,
+        startWidthPx
+      };
+
+      document.addEventListener("mousemove", onColResizeMove);
+      document.addEventListener("mouseup", onColResizeUp);
+    });
+
+    function onColResizeMove(e){
+      if (!colResizeState) return;
+      const { table, colIndex, startX, startWidthPx } = colResizeState;
+      const delta = e.clientX - startX;
+      const newWidth = Math.max(30, startWidthPx + delta);
+      Array.from(table.rows).forEach(tr=>{
+        let vIndex = 0;
+        for (const td of Array.from(tr.children)) {
+          const span = parseInt(td.getAttribute("colspan") || "1", 10);
+          if (vIndex <= colIndex && colIndex < vIndex + span) {
+            td.style.width = newWidth + "px";
+            break;
+          }
+          vIndex += span;
+        }
+      });
     }
+    function onColResizeUp(){
+      if (!colResizeState) return;
+      document.removeEventListener("mousemove", onColResizeMove);
+      document.removeEventListener("mouseup", onColResizeUp);
+      colResizeState = null;
+      divEditor.dispatchEvent(new Event("input",{bubbles:true}));
+    }
+
+    // ------ Table Buttons ------
+    const btnTbl = addBtn("Tbl","Insert table", ()=>{
+      const r = prompt("Rows?", "2");
+      const c = prompt("Cols?", "2");
+      insertTableAtCaret(divEditor, r, c);
+    });
+    addBtn("+Row","在下方插入一行", ()=>insertRow(true));
+    addBtn("↑Row","在上方插入一行", ()=>insertRow(false));
+    addBtn("×Row","删除当前行", ()=>deleteRow());
+    addBtn("+Col","在右侧插入一列", ()=>insertCol(true));
+    addBtn("←Col","在左侧插入一列", ()=>insertCol(false));
+    addBtn("×Col","删除当前列", ()=>deleteCol());
+    addBtn("＝Cols","平均分配列宽（%）", ()=>distributeColumns());
+    addBtn("Fit","自动适配列宽", ()=>autofitColumns());
+    addBtn("W","设置当前列宽", ()=>setCurrentColumnWidth());
   }
 
-})(window, document);
+  // ---------- Init all editors ----------
+  function initAll(){ $$(".weditor").forEach(buildEditor); }
+  if (document.readyState === "loading"){
+    document.addEventListener("DOMContentLoaded", initAll);
+  } else {
+    initAll();
+  }
+
+})();
