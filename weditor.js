@@ -2153,8 +2153,7 @@ body.weditor-fullscreen-active{overflow:hidden}
       evt.preventDefault();
       insertTablePopup.open(evt.currentTarget || btnTbl);
     }, groupInsert.inner);
-    // Emphasize primary action: Insert Table
-    btnTbl.classList.add("weditor-btn--primary");
+    // Use normal styling (no .weditor-btn--primary) to keep dark text per design
     const tableRows = createTableSubgroup("Rows");
     addTableAction("Insert Row Below", null, "Insert row below (⌥↓)", ()=>insertRow(true), tableRows);
     addTableAction("Insert Row Above", null, "Insert row above (⌥↑)", ()=>insertRow(false), tableRows);
