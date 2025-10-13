@@ -1063,6 +1063,9 @@ body.weditor-fullscreen-active{overflow:hidden}
       if (!sel || !sel.rangeCount) return;
 
       const range = sel.getRangeAt(0);
+      const isRowSelection = range.startContainer === range.endContainer && (range.startContainer.tagName === "TR" || (range.startContainer.nodeType === 1 && range.startContainer.closest("tr") === range.endContainer.closest("tr")));
+      const rowFromSelection = isRowSelection ? range.startContainer.closest("tr") : null;
+
       const intersectsCell = (cell)=>{
         let intersects = false;
         try {
@@ -1086,8 +1089,12 @@ body.weditor-fullscreen-active{overflow:hidden}
         return intersects;
       };
 
-      const candidateCells = Array.from(divEditor.querySelectorAll("td,th")).filter(intersectsCell);
-      tableDebug("merge candidate cells", { count: candidateCells.length });
+      let candidateCells = Array.from(divEditor.querySelectorAll("td,th")).filter(intersectsCell);
+      if (isRowSelection && rowFromSelection && candidateCells.length <= 1) {
+        candidateCells = Array.from(rowFromSelection.children).filter(c => c.matches("td,th"));
+        tableDebug("merge detected row selection, overriding candidates", { count: candidateCells.length });
+      }
+      tableDebug("merge candidate cells", { count: candidateCells.length, cells: candidateCells.map(c=>c.outerHTML) });
 
       const startHost = range.startContainer.nodeType === 1 ? range.startContainer : range.startContainer.parentElement;
       const endHost = range.endContainer.nodeType === 1 ? range.endContainer : range.endContainer.parentElement;
@@ -1156,7 +1163,7 @@ body.weditor-fullscreen-active{overflow:hidden}
 
       let startIndex = startCell ? rowCells.indexOf(startCell) : -1;
       let endIndex = endCell ? rowCells.indexOf(endCell) : -1;
-      tableDebug("merge range indices", { startIndex, endIndex, hasStart: !!startCell, hasEnd: !!endCell });
+      tableDebug("merge range indices", { startIndex, endIndex, startCell, endCell });
       if (startIndex !== -1 && endIndex !== -1 && startIndex > endIndex) {
         const tmp = startIndex;
         startIndex = endIndex;
@@ -1201,9 +1208,9 @@ body.weditor-fullscreen-active{overflow:hidden}
         }
       }
 
-      tableDebug("merge cells resolved", { candidateCount: cellsToMerge.length, indices: cellsToMerge.map(cell=>rowCells.indexOf(cell)) });
+      tableDebug("merge cells resolved", { candidateCount: cellsToMerge.length, indices: cellsToMerge.map(cell=>rowCells.indexOf(cell)), cells: cellsToMerge.map(c=>c.outerHTML) });
       if (cellsToMerge.length <= 1) {
-        tableDebug("merge abort: less than two cells selected", {});
+        tableDebug("merge abort: less than two cells selected", { cellsToMerge });
         return;
       }
       if (cellsToMerge.some(cell => (parseInt(cell.getAttribute("rowspan") || "1", 10) || 1) > 1)) {
