@@ -708,6 +708,23 @@ body.weditor-fullscreen-active{overflow:hidden}
       return selected;
     }
 
+    function getCellIndexFromRowOffset(row, offset){
+      if (!row || offset == null || offset < 0) return -1;
+      const nodes = Array.from(row.childNodes || []);
+      let cellIndex = 0;
+      for (let i=0;i<nodes.length;i++){
+        const node = nodes[i];
+        if (node.nodeType === 1){
+          const tag = node.tagName ? node.tagName.toLowerCase() : "";
+          if (tag === "td" || tag === "th"){
+            if (i >= offset) return cellIndex;
+            cellIndex++;
+          }
+        }
+      }
+      return cellIndex;
+    }
+
     function ensurePixelColWidths(table) {
       const cg = table.querySelector("colgroup");
       if (!cg) return;
@@ -1161,6 +1178,26 @@ body.weditor-fullscreen-active{overflow:hidden}
         const expanded = getSelectedCellsInRow(row, range);
         if (expanded.length > 1) {
           cellsToMerge = expanded;
+        }
+      }
+
+      if (cellsToMerge.length <= 1) {
+        const anchorRow = sel.anchorNode && (sel.anchorNode === row);
+        const focusRow = sel.focusNode && (sel.focusNode === row);
+        if (anchorRow && focusRow && sel.anchorOffset !== sel.focusOffset) {
+          const startOffset = Math.min(sel.anchorOffset, sel.focusOffset);
+          const endOffset = Math.max(sel.anchorOffset, sel.focusOffset);
+          let startFromOffsets = getCellIndexFromRowOffset(row, startOffset);
+          let endFromOffsets = getCellIndexFromRowOffset(row, endOffset);
+          if (endFromOffsets > 0) endFromOffsets -= 1;
+          if (startFromOffsets < 0) startFromOffsets = 0;
+          if (endFromOffsets < 0 || endFromOffsets < startFromOffsets) endFromOffsets = rowCells.length - 1;
+          startFromOffsets = Math.min(Math.max(0, startFromOffsets), rowCells.length - 1);
+          endFromOffsets = Math.min(Math.max(0, endFromOffsets), rowCells.length - 1);
+          if (endFromOffsets >= startFromOffsets) {
+            cellsToMerge = rowCells.slice(startFromOffsets, endFromOffsets + 1);
+            tableDebug("merge fallback via row offsets", { startFromOffsets, endFromOffsets });
+          }
         }
       }
 
