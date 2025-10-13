@@ -5,8 +5,13 @@
   const STYLE_ID = "weditor-lite-style";
   const CSS_TEXT = `
 .weditor-wrap{border:1px solid #ccc;margin:8px 0;background:#fff;display:flex;flex-direction:column}
-.weditor-toolbar{display:flex;flex-wrap:wrap;gap:4px;padding:6px;border-bottom:1px solid #ddd;background:#f7f7f7;position:relative}
-.weditor-toolbar button{padding:4px 8px;border:1px solid #ccc;background:#fff;cursor:pointer}
+.weditor-toolbar{display:flex;flex-wrap:wrap;gap:8px;padding:8px;border-bottom:1px solid #ddd;background:#f7f7f7;position:relative;align-items:center}
+.weditor-toolbar-group{display:flex;align-items:center;gap:6px;padding:4px 6px;border-radius:6px;background:#fff;box-shadow:0 1px 2px rgba(15,23,42,0.08)}
+.weditor-toolbar-group[data-hidden=\"true\"]{display:none}
+.weditor-toolbar-group-label{font-size:11px;font-weight:600;color:#64748b;text-transform:uppercase;letter-spacing:.05em}
+.weditor-toolbar-group-inner{display:flex;flex-wrap:wrap;gap:4px}
+.weditor-toolbar button{padding:4px 8px;border:1px solid #cbd5f5;background:#fff;border-radius:4px;cursor:pointer;transition:background .15s,border-color .15s,box-shadow .15s}
+.weditor-toolbar button:hover:not(:disabled){background:#eef2ff;border-color:#94a3b8;box-shadow:0 1px 3px rgba(15,23,42,0.12)}
 .weditor-toolbar button:disabled{opacity:.5;cursor:not-allowed}
 .weditor-area{min-height:160px;padding:10px;outline:0;overflow-y:auto}
 .weditor_textarea{display:none}
@@ -222,6 +227,7 @@ body.weditor-fullscreen-active{overflow:hidden}
     divEditor.addEventListener("input", scheduleSnapshot);
     divEditor.addEventListener("input", syncToTextarea);
     divEditor.addEventListener("blur",  ()=>{
+      updateTableToolsVisibility();
       syncToTextarea();
       const now = getHTML();
       if (now !== history.current()){
@@ -229,27 +235,51 @@ body.weditor-fullscreen-active{overflow:hidden}
         lastSaved = now;
       }
     });
+    divEditor.addEventListener("focus", updateTableToolsVisibility);
 
     // Toolbar helpers
-    function addBtn(text, title, fn){
+    function createToolbarGroup(label, opts = {}) {
+      const group = el("div", { class: "weditor-toolbar-group" });
+      if (label) {
+        group.appendChild(el("span", { class: "weditor-toolbar-group-label" }, [label]));
+      }
+      const inner = el("div", { class: "weditor-toolbar-group-inner" });
+      group.appendChild(inner);
+      if (opts.initiallyHidden) {
+        group.setAttribute("data-hidden", "true");
+      }
+      toolbar.appendChild(group);
+      return { group, inner };
+    }
+
+    function addBtn(text, title, fn, target = toolbar){
       const b = el("button",{type:"button",title},[text]);
       b.addEventListener("click", fn);
-      toolbar.appendChild(b);
+      target.appendChild(b);
       return b;
     }
 
-    // Core buttons
-    addBtn("B","Bold", ()=>exec("bold"));
-    addBtn("I","Italic", ()=>exec("italic"));
-    addBtn("U","Underline", ()=>exec("underline"));
-    addBtn("H1","Heading 1", ()=>exec("formatBlock","<h1>"));
-    addBtn("H2","Heading 2", ()=>exec("formatBlock","<h2>"));
-    addBtn("P","Paragraph", ()=>exec("formatBlock","<p>"));
-    addBtn("*","Bulleted list", ()=>exec("insertUnorderedList"));
-    addBtn("1.","Numbered list", ()=>exec("insertOrderedList"));
-    addBtn("L","Align left", ()=>exec("justifyLeft"));
-    addBtn("C","Center", ()=>exec("justifyCenter"));
-    addBtn("R","Align right", ()=>exec("justifyRight"));
+    const groupText = createToolbarGroup("Text");
+    addBtn("B","Bold", ()=>exec("bold"), groupText.inner);
+    addBtn("I","Italic", ()=>exec("italic"), groupText.inner);
+    addBtn("U","Underline", ()=>exec("underline"), groupText.inner);
+    addBtn("Clr","Clear formatting", ()=>exec("removeFormat"), groupText.inner);
+
+    const groupBlocks = createToolbarGroup("Headings");
+    addBtn("H1","Heading 1", ()=>exec("formatBlock","<h1>"), groupBlocks.inner);
+    addBtn("H2","Heading 2", ()=>exec("formatBlock","<h2>"), groupBlocks.inner);
+    addBtn("P","Paragraph", ()=>exec("formatBlock","<p>"), groupBlocks.inner);
+
+    const groupLists = createToolbarGroup("Lists");
+    addBtn("*","Bulleted list", ()=>exec("insertUnorderedList"), groupLists.inner);
+    addBtn("1.","Numbered list", ()=>exec("insertOrderedList"), groupLists.inner);
+
+    const groupAlign = createToolbarGroup("Align");
+    addBtn("L","Align left", ()=>exec("justifyLeft"), groupAlign.inner);
+    addBtn("C","Center", ()=>exec("justifyCenter"), groupAlign.inner);
+    addBtn("R","Align right", ()=>exec("justifyRight"), groupAlign.inner);
+
+    const groupInsert = createToolbarGroup("Insert");
     addBtn("Link","Insert link", ()=>{
       const u = prompt("Link URL:");
       if (!u) return;
@@ -263,19 +293,48 @@ body.weditor-fullscreen-active{overflow:hidden}
           a.setAttribute("rel","noopener noreferrer");
         }
       }
-    });
+    }, groupInsert.inner);
     addBtn("Img","Insert image (URL)", ()=>{
       const u = prompt("Image URL:");
       if (!u) return;
       if (!isHttpUrl(u)) { alert("Only http(s) image URL allowed"); return; }
       exec("insertImage", u);
-    });
-    addBtn("HR","Horizontal rule", ()=>exec("insertHorizontalRule"));
-    addBtn("Clr","Clear formatting", ()=>exec("removeFormat"));
+    }, groupInsert.inner);
+    addBtn("HR","Horizontal rule", ()=>exec("insertHorizontalRule"), groupInsert.inner);
+
+    const groupTableTools = createToolbarGroup("Table", { initiallyHidden: true });
+
+    function updateTableToolsVisibility() {
+      const sel = window.getSelection();
+      const hasSelection = sel && sel.rangeCount && isNodeInside(sel.anchorNode, divEditor);
+      if (!hasSelection) {
+        groupTableTools.group.setAttribute("data-hidden", "true");
+        return;
+      }
+      const ctx = getTableContext();
+      if (ctx && ctx.table) {
+        groupTableTools.group.removeAttribute("data-hidden");
+      } else {
+        groupTableTools.group.setAttribute("data-hidden", "true");
+      }
+    }
+
+    const handleSelectionChange = () => {
+      const sel = window.getSelection();
+      if (!sel || !sel.rangeCount) return;
+      if (isNodeInside(sel.anchorNode, divEditor) || isNodeInside(sel.focusNode, divEditor)) {
+        updateTableToolsVisibility();
+      }
+    };
+    document.addEventListener("selectionchange", handleSelectionChange);
+    updateTableToolsVisibility();
 
     // Undo / Redo / HTML (redo-safe)
-    btnUndo = addBtn("Undo","Undo (Ctrl/Cmd+Z)", ()=>history.undo());
-    btnRedo = addBtn("Redo","Redo (Ctrl+Y or Shift+Ctrl/Cmd+Z)", ()=>history.redo());
+    const groupHistory = createToolbarGroup("History");
+    btnUndo = addBtn("Undo","Undo (Ctrl/Cmd+Z)", ()=>history.undo(), groupHistory.inner);
+    btnRedo = addBtn("Redo","Redo (Ctrl+Y or Shift+Ctrl/Cmd+Z)", ()=>history.redo(), groupHistory.inner);
+
+    const groupView = createToolbarGroup("View");
     addBtn("HTML","Toggle HTML view", ()=>{
       const before = getHTML();
       if (before !== history.current()){
@@ -297,11 +356,11 @@ body.weditor-fullscreen-active{overflow:hidden}
       cancelSnapshotTimer();
       pair.value = after;
       updateUndoRedoButtons();
-    });
+    }, groupView.inner);
 
     // Fullscreen
     let isFullScreen = false;
-    const btnFs = addBtn("FS", "Fullscreen", toggleFullScreen);
+    const btnFs = addBtn("FS", "Fullscreen", toggleFullScreen, groupView.inner);
     function handleEscKey(e) {
       if (isFullScreen && e.key === "Escape") {
         e.preventDefault();
@@ -630,6 +689,7 @@ body.weditor-fullscreen-active{overflow:hidden}
       const range = sel.getRangeAt(0);
       if (!isNodeInside(range.commonAncestorContainer, divEditor)) return;
       savedEditorRange = range.cloneRange();
+      updateTableToolsVisibility();
     }
     function restoreEditorSelection(){
       const sel = window.getSelection();
@@ -1084,16 +1144,16 @@ body.weditor-fullscreen-active{overflow:hidden}
     const btnTbl = addBtn("Tbl","Insert table", (evt)=>{
       evt.preventDefault();
       insertTablePopup.open(evt.currentTarget || btnTbl);
-    });
-    addBtn("+Row","Insert row below", ()=>insertRow(true));
-    addBtn("^Row","Insert row above", ()=>insertRow(false));
-    addBtn("DelRow","Delete current row", ()=>deleteRow());
-    addBtn("+Col","Insert column right", ()=>insertCol(true));
-    addBtn("<-Col","Insert column left", ()=>insertCol(false));
-    addBtn("DelCol","Delete current column", ()=>deleteCol());
-    addBtn("=Cols","Distribute columns (%)", ()=>distributeColumns());
-    addBtn("Fit","Auto-fit column width", ()=>autofitColumns());
-    addBtn("W","Set current column width", ()=>setCurrentColumnWidth());
+    }, groupInsert.inner);
+    addBtn("+Row","Insert row below", ()=>insertRow(true), groupTableTools.inner);
+    addBtn("^Row","Insert row above", ()=>insertRow(false), groupTableTools.inner);
+    addBtn("DelRow","Delete current row", ()=>deleteRow(), groupTableTools.inner);
+    addBtn("+Col","Insert column right", ()=>insertCol(true), groupTableTools.inner);
+    addBtn("<-Col","Insert column left", ()=>insertCol(false), groupTableTools.inner);
+    addBtn("DelCol","Delete current column", ()=>deleteCol(), groupTableTools.inner);
+    addBtn("=Cols","Distribute columns (%)", ()=>distributeColumns(), groupTableTools.inner);
+    addBtn("Fit","Auto-fit column width", ()=>autofitColumns(), groupTableTools.inner);
+    addBtn("W","Set current column width", ()=>setCurrentColumnWidth(), groupTableTools.inner);
   }
 
   // ---------- Init all editors ----------
