@@ -73,14 +73,23 @@ body.weditor-fullscreen-active{overflow:hidden}
   function insertTableAtCaret(editor, rows=2, cols=2){
     rows = Math.max(1, parseInt(rows||2,10));
     cols = Math.max(1, parseInt(cols||2,10));
-    const table = el("table",{border:"1",style:{borderCollapse:"collapse",width:"100%"}});
+
+    const colPct = (100/cols).toFixed(3) + "%";
+    const colgroup = el("colgroup", null, Array.from({length:cols}, ()=> el("col",{style:{width:colPct}})));
+
+    const table = el("table",{border:"1",style:{borderCollapse:"collapse",width:"100%",tableLayout:"fixed"}});
+    table.appendChild(colgroup);
+
+    const tbody = el("tbody");
     for (let r=0;r<rows;r++){
       const tr = el("tr");
       for (let c=0;c<cols;c++){
         tr.appendChild(el("td",{style:{padding:"6px",verticalAlign:"top"}},["\u00A0"]));
       }
-      table.appendChild(tr);
+      tbody.appendChild(tr);
     }
+    table.appendChild(tbody);
+
     const sel = window.getSelection();
     if (sel && sel.rangeCount){
       const range = sel.getRangeAt(0);
@@ -365,17 +374,47 @@ body.weditor-fullscreen-active{overflow:hidden}
     }
     function normalizeTable(table) {
       if (!table) return;
+      // Ensure TBODY exists
       if (!table.tBodies || table.tBodies.length === 0) {
         const tb = document.createElement("tbody");
         while (table.firstChild) tb.appendChild(table.firstChild);
         table.appendChild(tb);
       }
+      // Compute current column count from first row (sum of colspans)
+      const firstRow = table.rows[0];
+      let colCount = 0;
+      if (firstRow){
+        colCount = Array.from(firstRow.children).reduce((n, td)=> n + parseInt(td.getAttribute("colspan") || "1", 10), 0);
+      }
+      // Ensure colgroup exists and matches colCount
+      let cg = table.querySelector("colgroup");
+      if (!cg && colCount > 0) {
+        cg = document.createElement("colgroup");
+        const pct = (100/colCount).toFixed(3) + "%";
+        for (let i=0;i<colCount;i++){
+          const c = document.createElement("col");
+          c.style.width = pct;
+          cg.appendChild(c);
+        }
+        table.insertBefore(cg, table.tBodies[0] || table.firstChild);
+      } else if (cg) {
+        const cols = Array.from(cg.children);
+        if (cols.length < colCount) {
+          for (let i=cols.length;i<colCount;i++) cg.appendChild(document.createElement("col"));
+        } else if (cols.length > colCount) {
+          for (let i=cols.length-1;i>=colCount;i--) cg.removeChild(cg.children[i]);
+        }
+      }
+      // Cell hygiene; width controlled by <col>
       table.querySelectorAll("td,th").forEach(td=>{
         if (!td.innerHTML || td.innerHTML === "") td.innerHTML = "&nbsp;";
         td.style.verticalAlign = td.style.verticalAlign || "top";
+        td.style.width = "";
+        td.style.whiteSpace = "";
       });
       table.style.borderCollapse = table.style.borderCollapse || "collapse";
       if (!table.style.width) table.style.width = "100%";
+      table.style.tableLayout = table.style.tableLayout || "fixed";
     }
 
     function insertRow(after = true) {
@@ -409,6 +448,8 @@ body.weditor-fullscreen-active{overflow:hidden}
       normalizeTable(ctx.table);
       const { table, colIndex } = ctx;
       const idx = after ? colIndex + 1 : colIndex;
+
+      // Insert a cell in each row at visual index
       Array.from(table.rows).forEach(tr=>{
         const tdList = Array.from(tr.children);
         let vIndex = 0, insertBefore = null;
@@ -423,6 +464,14 @@ body.weditor-fullscreen-active{overflow:hidden}
         td.innerHTML = "&nbsp;";
         tr.insertBefore(td, insertBefore);
       });
+
+      // Mirror the structure in <colgroup>
+      const cg = table.querySelector("colgroup");
+      if (cg){
+        const newCol = document.createElement("col");
+        cg.insertBefore(newCol, cg.children[idx] || null);
+      }
+
       divEditor.dispatchEvent(new Event("input",{bubbles:true}));
     }
     function deleteCol() {
@@ -436,33 +485,28 @@ body.weditor-fullscreen-active{overflow:hidden}
           vIndex += span;
         }
       });
+      const cg = table.querySelector("colgroup");
+      if (cg && cg.children[colIndex]) cg.children[colIndex].remove();
       divEditor.dispatchEvent(new Event("input",{bubbles:true}));
     }
     function distributeColumns() {
       const ctx = getTableContext(); if (!ctx) return;
       const { table } = ctx;
       normalizeTable(table);
-      const firstRow = table.rows[0];
-      if (!firstRow) return;
-      const colCount = Array.from(firstRow.children).reduce((n, td)=> n + parseInt(td.getAttribute("colspan") || "1", 10), 0);
-      if (colCount === 0) return;
-      const pct = (100 / colCount).toFixed(3) + "%";
-      Array.from(table.rows).forEach(tr=>{
-        Array.from(tr.children).forEach(td=>{
-          const span = parseInt(td.getAttribute("colspan") || "1", 10);
-          td.style.width = (span === 1) ? pct : ""; // 简化：跨列不设置
-        });
-      });
+      const cg = table.querySelector("colgroup");
+      if (!cg) return;
+      const n = cg.children.length;
+      if (!n) return;
+      const pct = (100 / n).toFixed(3) + "%";
+      Array.from(cg.children).forEach(col=>{ col.style.width = pct; });
       divEditor.dispatchEvent(new Event("input",{bubbles:true}));
     }
     function autofitColumns() {
       const ctx = getTableContext(); if (!ctx) return;
       const { table } = ctx;
       normalizeTable(table);
-      table.querySelectorAll("td,th").forEach(td=>{
-        td.style.width = ""; // 交给浏览器布局
-        td.style.whiteSpace = ""; // 可按需设置 'nowrap'
-      });
+      const cg = table.querySelector("colgroup");
+      if (cg) Array.from(cg.children).forEach(col=>{ col.style.width = ""; });
       divEditor.dispatchEvent(new Event("input",{bubbles:true}));
     }
     function setCurrentColumnWidth() {
@@ -472,14 +516,12 @@ body.weditor-fullscreen-active{overflow:hidden}
       if (!val) return;
       if (!/^\s*\d+(\.\d+)?(px|%)\s*$/.test(val)) { alert("Please enter a valid px or % value"); return; }
       const width = val.trim();
-      Array.from(table.rows).forEach(tr=>{
-        let vIndex = 0;
-        for (const cell of Array.from(tr.children)) {
-          const span = parseInt(cell.getAttribute("colspan") || "1", 10);
-          if (vIndex <= colIndex && colIndex < vIndex + span) { cell.style.width = width; break; }
-          vIndex += span;
-        }
-      });
+      normalizeTable(table);
+      const cg = table.querySelector("colgroup");
+      if (!cg) return;
+      const col = cg.children[colIndex];
+      if (!col) return;
+      col.style.width = width;
       divEditor.dispatchEvent(new Event("input",{bubbles:true}));
     }
 
@@ -550,17 +592,11 @@ body.weditor-fullscreen-active{overflow:hidden}
       const { table, colIndex, startX, startWidthPx } = colResizeState;
       const delta = e.clientX - startX;
       const newWidth = Math.max(30, startWidthPx + delta);
-      Array.from(table.rows).forEach(tr=>{
-        let vIndex = 0;
-        for (const td of Array.from(tr.children)) {
-          const span = parseInt(td.getAttribute("colspan") || "1", 10);
-          if (vIndex <= colIndex && colIndex < vIndex + span) {
-            td.style.width = newWidth + "px";
-            break;
-          }
-          vIndex += span;
-        }
-      });
+      const cg = table.querySelector("colgroup");
+      if (!cg) return;
+      const col = cg.children[colIndex];
+      if (!col) return;
+      col.style.width = newWidth + "px";
     }
     function onColResizeUp(){
       if (!colResizeState) return;
