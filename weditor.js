@@ -144,6 +144,12 @@ body.weditor-fullscreen-active{overflow:hidden}
       tbody.appendChild(tr);
     }
     table.appendChild(tbody);
+    if (table.dataset){
+      table.dataset.weditorBorderPreset = "table-all";
+      table.dataset.weditorBorderWidth = "1";
+      table.dataset.weditorBorderStyle = "solid";
+      table.dataset.weditorBorderColor = "#cccccc";
+    }
 
     const sel = window.getSelection();
     if (sel && sel.rangeCount){
@@ -497,6 +503,39 @@ body.weditor-fullscreen-active{overflow:hidden}
       }
       return { width, style, color };
     }
+    function storeTableBorderState(table, preset, options){
+      if (!table || !table.dataset) return;
+      const normalized = normalizeBorderOptions(options);
+      table.dataset.weditorBorderPreset = preset || "table-all";
+      table.dataset.weditorBorderWidth = String(normalized.width);
+      table.dataset.weditorBorderStyle = normalized.style;
+      table.dataset.weditorBorderColor = normalized.color;
+    }
+    function getStoredTableBorderState(table){
+      if (!table || !table.dataset) return null;
+      const preset = table.dataset.weditorBorderPreset;
+      if (!preset) return null;
+      const width = parseFloat(table.dataset.weditorBorderWidth);
+      const style = table.dataset.weditorBorderStyle;
+      const color = table.dataset.weditorBorderColor;
+      return {
+        preset,
+        options: normalizeBorderOptions({ width, style, color })
+      };
+    }
+    function clearTableBorderState(table){
+      if (!table || !table.dataset) return;
+      delete table.dataset.weditorBorderPreset;
+      delete table.dataset.weditorBorderWidth;
+      delete table.dataset.weditorBorderStyle;
+      delete table.dataset.weditorBorderColor;
+    }
+    function enforceStoredTableBorderState(table){
+      const stored = getStoredTableBorderState(table);
+      if (!stored) return false;
+      applyTableBorderStyles(stored.options, stored.preset, table);
+      return true;
+    }
     function getCellFromSelection() {
       const sel = window.getSelection();
       if (!sel || !sel.anchorNode) return null;
@@ -655,15 +694,34 @@ body.weditor-fullscreen-active{overflow:hidden}
     function getCurrentBorderSettings(table) {
       const fallback = { width: 1, style: "solid", color: "#cccccc" };
       if (!table) return fallback;
+      const stored = getStoredTableBorderState(table);
+      if (stored) {
+        return {
+          width: Math.max(0, Math.round(stored.options.width)),
+          style: stored.options.style,
+          color: stored.options.color
+        };
+      }
       const sampleCell = table.querySelector("td,th");
-      if (!sampleCell) return fallback;
-      const computed = window.getComputedStyle ? window.getComputedStyle(sampleCell) : null;
-      if (!computed) return fallback;
-      let width = parseFloat(computed.borderLeftWidth || "0") || 0;
-      let style = String(computed.borderLeftStyle || fallback.style).toLowerCase();
+      const computed = sampleCell && window.getComputedStyle ? window.getComputedStyle(sampleCell) : null;
+      let width = computed ? parseFloat(computed.borderLeftWidth || "0") || 0 : 0;
+      let style = computed ? String(computed.borderLeftStyle || fallback.style).toLowerCase() : fallback.style;
       if (!BORDER_STYLE_OPTIONS.includes(style)) style = fallback.style;
-      if (style === "none") width = 0;
-      const color = normalizeColorToHex(computed.borderLeftColor || fallback.color);
+      let color = normalizeColorToHex(computed ? computed.borderLeftColor || fallback.color : fallback.color);
+      if (width <= 0 || style === "none") {
+        const tableComputed = window.getComputedStyle ? window.getComputedStyle(table) : null;
+        const tableWidth = tableComputed ? parseFloat(tableComputed.borderTopWidth || "0") || 0 : 0;
+        const tableStyleRaw = tableComputed ? String(tableComputed.borderTopStyle || "").toLowerCase() : "";
+        const tableStyle = BORDER_STYLE_OPTIONS.includes(tableStyleRaw) ? tableStyleRaw : (tableStyleRaw === "none" ? "none" : style);
+        if (tableStyleRaw === "none") {
+          style = "none";
+          width = 0;
+        } else if (tableWidth > 0 && tableStyleRaw && tableStyleRaw !== "none") {
+          width = Math.max(0, Math.round(tableWidth));
+          style = tableStyle;
+          color = normalizeColorToHex(tableComputed ? tableComputed.borderTopColor || color : color);
+        }
+      }
       return {
         width: Math.max(0, Math.round(width)),
         style,
@@ -719,6 +777,7 @@ body.weditor-fullscreen-active{overflow:hidden}
         });
       }
       table.style.borderCollapse = table.style.borderCollapse || "collapse";
+      storeTableBorderState(table, preset, { width, style, color });
       divEditor.dispatchEvent(new Event("input",{bubbles:true}));
     }
 
@@ -777,6 +836,7 @@ body.weditor-fullscreen-active{overflow:hidden}
         cell.style.borderWidth = "";
         cell.style.borderColor = "";
       });
+      clearTableBorderState(table);
       divEditor.dispatchEvent(new Event("input",{bubbles:true}));
     }
 
@@ -800,7 +860,8 @@ body.weditor-fullscreen-active{overflow:hidden}
       }
       (table.tBodies[0]||table).insertBefore(tr, (table.tBodies[0]||table).children[refIndex] || null);
       placeCaretInside(tr.children[0]);
-      divEditor.dispatchEvent(new Event("input",{bubbles:true}));
+      const restyled = enforceStoredTableBorderState(table);
+      if (!restyled) divEditor.dispatchEvent(new Event("input",{bubbles:true}));
     }
     function deleteRow() {
       const ctx = getTableContext(); if (!ctx) return;
@@ -808,7 +869,8 @@ body.weditor-fullscreen-active{overflow:hidden}
       const body = table.tBodies[0] || table;
       if (body.rows.length <= 1) { table.remove(); }
       else { row.remove(); }
-      divEditor.dispatchEvent(new Event("input",{bubbles:true}));
+      const restyled = enforceStoredTableBorderState(table);
+      if (!restyled) divEditor.dispatchEvent(new Event("input",{bubbles:true}));
     }
     function insertCol(after = true) {
       const ctx = getTableContext(); if (!ctx) return;
@@ -867,7 +929,8 @@ body.weditor-fullscreen-active{overflow:hidden}
         }
       }
 
-      divEditor.dispatchEvent(new Event("input",{bubbles:true}));
+      const restyled = enforceStoredTableBorderState(table);
+      if (!restyled) divEditor.dispatchEvent(new Event("input",{bubbles:true}));
     }
     function deleteCol() {
       const ctx = getTableContext(); if (!ctx) return;
@@ -882,7 +945,8 @@ body.weditor-fullscreen-active{overflow:hidden}
       });
       const cg = table.querySelector("colgroup");
       if (cg && cg.children[colIndex]) cg.children[colIndex].remove();
-      divEditor.dispatchEvent(new Event("input",{bubbles:true}));
+      const restyled = enforceStoredTableBorderState(table);
+      if (!restyled) divEditor.dispatchEvent(new Event("input",{bubbles:true}));
     }
     function distributeColumns() {
       const ctx = getTableContext(); if (!ctx) return;
@@ -1263,7 +1327,9 @@ body.weditor-fullscreen-active{overflow:hidden}
         colorInput.value = normalizeColorToHex(lastSettings.color);
         currentScope = lastState.scope;
         if (currentScope === "cell" && !ctx.cell) currentScope = "table";
-        tablePreset = lastState.tablePreset;
+        const storedState = getStoredTableBorderState(ctx.table);
+        const validStoredPreset = storedState && ["table-all","table-outer","table-none"].includes(storedState.preset) ? storedState.preset : null;
+        tablePreset = validStoredPreset || lastState.tablePreset;
         cellPreset = lastState.cellPreset;
         scopeSelect.value = currentScope;
         selectPreset("table", tablePreset);
