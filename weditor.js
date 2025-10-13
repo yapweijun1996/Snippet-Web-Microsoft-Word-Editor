@@ -745,11 +745,15 @@ body.weditor-fullscreen-active{overflow:hidden}
 
     // ------ Column / Table Resize via Drag ------
     let colResizeState = null; // { table, colIndex, startX, startWidthPx }
+    let rowResizeState = null; // { row, table, startY, startHeight }
     let tableResizeState = null; // { table, startX, startWidth, ratios, minWidth }
     let tableResizeHover = null; // { table, rect, delta }
+    let rowResizeHover = null; // { row, table }
     const EDGE = 6;
     const TABLE_EDGE = 10;
+    const ROW_EDGE = 6;
     const MIN_COL_WIDTH = 40;
+    const MIN_ROW_HEIGHT = 28;
     const MIN_TABLE_WIDTH = 160;
 
     function getColIndexFromHit(cell, clientX) {
@@ -832,7 +836,12 @@ body.weditor-fullscreen-active{overflow:hidden}
         divEditor.style.cursor = "ew-resize";
         return;
       }
+      if (rowResizeState) {
+        divEditor.style.cursor = "ns-resize";
+        return;
+      }
       tableResizeHover = null;
+      rowResizeHover = null;
       let cursor = "";
       const edgeHit = getTableEdgeHover(e.clientX, e.clientY);
       const cell = e.target.closest && e.target.closest("td,th");
@@ -840,6 +849,17 @@ body.weditor-fullscreen-active{overflow:hidden}
         const idx = getColIndexFromHit(cell, e.clientX);
         if (idx >= 0 && (!edgeHit || edgeHit.delta < 0)) {
           cursor = "col-resize";
+        }
+      }
+      if (!cursor && cell && isNodeInside(cell, divEditor)) {
+        const row = cell.parentElement;
+        if (row) {
+          const rowRect = row.getBoundingClientRect();
+          const deltaY = e.clientY - rowRect.bottom;
+          if (deltaY >= -ROW_EDGE && deltaY <= ROW_EDGE) {
+            cursor = "ns-resize";
+            rowResizeHover = { row, table: row.closest("table") };
+          }
         }
       }
       if (!cursor && edgeHit && edgeHit.delta >= -1) {
@@ -881,6 +901,11 @@ body.weditor-fullscreen-active{overflow:hidden}
         }
       }
 
+      if (rowResizeHover && isNodeInside(rowResizeHover.row, divEditor)) {
+        startRowResize(e, rowResizeHover);
+        return;
+      }
+
       if (tableResizeHover && isNodeInside(tableResizeHover.table, divEditor)) {
         startTableResize(e, tableResizeHover);
       }
@@ -902,6 +927,46 @@ body.weditor-fullscreen-active{overflow:hidden}
       document.removeEventListener("mousemove", onColResizeMove);
       document.removeEventListener("mouseup", onColResizeUp);
       colResizeState = null;
+      divEditor.dispatchEvent(new Event("input",{bubbles:true}));
+    }
+
+    function startRowResize(e, hover) {
+      const { row, table } = hover;
+      if (!row || !table) return;
+      normalizeTable(table);
+      e.preventDefault();
+      e.stopPropagation();
+      const rect = row.getBoundingClientRect();
+      const startHeight = rect && rect.height ? rect.height : row.offsetHeight;
+      rowResizeState = {
+        row,
+        table,
+        startY: e.clientY,
+        startHeight: Math.max(MIN_ROW_HEIGHT, startHeight || MIN_ROW_HEIGHT)
+      };
+      document.addEventListener("mousemove", onRowResizeMove);
+      document.addEventListener("mouseup", onRowResizeUp);
+    }
+
+    function onRowResizeMove(e) {
+      if (!rowResizeState) return;
+      const { row, startY, startHeight } = rowResizeState;
+      const delta = e.clientY - startY;
+      const newHeight = Math.max(MIN_ROW_HEIGHT, Math.round(startHeight + delta));
+      row.style.height = newHeight + "px";
+      Array.from(row.children).forEach(cell=>{
+        cell.style.height = newHeight + "px";
+      });
+      divEditor.style.cursor = "ns-resize";
+    }
+
+    function onRowResizeUp() {
+      if (!rowResizeState) return;
+      document.removeEventListener("mousemove", onRowResizeMove);
+      document.removeEventListener("mouseup", onRowResizeUp);
+      rowResizeState = null;
+      rowResizeHover = null;
+      divEditor.style.cursor = "";
       divEditor.dispatchEvent(new Event("input",{bubbles:true}));
     }
 
