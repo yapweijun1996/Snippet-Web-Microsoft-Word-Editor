@@ -878,8 +878,10 @@ body.weditor-fullscreen-active{overflow:hidden}
     function insertCol(after = true) {
       const ctx = getTableContext(); if (!ctx) return;
       normalizeTable(ctx.table);
-      const { table, colIndex } = ctx;
-      const idx = after ? colIndex + 1 : colIndex;
+      const { table, colIndex, cell } = ctx;
+      const parsedSpan = parseInt(cell.getAttribute("colspan") || "1", 10);
+      const currentSpan = Number.isFinite(parsedSpan) && parsedSpan > 0 ? parsedSpan : 1;
+      const idx = after ? colIndex + currentSpan : colIndex;
 
       // Insert a cell in each row at visual index
       const createdCells = [];
@@ -1610,8 +1612,10 @@ body.weditor-fullscreen-active{overflow:hidden}
         const idx = getColIndexFromHit(cell, e.clientX);
         const table = cell.closest("table");
         if (idx >= 0 && (!tableResizeHover || tableResizeHover.table !== table || tableResizeHover.delta < 0)) {
+          if (e.detail < 2) {
+            return;
+          }
           normalizeTable(table);
-          ensurePixelColWidths(table);
           e.preventDefault();
           e.stopPropagation();
 
@@ -1628,7 +1632,8 @@ body.weditor-fullscreen-active{overflow:hidden}
           colResizeState = {
             table, colIndex: idx,
             startX: e.clientX,
-            startWidthPx
+            startWidthPx,
+            prepared: false
           };
 
           document.addEventListener("mousemove", onColResizeMove);
@@ -1651,6 +1656,11 @@ body.weditor-fullscreen-active{overflow:hidden}
       if (!colResizeState) return;
       const { table, colIndex, startX, startWidthPx } = colResizeState;
       const delta = e.clientX - startX;
+      if (!colResizeState.prepared) {
+        if (Math.abs(delta) < 2) return;
+        ensurePixelColWidths(table);
+        colResizeState.prepared = true;
+      }
       const newWidth = Math.max(MIN_COL_WIDTH, startWidthPx + delta);
       const cg = table.querySelector("colgroup");
       if (!cg) return;
