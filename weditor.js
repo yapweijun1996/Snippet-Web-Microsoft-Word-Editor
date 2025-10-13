@@ -659,6 +659,23 @@ body.weditor-fullscreen-active{overflow:hidden}
       return raw / Math.max(colspan, 1);
     }
 
+    function getSelectedCellsInRow(row, range){
+      if (!row || !range) return [];
+      const cells = Array.from(row.children);
+      const selected = [];
+      for (const cell of cells){
+        const cellRange = document.createRange();
+        cellRange.selectNodeContents(cell);
+        const endsBefore = range.compareBoundaryPoints(Range.END_TO_START, cellRange) <= 0;
+        const startsAfter = range.compareBoundaryPoints(Range.START_TO_END, cellRange) >= 0;
+        if (!endsBefore && !startsAfter){
+          selected.push(cell);
+        }
+        cellRange.detach?.();
+      }
+      return selected;
+    }
+
     function ensurePixelColWidths(table) {
       const cg = table.querySelector("colgroup");
       if (!cg) return;
@@ -1024,7 +1041,13 @@ body.weditor-fullscreen-active{overflow:hidden}
         endIndex = tmp;
       }
 
-      const cellsToMerge = rowCells.slice(startIndex, endIndex + 1);
+      let cellsToMerge = rowCells.slice(startIndex, endIndex + 1);
+      if (cellsToMerge.length <= 1) {
+        const expanded = getSelectedCellsInRow(row, range);
+        if (expanded.length > 1) {
+          cellsToMerge = expanded;
+        }
+      }
       if (cellsToMerge.length <= 1) return;
       if (cellsToMerge.some(cell => (parseInt(cell.getAttribute("rowspan") || "1", 10) || 1) > 1)) {
         alert("Merging cells that span multiple rows is not supported yet.");
