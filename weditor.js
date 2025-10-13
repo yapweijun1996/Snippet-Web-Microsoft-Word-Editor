@@ -1073,7 +1073,55 @@ body.weditor-fullscreen-active{overflow:hidden}
       let widthInput = null;
       let styleSelect = null;
       let colorInput = null;
+      let scopeSelect = null;
+      let tablePresetContainer = null;
+      let cellPresetContainer = null;
+      let tablePresetSection = null;
+      let cellPresetSection = null;
+      let tablePresetButtons = [];
+      let cellPresetButtons = [];
+      let currentScope = "table";
+      let tablePreset = "table-all";
+      let cellPreset = "cell-all";
       let lastSettings = { width: 1, style: "solid", color: "#cccccc" };
+      let lastState = { scope: "table", tablePreset: "table-all", cellPreset: "cell-all" };
+
+      function selectPreset(group, value){
+        const buttons = group === "table" ? tablePresetButtons : cellPresetButtons;
+        buttons.forEach(btn=>{
+          btn.setAttribute("data-active", btn.dataset.value === value ? "true" : "false");
+        });
+        if (group === "table") {
+          tablePreset = value;
+        } else {
+          cellPreset = value;
+        }
+      }
+
+      function updateScopeUI(){
+        if (!tablePresetSection || !cellPresetSection) return;
+        if (currentScope === "cell") {
+          tablePresetSection.setAttribute("data-hidden","true");
+          cellPresetSection.removeAttribute("data-hidden");
+        } else {
+          cellPresetSection.setAttribute("data-hidden","true");
+          tablePresetSection.removeAttribute("data-hidden");
+        }
+      }
+
+      function createPresetButton(label, value, group){
+        const btn = el("button", { type: "button", class: "weditor-border-option", "data-value": value }, [label]);
+        btn.addEventListener("click", ()=>{
+          if (group === "table") {
+            tablePreset = value;
+            selectPreset("table", value);
+          } else {
+            cellPreset = value;
+            selectPreset("cell", value);
+          }
+        });
+        return btn;
+      }
 
       function ensurePopup() {
         if (node) return node;
@@ -1083,6 +1131,55 @@ body.weditor-fullscreen-active{overflow:hidden}
           return el("option", { value: style }, [label]);
         }));
         colorInput = el("input", { type: "color", name: "borderColor" });
+        scopeSelect = el("select", { name: "borderScope" }, [
+          el("option", { value: "table" }, ["Whole table"]),
+          el("option", { value: "cell" }, ["Current cell"])
+        ]);
+        scopeSelect.addEventListener("change", ()=>{
+          currentScope = scopeSelect.value === "cell" ? "cell" : "table";
+          updateScopeUI();
+        });
+
+        tablePresetContainer = el("div", { class: "weditor-border-presets" });
+        tablePresetButtons = [
+          createPresetButton("All Grid", "table-all", "table"),
+          createPresetButton("Outer Only", "table-outer", "table"),
+          createPresetButton("No Borders", "table-none", "table")
+        ];
+        tablePresetButtons.forEach(btn=>tablePresetContainer.appendChild(btn));
+
+        cellPresetContainer = el("div", { class: "weditor-border-presets" });
+        cellPresetButtons = [
+          createPresetButton("All Sides", "cell-all", "cell"),
+          createPresetButton("Top", "cell-top", "cell"),
+          createPresetButton("Right", "cell-right", "cell"),
+          createPresetButton("Bottom", "cell-bottom", "cell"),
+          createPresetButton("Left", "cell-left", "cell"),
+          createPresetButton("No Borders", "cell-none", "cell")
+        ];
+        cellPresetButtons.forEach(btn=>cellPresetContainer.appendChild(btn));
+
+        const styleSection = el("div", { class: "weditor-border-section" }, [
+          el("span", { class: "weditor-border-heading" }, ["Line style"]),
+          el("label", null, ["Line width (px)", widthInput]),
+          el("label", null, ["Border style", styleSelect]),
+          el("label", null, ["Color", colorInput])
+        ]);
+
+        const scopeSection = el("div", { class: "weditor-border-section" }, [
+          el("span", { class: "weditor-border-heading" }, ["Apply to"]),
+          el("div", { class: "weditor-border-scope" }, [scopeSelect])
+        ]);
+
+        tablePresetSection = el("div", { class: "weditor-border-section" }, [
+          el("span", { class: "weditor-border-heading" }, ["Table presets"]),
+          tablePresetContainer
+        ]);
+
+        cellPresetSection = el("div", { class: "weditor-border-section" }, [
+          el("span", { class: "weditor-border-heading" }, ["Cell presets"]),
+          cellPresetContainer
+        ]);
 
         const actions = el("div", { class: "actions" });
         const btnCancel = el("button", { type: "button" }, ["Cancel"]);
@@ -1091,31 +1188,64 @@ body.weditor-fullscreen-active{overflow:hidden}
         actions.appendChild(btnApply);
 
         node = el("div", { class: "weditor-table-popup weditor-border-popup" }, [
-          el("label", null, ["Line width (px)", widthInput]),
-          el("label", null, ["Border style", styleSelect]),
-          el("label", null, ["Color", colorInput]),
+          styleSection,
+          scopeSection,
+          tablePresetSection,
+          cellPresetSection,
           actions
         ]);
+
+        scopeSelect.value = currentScope;
+        selectPreset("table", tablePreset);
+        selectPreset("cell", cellPreset);
+        updateScopeUI();
 
         btnCancel.addEventListener("click", () => {
           closePopup();
         });
         btnApply.addEventListener("click", () => {
+          const scope = scopeSelect.value === "cell" ? "cell" : "table";
+          const preset = scope === "cell" ? cellPreset : tablePreset;
           const rawWidth = parseFloat(widthInput.value);
-          if (!Number.isFinite(rawWidth) || rawWidth < 0) {
-            alert("Please enter a non-negative number for the border width.");
-            widthInput.focus();
-            widthInput.select();
+          if (preset !== "cell-none" && preset !== "table-none") {
+            if (!Number.isFinite(rawWidth) || rawWidth < 0) {
+              alert("Please enter a non-negative number for the border width.");
+              widthInput.focus();
+              widthInput.select();
+              return;
+            }
+          }
+          const selectedStyle = styleSelect.value || lastSettings.style;
+          const selectedColor = normalizeColorToHex(colorInput.value || lastSettings.color);
+          const normalized = normalizeBorderOptions({ width: rawWidth, style: selectedStyle, color: selectedColor });
+          lastSettings = { width: normalized.width, style: normalized.style, color: selectedColor };
+          if (!restoreEditorSelection()) {
+            divEditor.focus();
+          }
+          const ctx = getTableContext();
+          if (!ctx || !ctx.table) {
+            closePopup();
             return;
           }
-          let style = styleSelect.value || "solid";
-          let width = Math.max(0, Math.round(rawWidth));
-          if (!BORDER_STYLE_OPTIONS.includes(style)) style = "solid";
-          if (width === 0) style = "none";
-          const color = normalizeColorToHex(colorInput.value || lastSettings.color);
-          lastSettings = { width, style, color };
+          if (scope === "table") {
+            const applyOptions = preset === "table-none"
+              ? { width: 0, style: "none", color: selectedColor }
+              : { width: normalized.width, style: normalized.style, color: selectedColor };
+            applyTableBorderStyles(applyOptions, preset, ctx.table);
+          } else {
+            if (!ctx.cell) {
+              closePopup();
+              return;
+            }
+            const applyOptions = preset === "cell-none"
+              ? { width: 0, style: "none", color: selectedColor }
+              : { width: normalized.width, style: normalized.style, color: selectedColor };
+            applyCellBorderPreset(ctx.cell, applyOptions, preset);
+          }
+          lastState.scope = scope;
+          lastState.tablePreset = tablePreset;
+          lastState.cellPreset = cellPreset;
           closePopup();
-          applyTableBorderStyles(lastSettings);
         });
 
         return node;
@@ -1131,12 +1261,25 @@ body.weditor-fullscreen-active{overflow:hidden}
         widthInput.value = String(lastSettings.width);
         styleSelect.value = lastSettings.style;
         colorInput.value = normalizeColorToHex(lastSettings.color);
+        currentScope = lastState.scope;
+        if (currentScope === "cell" && !ctx.cell) currentScope = "table";
+        tablePreset = lastState.tablePreset;
+        cellPreset = lastState.cellPreset;
+        scopeSelect.value = currentScope;
+        selectPreset("table", tablePreset);
+        selectPreset("cell", cellPreset);
+        updateScopeUI();
         toolbar.appendChild(popup);
         popup.setAttribute("data-open", "true");
         requestAnimationFrame(() => {
           positionToolbarPopup(anchor, popup);
-          widthInput.focus();
-          widthInput.select();
+          const focusTarget = currentScope === "cell" ? cellPresetButtons[0] : widthInput;
+          if (focusTarget && focusTarget.focus) {
+            focusTarget.focus();
+            if (focusTarget === widthInput) {
+              widthInput.select();
+            }
+          }
         });
         outsideHandler = (evt) => {
           if (!popup.contains(evt.target) && (!anchor || !anchor.contains(evt.target))) {
@@ -1498,6 +1641,7 @@ body.weditor-fullscreen-active{overflow:hidden}
 
     const tableBorders = createTableSubgroup("Borders");
     const btnBorderStyle = addTableAction("Border Style","Line & Color","Adjust table border width, style, and color", ()=>tableBorderPopup.open(btnBorderStyle), tableBorders);
+    addTableAction("Hide Borders","No Lines","Remove all borders from this table", ()=>hideTableBorders(), tableBorders);
     addTableAction("Reset Borders","Default","Reset border styling to default", ()=>resetTableBorders(), tableBorders);
   }
 
