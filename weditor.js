@@ -611,7 +611,7 @@ body.weditor-fullscreen-active{overflow:hidden}
         let vIndex = 0, insertBefore = null;
         for (const cell of tdList) {
           const span = parseInt(cell.getAttribute("colspan") || "1", 10);
-          if (vIndex + span > idx) { insertBefore = cell.nextSibling; break; }
+          if (vIndex + span > idx) { insertBefore = cell; break; }
           vIndex += span;
         }
         const td = document.createElement("td");
