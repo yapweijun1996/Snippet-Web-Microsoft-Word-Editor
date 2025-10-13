@@ -5,20 +5,31 @@
   const STYLE_ID = "weditor-lite-style";
   const CSS_TEXT = `
 .weditor-wrap{border:1px solid #ccc;margin:8px 0;background:#fff;display:flex;flex-direction:column}
-.weditor-toolbar{display:flex;flex-wrap:wrap;gap:8px;padding:8px;border-bottom:1px solid #ddd;background:#f7f7f7;position:relative;align-items:center}
+.weditor-toolbar{display:flex;flex-wrap:wrap;gap:8px;padding:8px;border-bottom:1px solid #ddd;background:#f7f7f7;position:relative;align-items:center;--weditor-btn-h:36px;--weditor-btn-py:8px;--weditor-btn-px:10px}
 .weditor-toolbar-group{display:flex;align-items:center;gap:6px;padding:4px 6px;border-radius:6px;background:#fff;box-shadow:0 1px 2px rgba(15,23,42,0.08)}
 .weditor-toolbar-group[data-hidden=\"true\"]{display:none}
 .weditor-toolbar-group-label{font-size:11px;font-weight:600;color:#64748b;text-transform:uppercase;letter-spacing:.05em}
 .weditor-toolbar-group-inner{display:flex;flex-wrap:wrap;gap:4px}
-.weditor-toolbar button{padding:4px 8px;border:1px solid #cbd5f5;background:#fff;border-radius:4px;cursor:pointer;transition:background .15s,border-color .15s,box-shadow .15s}
+.weditor-toolbar-row{display:flex;flex-wrap:wrap;gap:8px;width:100%}
+.weditor-toolbar-row + .weditor-toolbar-row{margin-top:6px}
+.weditor-toolbar button{display:inline-flex;align-items:center;justify-content:center;min-height:var(--weditor-btn-h);padding:var(--weditor-btn-py) var(--weditor-btn-px);border:1px solid #cbd5f5;background:#fff;border-radius:4px;cursor:pointer;transition:background .15s,border-color .15s,box-shadow .15s}
 .weditor-table-subgroup{display:flex;flex-direction:column;gap:4px;padding:4px 6px;background:#f1f5f9;border-radius:6px}
 .weditor-table-subgroup-label{font-size:10px;font-weight:600;color:#475569;text-transform:uppercase;letter-spacing:.04em}
 .weditor-table-subgroup-buttons{display:flex;flex-wrap:wrap;gap:4px}
-.weditor-toolbar button.weditor-table-btn{display:flex;flex-direction:column;align-items:flex-start;gap:2px;min-width:118px;padding:6px 12px;font-size:12px;line-height:1.2}
+.weditor-toolbar button.weditor-table-btn{display:flex;flex-direction:column;align-items:flex-start;gap:2px;min-width:118px;min-height:var(--weditor-btn-h);padding:var(--weditor-btn-py) var(--weditor-btn-px);font-size:12px;line-height:1.2}
 .weditor-toolbar button.weditor-table-btn .weditor-table-btn-primary{font-weight:600;color:#1e293b}
 .weditor-toolbar button.weditor-table-btn .weditor-table-btn-secondary{font-size:11px;color:#475569}
 .weditor-toolbar button:hover:not(:disabled){background:#eef2ff;border-color:#94a3b8;box-shadow:0 1px 3px rgba(15,23,42,0.12)}
 .weditor-toolbar button:disabled{opacity:.5;cursor:not-allowed}
+.weditor-toolbar button:focus-visible{outline:2px solid #2563eb;outline-offset:1px}
+.weditor-toolbar button[data-active="true"]{background:#e0e7ff;border-color:#94a3b8}
+/* Primary/Secondary emphasis for key actions */
+.weditor-btn--primary{background:#2563eb;color:#fff;border-color:#1d4ed8}
+.weditor-btn--primary:hover:not(:disabled){background:#1d4ed8;border-color:#1e40af}
+.weditor-btn--secondary{background:#fff;color:#1e293b;border-color:#cbd5f5}
+/* Ensure table button inner labels invert correctly when primary */
+.weditor-btn--primary .weditor-table-btn-primary{color:#fff}
+.weditor-btn--primary .weditor-table-btn-secondary{color:#e2e8f0}
 .weditor-area{min-height:160px;padding:10px;outline:0;overflow-y:auto}
 .weditor_textarea{display:none}
 body.weditor-fullscreen-active{overflow:hidden}
@@ -36,8 +47,8 @@ body.weditor-fullscreen-active{overflow:hidden}
 .weditor-table-popup select{width:100%;padding:4px;border:1px solid #bbb;border-radius:3px;background:#fff}
 .weditor-table-popup input[type="color"]{padding:0;min-width:48px;height:30px;cursor:pointer}
 .weditor-table-popup .actions{display:flex;justify-content:flex-end;gap:6px}
-.weditor-table-popup .actions button{padding:4px 10px}
-.weditor-table-popup button{border:1px solid #bbb;background:#f8f8f8;cursor:pointer}
+.weditor-table-popup .actions button{padding:var(--weditor-btn-py,8px) var(--weditor-btn-px,10px)}
+.weditor-table-popup button{border:1px solid #bbb;background:#f8f8f8;cursor:pointer;min-height:var(--weditor-btn-h,36px);padding:var(--weditor-btn-py,8px) var(--weditor-btn-px,10px)}
 .weditor-border-popup{min-width:240px}
 .weditor-border-section{display:flex;flex-direction:column;gap:6px}
 .weditor-border-section[data-hidden="true"]{display:none}
@@ -46,7 +57,7 @@ body.weditor-fullscreen-active{overflow:hidden}
 .weditor-border-scope select{flex:1;padding:4px;border:1px solid #bbb;border-radius:3px;background:#fff}
 .weditor-border-presets{display:flex;flex-wrap:wrap;gap:4px}
 .weditor-border-presets[data-hidden="true"]{display:none}
-.weditor-border-option{padding:4px 8px;border:1px solid #cbd5f5;border-radius:4px;background:#fff;cursor:pointer;font-size:11px;line-height:1.2;transition:background .15s,border-color .15s}
+.weditor-border-option{min-height:var(--weditor-btn-h,36px);padding:var(--weditor-btn-py,8px) var(--weditor-btn-px,10px);border:1px solid #cbd5f5;border-radius:4px;background:#fff;cursor:pointer;font-size:11px;line-height:1.2;transition:background .15s,border-color .15s}
 .weditor-border-option[data-active="true"]{background:#eef2ff;border-color:#94a3b8;font-weight:600}
 .weditor-border-option[data-disabled="true"]{opacity:.55;cursor:not-allowed}
 .weditor-area td.weditor-cell-selected,.weditor-area th.weditor-cell-selected{background-color:#bde0fe !important;outline:1px solid #007bff}
@@ -187,6 +198,11 @@ body.weditor-fullscreen-active{overflow:hidden}
     // UI skeleton
     const wrap = el("div",{class:"weditor-wrap"});
     const toolbar = el("div",{class:"weditor-toolbar"});
+    // Two-row toolbar containers
+    const rowPrimary = el("div",{class:"weditor-toolbar-row weditor-toolbar-row-primary", role:"toolbar", "aria-label":"Primary toolbar"});
+    const rowSecondary = el("div",{class:"weditor-toolbar-row weditor-toolbar-row-secondary", role:"toolbar", "aria-label":"Secondary toolbar"});
+    toolbar.appendChild(rowPrimary);
+    toolbar.appendChild(rowSecondary);
 
     // Editable area (reuse given div)
     divEditor.classList.add("weditor-area");
@@ -206,6 +222,8 @@ body.weditor-fullscreen-active{overflow:hidden}
       }
       document.execCommand(cmd, false, val);
       divEditor.dispatchEvent(new Event("input",{bubbles:true}));
+      // Reflect toggle states immediately after command (中文解释: 交互后立刻更新状态)
+      try { updateToggleStates && updateToggleStates(); } catch(e){}
     }
 
     // ---------- History manager (with redo-safe undo) ----------
@@ -288,6 +306,7 @@ body.weditor-fullscreen-active{overflow:hidden}
 
     divEditor.addEventListener("input", scheduleSnapshot);
     divEditor.addEventListener("input", syncToTextarea);
+    divEditor.addEventListener("input", updateToggleStates);
     divEditor.addEventListener("blur",  ()=>{
       updateTableToolsVisibility();
       syncToTextarea();
@@ -301,32 +320,34 @@ body.weditor-fullscreen-active{overflow:hidden}
 
     // Toolbar helpers
     function createToolbarGroup(label, opts = {}) {
-      const group = el("div", { class: "weditor-toolbar-group" });
+      const group = el("div", { class: "weditor-toolbar-group", role: "group" });
       if (label) {
         group.appendChild(el("span", { class: "weditor-toolbar-group-label" }, [label]));
+        try { group.setAttribute("aria-label", label); } catch(_) {}
       }
       const inner = el("div", { class: "weditor-toolbar-group-inner" });
       group.appendChild(inner);
       if (opts.initiallyHidden) {
         group.setAttribute("data-hidden", "true");
       }
-      toolbar.appendChild(group);
+      const targetRow = (opts && opts.row === "secondary") ? rowSecondary : rowPrimary;
+      targetRow.appendChild(group);
       return { group, inner };
     }
 
     function addBtn(text, title, fn, target = toolbar){
-      const b = el("button",{type:"button",title},[text]);
+      const b = el("button",{type:"button",title, "aria-label": title},[text]);
       b.addEventListener("click", fn);
       target.appendChild(b);
       return b;
     }
 
     // Undo / Redo / HTML (redo-safe)
-    const groupHistory = createToolbarGroup("History");
+    const groupHistory = createToolbarGroup("History",{row:"primary"});
     btnUndo = addBtn("Undo","Undo (Ctrl/Cmd+Z)", ()=>history.undo(), groupHistory.inner);
     btnRedo = addBtn("Redo","Redo (Ctrl+Y or Shift+Ctrl/Cmd+Z)", ()=>history.redo(), groupHistory.inner);
 
-    const groupView = createToolbarGroup("View");
+    const groupView = createToolbarGroup("View",{row:"primary"});
     addBtn("HTML","Toggle HTML view", ()=>{
       const before = getHTML();
       if (before !== history.current()){
@@ -352,7 +373,7 @@ body.weditor-fullscreen-active{overflow:hidden}
 
     // Fullscreen
     let isFullScreen = false;
-    const btnFs = addBtn("FS", "Fullscreen", toggleFullScreen, groupView.inner);
+    let btnFs = null;
     function handleEscKey(e) {
       if (isFullScreen && e.key === "Escape") {
         e.preventDefault();
@@ -373,27 +394,25 @@ body.weditor-fullscreen-active{overflow:hidden}
       }
     }
 
-    const groupText = createToolbarGroup("Text");
-    addBtn("B","Bold", ()=>exec("bold"), groupText.inner);
-    addBtn("I","Italic", ()=>exec("italic"), groupText.inner);
-    addBtn("U","Underline", ()=>exec("underline"), groupText.inner);
-    addBtn("Clr","Clear formatting", ()=>exec("removeFormat"), groupText.inner);
+    // Unified Formatting group (merge Text/Headings/Lists/Align)
+    const groupFormatting = createToolbarGroup("Formatting");
+    const btnBold = addBtn("B","Bold (Ctrl/Cmd+B)", ()=>exec("bold"), groupFormatting.inner);
+    const btnItalic = addBtn("I","Italic (Ctrl/Cmd+I)", ()=>exec("italic"), groupFormatting.inner);
+    const btnUnderline = addBtn("U","Underline (Ctrl/Cmd+U)", ()=>exec("underline"), groupFormatting.inner);
+    /* moved Clear Formatting to More group (secondary row) */
+    
+    addBtn("H1","Heading 1", ()=>exec("formatBlock","<h1>"), groupFormatting.inner);
+    addBtn("H2","Heading 2", ()=>exec("formatBlock","<h2>"), groupFormatting.inner);
+    addBtn("P","Paragraph", ()=>exec("formatBlock","<p>"), groupFormatting.inner);
+    
+    const btnUL = addBtn("*","Bulleted list", ()=>exec("insertUnorderedList"), groupFormatting.inner);
+    const btnOL = addBtn("1.","Numbered list", ()=>exec("insertOrderedList"), groupFormatting.inner);
+    
+    const btnAlignL = addBtn("L","Align left", ()=>exec("justifyLeft"), groupFormatting.inner);
+    const btnAlignC = addBtn("C","Center", ()=>exec("justifyCenter"), groupFormatting.inner);
+    const btnAlignR = addBtn("R","Align right", ()=>exec("justifyRight"), groupFormatting.inner);
 
-    const groupBlocks = createToolbarGroup("Headings");
-    addBtn("H1","Heading 1", ()=>exec("formatBlock","<h1>"), groupBlocks.inner);
-    addBtn("H2","Heading 2", ()=>exec("formatBlock","<h2>"), groupBlocks.inner);
-    addBtn("P","Paragraph", ()=>exec("formatBlock","<p>"), groupBlocks.inner);
-
-    const groupLists = createToolbarGroup("Lists");
-    addBtn("*","Bulleted list", ()=>exec("insertUnorderedList"), groupLists.inner);
-    addBtn("1.","Numbered list", ()=>exec("insertOrderedList"), groupLists.inner);
-
-    const groupAlign = createToolbarGroup("Align");
-    addBtn("L","Align left", ()=>exec("justifyLeft"), groupAlign.inner);
-    addBtn("C","Center", ()=>exec("justifyCenter"), groupAlign.inner);
-    addBtn("R","Align right", ()=>exec("justifyRight"), groupAlign.inner);
-
-    const groupInsert = createToolbarGroup("Insert");
+    const groupInsert = createToolbarGroup("Insert",{row:"primary"});
     addBtn("Link","Insert link", ()=>{
       const u = prompt("Link URL:");
       if (!u) return;
@@ -415,9 +434,56 @@ body.weditor-fullscreen-active{overflow:hidden}
       exec("insertImage", u);
     }, groupInsert.inner);
     addBtn("HR","Horizontal rule", ()=>exec("insertHorizontalRule"), groupInsert.inner);
+    // Secondary row - More (Clear, Fullscreen)
+    const groupMore = createToolbarGroup("More",{row:"secondary"});
+    addBtn("Clear","Clear Formatting", ()=>exec("removeFormat"), groupMore.inner);
+    btnFs = addBtn("FS","Fullscreen", toggleFullScreen, groupMore.inner);
 
-    const groupTableTools = createToolbarGroup("Table");
-
+    const groupTableTools = createToolbarGroup("Table",{row:"secondary"});
+    
+    // Collapsed toggle for Table tools when caret not inside a table
+    let tablePanelManualOpen = false;
+    let tablePanelOutsideHandler = null;
+    // Give the Table tools panel a stable id for a11y
+    const tablePanelId = "weditor-table-panel-" + Math.random().toString(36).slice(2,9);
+    groupTableTools.group.id = tablePanelId;
+    
+    const btnTableCollapsed = addBtn("Table ▾","Table tools", ()=>{
+      toggleTablePanel(btnTableCollapsed);
+    }, rowSecondary);
+    // Secondary visual style + ARIA wiring
+    btnTableCollapsed.classList.add("weditor-btn--secondary");
+    btnTableCollapsed.setAttribute("aria-controls", tablePanelId);
+    btnTableCollapsed.setAttribute("aria-expanded", "false");
+    
+    function toggleTablePanel(anchor){
+      tablePanelManualOpen = !tablePanelManualOpen;
+      if (tablePanelManualOpen){
+        groupTableTools.group.removeAttribute("data-hidden");
+        anchor.setAttribute("aria-expanded","true");
+        // Outside click to close
+        if (!tablePanelOutsideHandler){
+          tablePanelOutsideHandler = (evt)=>{
+            const target = evt.target;
+            if (!groupTableTools.group.contains(target) && !anchor.contains(target)){
+              tablePanelManualOpen = false;
+              groupTableTools.group.setAttribute("data-hidden","true");
+              anchor.setAttribute("aria-expanded","false");
+              document.removeEventListener("mousedown", tablePanelOutsideHandler, true);
+              tablePanelOutsideHandler = null;
+            }
+          };
+          document.addEventListener("mousedown", tablePanelOutsideHandler, true);
+        }
+      } else {
+        groupTableTools.group.setAttribute("data-hidden","true");
+        anchor.setAttribute("aria-expanded","false");
+        if (tablePanelOutsideHandler){
+          document.removeEventListener("mousedown", tablePanelOutsideHandler, true);
+          tablePanelOutsideHandler = null;
+        }
+      }
+    }
     function createTableSubgroup(labelText) {
       const wrapper = el("div", { class: "weditor-table-subgroup" });
       if (labelText) {
@@ -441,15 +507,68 @@ body.weditor-fullscreen-active{overflow:hidden}
     }
 
     function updateTableToolsVisibility() {
-      groupTableTools.group.removeAttribute("data-hidden");
+      // Context-aware visibility with manual override (collapsed toggle).
+      try {
+        if (tablePanelManualOpen) {
+          groupTableTools.group.removeAttribute("data-hidden");
+          btnTableCollapsed.setAttribute("aria-expanded","true");
+          return;
+        }
+        const sel = window.getSelection();
+        let show = false;
+        if (sel && sel.rangeCount) {
+          const anchor = sel.anchorNode;
+          const focus = sel.focusNode;
+          const insideEditor = isNodeInside(anchor, divEditor) || isNodeInside(focus, divEditor);
+          if (insideEditor) {
+            const ctx = getTableContext();
+            show = !!(ctx && ctx.table);
+          }
+        }
+        if (show) {
+          groupTableTools.group.removeAttribute("data-hidden");
+          btnTableCollapsed.setAttribute("aria-expanded","true");
+        } else {
+          groupTableTools.group.setAttribute("data-hidden", "true");
+          btnTableCollapsed.setAttribute("aria-expanded","false");
+        }
+      } catch (err) {
+        groupTableTools.group.setAttribute("data-hidden", "true");
+        btnTableCollapsed.setAttribute("aria-expanded","false");
+      }
     }
 
+    // Toggle state helpers for accessibility and affordance
+    function setToggleState(btn, active){
+      if (!btn) return;
+      btn.setAttribute("aria-pressed", active ? "true" : "false");
+      if (active) btn.setAttribute("data-active","true");
+      else btn.removeAttribute("data-active");
+    }
+    function updateToggleStates(){
+      try {
+        const bold = !!document.queryCommandState("bold");
+        const italic = !!document.queryCommandState("italic");
+        const underline = !!document.queryCommandState("underline");
+        const ul = !!document.queryCommandState("insertUnorderedList");
+        const ol = !!document.queryCommandState("insertOrderedList");
+        const jl = !!document.queryCommandState("justifyLeft");
+        const jc = !!document.queryCommandState("justifyCenter");
+        const jr = !!document.queryCommandState("justifyRight");
+        setToggleState(btnBold, bold);
+        setToggleState(btnItalic, italic);
+        setToggleState(btnUnderline, underline);
+        setToggleState(btnUL, ul);
+        setToggleState(btnOL, ol);
+        setToggleState(btnAlignL, jl);
+        setToggleState(btnAlignC, jc);
+        setToggleState(btnAlignR, jr);
+      } catch(e){}
+    }
     const handleSelectionChange = () => {
-      const sel = window.getSelection();
-      if (!sel || !sel.rangeCount) return;
-      if (isNodeInside(sel.anchorNode, divEditor) || isNodeInside(sel.focusNode, divEditor)) {
-        updateTableToolsVisibility();
-      }
+      // Re-evaluate visibility on any selection change.
+      updateTableToolsVisibility();
+      updateToggleStates();
     };
     document.addEventListener("selectionchange", handleSelectionChange);
     updateTableToolsVisibility();
@@ -2007,28 +2126,32 @@ body.weditor-fullscreen-active{overflow:hidden}
       evt.preventDefault();
       insertTablePopup.open(evt.currentTarget || btnTbl);
     }, groupInsert.inner);
+    // Emphasize primary action: Insert Table
+    btnTbl.classList.add("weditor-btn--primary");
     const tableRows = createTableSubgroup("Rows");
-    addTableAction("Add Row","Below","Insert row below", ()=>insertRow(true), tableRows);
-    addTableAction("Add Row","Above","Insert row above", ()=>insertRow(false), tableRows);
-    addTableAction("Remove Row", null,"Delete current row", ()=>deleteRow(), tableRows);
+    addTableAction("Insert Row Below", null, "Insert row below (⌥↓)", ()=>insertRow(true), tableRows);
+    addTableAction("Insert Row Above", null, "Insert row above (⌥↑)", ()=>insertRow(false), tableRows);
+    addTableAction("Delete Row", null, "Delete row (⌘⌫)", ()=>deleteRow(), tableRows);
 
     const tableColumns = createTableSubgroup("Columns");
-    addTableAction("Add Column","Right","Insert column right", ()=>insertCol(true), tableColumns);
-    addTableAction("Add Column","Left","Insert column left", ()=>insertCol(false), tableColumns);
-    addTableAction("Remove Column", null,"Delete current column", ()=>deleteCol(), tableColumns);
+    addTableAction("Add Col Right", null, "Insert column right (⌥→)", ()=>insertCol(true), tableColumns);
+    addTableAction("Add Col Left", null, "Insert column left (⌥←)", ()=>insertCol(false), tableColumns);
+    addTableAction("Delete Col", null, "Delete column (⌘⌫)", ()=>deleteCol(), tableColumns);
 
     const tableWidth = createTableSubgroup("Column Width");
-    addTableAction("Balance","Columns","Distribute columns (%)", ()=>distributeColumns(), tableWidth);
-    addTableAction("Auto Fit","Columns","Auto-fit column width", ()=>autofitColumns(), tableWidth);
-    addTableAction("Set Width","This Column","Set current column width", ()=>setCurrentColumnWidth(), tableWidth);
+    addTableAction("Balance Width", null, "Distribute columns (%) (Auto)", ()=>distributeColumns(), tableWidth);
+    addTableAction("Auto Fit", null, "Auto-fit column width (⇧⌥F)", ()=>autofitColumns(), tableWidth);
+    addTableAction("Set Width (This Col)", null, "Set current column width (⌥W)", ()=>setCurrentColumnWidth(), tableWidth);
 
     const tableCells = createTableSubgroup("Cells");
-    addTableAction("Merge Cells","Horiz","Merge selected cells in the current row", ()=>mergeSelectedCellsHorizontally(), tableCells);
+    const btnMergeCells = addTableAction("Merge Cells", null, "Merge selected cells in the current row (⌥M)", ()=>mergeSelectedCellsHorizontally(), tableCells);
+    btnMergeCells.classList.add("weditor-btn--primary");
 
     const tableBorders = createTableSubgroup("Borders");
-    const btnBorderStyle = addTableAction("Border Style","Line & Color","Adjust table border width, style, and color", ()=>tableBorderPopup.open(btnBorderStyle), tableBorders);
-    addTableAction("Hide Borders","No Lines","Remove all borders from this table", ()=>hideTableBorders(), tableBorders);
-    addTableAction("Reset Borders","Default","Reset border styling to default", ()=>resetTableBorders(), tableBorders);
+    const btnBorderStyle = addTableAction("Borders","Line & Color","Adjust table border width, style, and color (⌥B)", ()=>tableBorderPopup.open(btnBorderStyle), tableBorders);
+    btnBorderStyle.classList.add("weditor-btn--primary");
+    addTableAction("Hide Borders","No Lines","Remove all borders from this table (⇧⌥H)", ()=>hideTableBorders(), tableBorders);
+    addTableAction("Reset Borders","Default","Reset border styling to default (⇧⌥R)", ()=>resetTableBorders(), tableBorders);
   }
 
   // ---------- Init all editors ----------
