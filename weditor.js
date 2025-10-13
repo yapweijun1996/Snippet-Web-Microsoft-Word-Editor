@@ -626,6 +626,13 @@ body.weditor-fullscreen-active{overflow:hidden}
       if (cg){
         const newCol = document.createElement("col");
         cg.insertBefore(newCol, cg.children[idx] || null);
+        const usesPxSizing = Array.from(cg.children).some(col=>{
+          const w = col.style.width || "";
+          return /\dpx\s*$/i.test(w);
+        }) || (table.style.width && /\dpx\s*$/i.test(table.style.width));
+        if (usesPxSizing) {
+          ensurePixelColWidths(table);
+        }
       }
 
       divEditor.dispatchEvent(new Event("input",{bubbles:true}));
