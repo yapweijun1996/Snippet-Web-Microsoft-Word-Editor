@@ -783,8 +783,7 @@ body.weditor-fullscreen-active{overflow:hidden}
         table.style.borderCollapse = table.style.borderCollapse || "collapse";
       }
       const { width, style, color } = normalizeBorderOptions(options);
-      const zero = preset === "cell-none" || style === "none" || width === 0;
-      if (zero) {
+      if (preset === "cell-none") {
         cell.style.border = "0";
         cell.style.borderStyle = "none";
         cell.style.borderWidth = "0";
@@ -792,6 +791,7 @@ body.weditor-fullscreen-active{overflow:hidden}
         divEditor.dispatchEvent(new Event("input",{bubbles:true}));
         return;
       }
+      const zero = style === "none" || width === 0;
       const value = width + "px " + style + " " + color;
       if (preset === "cell-all") {
         cell.style.border = value;
@@ -799,17 +799,29 @@ body.weditor-fullscreen-active{overflow:hidden}
         cell.style.borderWidth = width + "px";
         cell.style.borderColor = color;
       } else {
-        const setSide = (prop, enabled)=>{
-          if (enabled) {
-            cell.style[prop] = value;
-          } else {
-            cell.style[prop] = "0";
-          }
+        const SIDE_MAP = {
+          "cell-top": "Top",
+          "cell-right": "Right",
+          "cell-bottom": "Bottom",
+          "cell-left": "Left"
         };
-        setSide("borderTop", preset === "cell-top");
-        setSide("borderRight", preset === "cell-right");
-        setSide("borderBottom", preset === "cell-bottom");
-        setSide("borderLeft", preset === "cell-left");
+        const side = SIDE_MAP[preset];
+        if (!side) {
+          divEditor.dispatchEvent(new Event("input",{bubbles:true}));
+          return;
+        }
+        const base = "border" + side;
+        if (zero) {
+          cell.style[base] = "0";
+          cell.style[base + "Style"] = "none";
+          cell.style[base + "Width"] = "0";
+          cell.style[base + "Color"] = "";
+        } else {
+          cell.style[base] = value;
+          cell.style[base + "Style"] = style;
+          cell.style[base + "Width"] = width + "px";
+          cell.style[base + "Color"] = color;
+        }
       }
       divEditor.dispatchEvent(new Event("input",{bubbles:true}));
     }
