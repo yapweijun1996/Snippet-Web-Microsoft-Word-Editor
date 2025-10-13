@@ -33,9 +33,12 @@ body.weditor-fullscreen-active{overflow:hidden}
 .weditor-table-popup[data-open="true"]{display:flex}
 .weditor-table-popup label{display:flex;align-items:center;justify-content:space-between;font-size:13px;color:#333;gap:8px}
 .weditor-table-popup input{width:72px;padding:4px;border:1px solid #bbb;border-radius:3px}
+.weditor-table-popup select{width:100%;padding:4px;border:1px solid #bbb;border-radius:3px;background:#fff}
+.weditor-table-popup input[type="color"]{padding:0;min-width:48px;height:30px;cursor:pointer}
 .weditor-table-popup .actions{display:flex;justify-content:flex-end;gap:6px}
 .weditor-table-popup .actions button{padding:4px 10px}
 .weditor-table-popup button{border:1px solid #bbb;background:#f8f8f8;cursor:pointer}
+.weditor-border-popup{min-width:220px}
 `.trim();
   (function ensureStyle(){
     if (!document.getElementById(STYLE_ID)){
@@ -86,6 +89,30 @@ body.weditor-fullscreen-active{overflow:hidden}
     range.collapse(true);
     sel.removeAllRanges();
     sel.addRange(range);
+  }
+
+  function normalizeColorToHex(color){
+    const fallback = "#cccccc";
+    if (!color) return fallback;
+    const value = String(color).trim();
+    const hexMatch = value.match(/^#([0-9a-f]{3}|[0-9a-f]{6})$/i);
+    if (hexMatch){
+      if (value.length === 4){
+        const r = value[1], g = value[2], b = value[3];
+        return "#" + r + r + g + g + b + b;
+      }
+      return value.toLowerCase();
+    }
+    const rgbMatch = value.match(/^rgba?\(\s*(\d{1,3})\s*,\s*(\d{1,3})\s*,\s*(\d{1,3})(?:\s*,\s*(\d*\.?\d+))?\s*\)$/i);
+    if (rgbMatch){
+      const toHex = (num)=>Math.max(0, Math.min(255, parseInt(num || "0", 10))).toString(16).padStart(2,"0");
+      const r = toHex(rgbMatch[1]);
+      const g = toHex(rgbMatch[2]);
+      const b = toHex(rgbMatch[3]);
+      return "#" + r + g + b;
+    }
+    if (value.toLowerCase() === "transparent") return fallback;
+    return fallback;
   }
 
   function insertTableAtCaret(editor, rows=2, cols=2){
@@ -446,6 +473,7 @@ body.weditor-fullscreen-active{overflow:hidden}
     mo.observe(pair, { characterData: true, subtree: true });
 
     // ====================== Table Utilities & UX ======================
+    const BORDER_STYLE_OPTIONS = ["solid","dashed","dotted","double","none"];
     function getCellFromSelection() {
       const sel = window.getSelection();
       if (!sel || !sel.anchorNode) return null;
@@ -599,6 +627,85 @@ body.weditor-fullscreen-active{overflow:hidden}
       });
       const finalWidth = totalAssigned > 0 ? totalAssigned : Math.max(MIN_TABLE_WIDTH, Math.round(fallbackTotal));
       if (finalWidth > 0) table.style.width = finalWidth + "px";
+    }
+
+    function getCurrentBorderSettings(table) {
+      const fallback = { width: 1, style: "solid", color: "#cccccc" };
+      if (!table) return fallback;
+      const sampleCell = table.querySelector("td,th");
+      if (!sampleCell) return fallback;
+      const computed = window.getComputedStyle ? window.getComputedStyle(sampleCell) : null;
+      if (!computed) return fallback;
+      let width = parseFloat(computed.borderLeftWidth || "0") || 0;
+      let style = String(computed.borderLeftStyle || fallback.style).toLowerCase();
+      if (!BORDER_STYLE_OPTIONS.includes(style)) style = fallback.style;
+      if (style === "none") width = 0;
+      const color = normalizeColorToHex(computed.borderLeftColor || fallback.color);
+      return {
+        width: Math.max(0, Math.round(width)),
+        style,
+        color
+      };
+    }
+
+    function applyTableBorderStyles(options) {
+      if (!options) return;
+      if (!restoreEditorSelection()) divEditor.focus();
+      const ctx = getTableContext();
+      if (!ctx || !ctx.table) return;
+      const { table } = ctx;
+      normalizeTable(table);
+
+      let width = Math.max(0, Math.round(Number(options.width) || 0));
+      let style = String(options.style || "solid").toLowerCase();
+      if (!BORDER_STYLE_OPTIONS.includes(style)) style = "solid";
+      if (width === 0) style = "none";
+      const color = normalizeColorToHex(options.color || "#000000");
+      if (style === "none") {
+        table.style.border = "none";
+        table.style.borderStyle = "none";
+        table.style.borderWidth = "0";
+        table.style.borderColor = "";
+      } else {
+        const value = width + "px " + style + " " + color;
+        table.style.border = value;
+        table.style.borderStyle = style;
+        table.style.borderWidth = width + "px";
+        table.style.borderColor = color;
+      }
+      table.style.borderCollapse = table.style.borderCollapse || "collapse";
+      table.querySelectorAll("td,th").forEach(cell=>{
+        if (style === "none") {
+          cell.style.border = "0";
+          cell.style.borderStyle = "none";
+          cell.style.borderWidth = "0";
+        } else {
+          cell.style.border = width + "px " + style + " " + color;
+          cell.style.borderStyle = style;
+          cell.style.borderWidth = width + "px";
+          cell.style.borderColor = color;
+        }
+      });
+      divEditor.dispatchEvent(new Event("input",{bubbles:true}));
+    }
+
+    function resetTableBorders() {
+      if (!restoreEditorSelection()) divEditor.focus();
+      const ctx = getTableContext();
+      if (!ctx || !ctx.table) return;
+      const { table } = ctx;
+      normalizeTable(table);
+      table.style.border = "";
+      table.style.borderStyle = "";
+      table.style.borderWidth = "";
+      table.style.borderColor = "";
+      table.querySelectorAll("td,th").forEach(cell=>{
+        cell.style.border = "";
+        cell.style.borderStyle = "";
+        cell.style.borderWidth = "";
+        cell.style.borderColor = "";
+      });
+      divEditor.dispatchEvent(new Event("input",{bubbles:true}));
     }
 
     function insertRow(after = true) {
@@ -757,6 +864,16 @@ body.weditor-fullscreen-active{overflow:hidden}
     divEditor.addEventListener("mouseup", saveEditorSelection);
     divEditor.addEventListener("keyup", saveEditorSelection);
 
+    function positionToolbarPopup(anchor, popup) {
+      if (!anchor || !popup) return;
+      const toolbarRect = toolbar.getBoundingClientRect();
+      const buttonRect = anchor.getBoundingClientRect();
+      const rawLeft = buttonRect.left - toolbarRect.left;
+      const maxLeft = Math.max(4, toolbarRect.width - popup.offsetWidth - 8);
+      const left = Math.min(Math.max(4, rawLeft), maxLeft);
+      popup.style.left = left + "px";
+    }
+
     // ------ Insert Table Popup ------
     const insertTablePopup = (() => {
       let node = null;
@@ -834,15 +951,6 @@ body.weditor-fullscreen-active{overflow:hidden}
         return node;
       }
 
-      function positionPopup(anchor, popup) {
-        const toolbarRect = toolbar.getBoundingClientRect();
-        const buttonRect = anchor.getBoundingClientRect();
-        const rawLeft = buttonRect.left - toolbarRect.left;
-        const maxLeft = Math.max(4, toolbarRect.width - popup.offsetWidth - 8);
-        const left = Math.min(Math.max(4, rawLeft), maxLeft);
-        popup.style.left = left + "px";
-      }
-
       function openPopup(anchor) {
         closePopup();
         saveEditorSelection();
@@ -854,12 +962,108 @@ body.weditor-fullscreen-active{overflow:hidden}
         toolbar.appendChild(popup);
         popup.setAttribute("data-open", "true");
         requestAnimationFrame(() => {
-          positionPopup(anchor, popup);
+          positionToolbarPopup(anchor, popup);
           rowsInput.focus();
           rowsInput.select();
         });
         outsideHandler = (evt) => {
           if (!popup.contains(evt.target) && !anchor.contains(evt.target)) {
+            closePopup();
+          }
+        };
+        document.addEventListener("mousedown", outsideHandler, true);
+      }
+
+      function closePopup() {
+        if (!node) return;
+        node.removeAttribute("data-open");
+        if (node.parentNode) node.parentNode.removeChild(node);
+        if (outsideHandler) {
+          document.removeEventListener("mousedown", outsideHandler, true);
+          outsideHandler = null;
+        }
+      }
+
+      return {
+        open: openPopup,
+        close: closePopup
+      };
+    })();
+
+    // ------ Table Border Popup ------
+    const tableBorderPopup = (() => {
+      let node = null;
+      let outsideHandler = null;
+      let widthInput = null;
+      let styleSelect = null;
+      let colorInput = null;
+      let lastSettings = { width: 1, style: "solid", color: "#cccccc" };
+
+      function ensurePopup() {
+        if (node) return node;
+        widthInput = el("input", { type: "number", name: "borderWidth", min: "0", step: "1" });
+        styleSelect = el("select", { name: "borderStyle" }, BORDER_STYLE_OPTIONS.map(style=>{
+          const label = style.charAt(0).toUpperCase() + style.slice(1);
+          return el("option", { value: style }, [label]);
+        }));
+        colorInput = el("input", { type: "color", name: "borderColor" });
+
+        const actions = el("div", { class: "actions" });
+        const btnCancel = el("button", { type: "button" }, ["Cancel"]);
+        const btnApply = el("button", { type: "button" }, ["Apply"]);
+        actions.appendChild(btnCancel);
+        actions.appendChild(btnApply);
+
+        node = el("div", { class: "weditor-table-popup weditor-border-popup" }, [
+          el("label", null, ["Line width (px)", widthInput]),
+          el("label", null, ["Border style", styleSelect]),
+          el("label", null, ["Color", colorInput]),
+          actions
+        ]);
+
+        btnCancel.addEventListener("click", () => {
+          closePopup();
+        });
+        btnApply.addEventListener("click", () => {
+          const rawWidth = parseFloat(widthInput.value);
+          if (!Number.isFinite(rawWidth) || rawWidth < 0) {
+            alert("Please enter a non-negative number for the border width.");
+            widthInput.focus();
+            widthInput.select();
+            return;
+          }
+          let style = styleSelect.value || "solid";
+          let width = Math.max(0, Math.round(rawWidth));
+          if (!BORDER_STYLE_OPTIONS.includes(style)) style = "solid";
+          if (width === 0) style = "none";
+          const color = normalizeColorToHex(colorInput.value || lastSettings.color);
+          lastSettings = { width, style, color };
+          closePopup();
+          applyTableBorderStyles(lastSettings);
+        });
+
+        return node;
+      }
+
+      function openPopup(anchor) {
+        closePopup();
+        saveEditorSelection();
+        const ctx = getTableContext();
+        if (!ctx || !ctx.table) return;
+        lastSettings = getCurrentBorderSettings(ctx.table);
+        const popup = ensurePopup();
+        widthInput.value = String(lastSettings.width);
+        styleSelect.value = lastSettings.style;
+        colorInput.value = normalizeColorToHex(lastSettings.color);
+        toolbar.appendChild(popup);
+        popup.setAttribute("data-open", "true");
+        requestAnimationFrame(() => {
+          positionToolbarPopup(anchor, popup);
+          widthInput.focus();
+          widthInput.select();
+        });
+        outsideHandler = (evt) => {
+          if (!popup.contains(evt.target) && (!anchor || !anchor.contains(evt.target))) {
             closePopup();
           }
         };
@@ -1215,6 +1419,10 @@ body.weditor-fullscreen-active{overflow:hidden}
     addTableAction("Balance","Columns","Distribute columns (%)", ()=>distributeColumns(), tableWidth);
     addTableAction("Auto Fit","Columns","Auto-fit column width", ()=>autofitColumns(), tableWidth);
     addTableAction("Set Width","This Column","Set current column width", ()=>setCurrentColumnWidth(), tableWidth);
+
+    const tableBorders = createTableSubgroup("Borders");
+    const btnBorderStyle = addTableAction("Border Style","Line & Color","Adjust table border width, style, and color", ()=>tableBorderPopup.open(btnBorderStyle), tableBorders);
+    addTableAction("Reset Borders","Default","Reset border styling to default", ()=>resetTableBorders(), tableBorders);
   }
 
   // ---------- Init all editors ----------
