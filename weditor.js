@@ -491,6 +491,30 @@ body.weditor-fullscreen-active{overflow:hidden}
       return raw / Math.max(colspan, 1);
     }
 
+    function ensurePixelColWidths(table) {
+      const cg = table.querySelector("colgroup");
+      if (!cg) return;
+      const cols = Array.from(cg.children);
+      if (!cols.length) return;
+      const tableRect = table.getBoundingClientRect();
+      const fallbackTotal = tableRect.width || table.offsetWidth || 0;
+      let totalAssigned = 0;
+      cols.forEach((col, idx)=>{
+        const hit = findCellCoveringColumn(table, idx);
+        let width = measureColumnWidth(table, idx, hit);
+        if (!Number.isFinite(width) || width <= 0) {
+          const parsed = parseFloat(col.style.width);
+          width = Number.isFinite(parsed) && parsed > 0 ? parsed : MIN_COL_WIDTH;
+        }
+        width = Math.max(MIN_COL_WIDTH, Math.round(width));
+        col.style.width = width + "px";
+        totalAssigned += width;
+      });
+      const finalWidth = totalAssigned > 0 ? totalAssigned : Math.max(MIN_TABLE_WIDTH, Math.round(fallbackTotal));
+      if (finalWidth > 0) table.style.width = finalWidth + "px";
+      logTableDebug("ensurePixelColWidths", { widthsPx: cols.map(col=>col.style.width), tableWidth: table.style.width });
+    }
+
     function insertRow(after = true) {
       const ctx = getTableContext(); if (!ctx) return;
       normalizeTable(ctx.table);
@@ -755,12 +779,34 @@ body.weditor-fullscreen-active{overflow:hidden}
     const MIN_COL_WIDTH = 40;
     const MIN_ROW_HEIGHT = 28;
     const MIN_TABLE_WIDTH = 160;
+    const DEBUG_TABLE_RESIZE = true;
+
+    function logTableDebug() {
+      if (!DEBUG_TABLE_RESIZE) return;
+      const parts = Array.from(arguments);
+      parts.unshift("[weditor][table]");
+      console.log.apply(console, parts);
+    }
 
     function getColIndexFromHit(cell, clientX) {
       const rect = cell.getBoundingClientRect();
-      const nearRight = (rect.right - clientX) <= EDGE && (rect.right - clientX) >= -2;
-      if (!nearRight) return -1;
-      return getVisualColumnIndex(cell);
+      const offsetRight = rect.right - clientX;
+      const nearRight = offsetRight <= EDGE && offsetRight >= -2;
+      if (nearRight) {
+        const idx = getVisualColumnIndex(cell);
+        logTableDebug("hit right edge", { clientX, idx, cell });
+        return idx;
+      }
+      const offsetLeft = clientX - rect.left;
+      const nearLeft = offsetLeft <= EDGE && offsetLeft >= -2;
+      if (nearLeft) {
+        const idx = getVisualColumnIndex(cell);
+        const mapped = idx > 0 ? idx - 1 : -1;
+        logTableDebug("hit left edge", { clientX, idx, mapped, cell });
+        return mapped;
+      }
+      logTableDebug("no column edge", { clientX, cell });
+      return -1;
     }
 
     function getTableEdgeHover(clientX, clientY) {
@@ -831,6 +877,23 @@ body.weditor-fullscreen-active{overflow:hidden}
       return result;
     }
 
+    function resolveCellForPoint(target, clientX, clientY) {
+      if (target && typeof target.closest === "function") {
+        const cell = target.closest("td,th");
+        if (cell && isNodeInside(cell, divEditor)) return cell;
+      }
+      if (typeof document.elementFromPoint !== "function") return null;
+      const offsets = [0, -2, 2, -4, 4, -6, 6];
+      for (const dx of offsets) {
+        const probe = document.elementFromPoint(clientX + dx, clientY);
+        if (!probe || typeof probe.closest !== "function") continue;
+        const cell = probe.closest("td,th");
+        if (cell && isNodeInside(cell, divEditor)) return cell;
+      }
+      logTableDebug("resolveCellForPoint miss", { clientX, clientY, target });
+      return null;
+    }
+
     divEditor.addEventListener("mousemove", (e)=>{
       if (tableResizeState) {
         divEditor.style.cursor = "ew-resize";
@@ -844,10 +907,11 @@ body.weditor-fullscreen-active{overflow:hidden}
       rowResizeHover = null;
       let cursor = "";
       const edgeHit = getTableEdgeHover(e.clientX, e.clientY);
-      const cell = e.target.closest && e.target.closest("td,th");
+      const cell = resolveCellForPoint(e.target, e.clientX, e.clientY);
       if (cell && isNodeInside(cell, divEditor)) {
         const idx = getColIndexFromHit(cell, e.clientX);
         if (idx >= 0 && (!edgeHit || edgeHit.delta < 0)) {
+          logTableDebug("mousemove col-resize", { idx, cell });
           cursor = "col-resize";
         }
       }
@@ -870,12 +934,14 @@ body.weditor-fullscreen-active{overflow:hidden}
     });
 
     divEditor.addEventListener("mousedown", (e)=>{
-      const cell = e.target.closest && e.target.closest("td,th");
+      const cell = resolveCellForPoint(e.target, e.clientX, e.clientY);
       if (cell && isNodeInside(cell, divEditor)) {
         const idx = getColIndexFromHit(cell, e.clientX);
         const table = cell.closest("table");
+        logTableDebug("mousedown", { idx, cell });
         if (idx >= 0 && (!tableResizeHover || tableResizeHover.table !== table || tableResizeHover.delta < 0)) {
           normalizeTable(table);
+          ensurePixelColWidths(table);
           e.preventDefault();
           e.stopPropagation();
 
@@ -888,6 +954,7 @@ body.weditor-fullscreen-active{overflow:hidden}
             MIN_COL_WIDTH,
             (measured != null ? measured : fallbackPerCol != null ? fallbackPerCol : MIN_COL_WIDTH)
           );
+          logTableDebug("start column resize", { idx, startWidthPx, measured, fallbackPerCol, table });
 
           colResizeState = {
             table, colIndex: idx,
@@ -916,11 +983,19 @@ body.weditor-fullscreen-active{overflow:hidden}
       const { table, colIndex, startX, startWidthPx } = colResizeState;
       const delta = e.clientX - startX;
       const newWidth = Math.max(MIN_COL_WIDTH, startWidthPx + delta);
+      logTableDebug("col resize move", { delta, newWidth });
       const cg = table.querySelector("colgroup");
       if (!cg) return;
       const col = cg.children[colIndex];
       if (!col) return;
       col.style.width = newWidth + "px";
+      const total = Array.from(cg.children).reduce((sum, c)=>{
+        const val = parseFloat(c.style.width);
+        return sum + (Number.isFinite(val) ? val : 0);
+      }, 0);
+      if (total > 0) {
+        table.style.width = Math.max(total, MIN_TABLE_WIDTH) + "px";
+      }
     }
     function onColResizeUp(){
       if (!colResizeState) return;
@@ -931,6 +1006,7 @@ body.weditor-fullscreen-active{overflow:hidden}
     }
 
     function startRowResize(e, hover) {
+      logTableDebug("start row resize", hover);
       const { row, table } = hover;
       if (!row || !table) return;
       normalizeTable(table);
@@ -953,6 +1029,7 @@ body.weditor-fullscreen-active{overflow:hidden}
       const { row, startY, startHeight } = rowResizeState;
       const delta = e.clientY - startY;
       const newHeight = Math.max(MIN_ROW_HEIGHT, Math.round(startHeight + delta));
+      logTableDebug("row resize move", { delta, newHeight });
       row.style.height = newHeight + "px";
       Array.from(row.children).forEach(cell=>{
         cell.style.height = newHeight + "px";
@@ -977,6 +1054,7 @@ body.weditor-fullscreen-active{overflow:hidden}
       e.stopPropagation();
       const rect = table.getBoundingClientRect();
       const startWidth = rect.width || table.offsetWidth || 0;
+      logTableDebug("start table resize", { startWidth });
       const ratios = collectColWidthRatios(table, startWidth || 1);
       const colCount = ratios.length || (table.rows[0] ? table.rows[0].cells.length : 0) || 1;
       const minWidth = Math.max(MIN_TABLE_WIDTH, colCount * MIN_COL_WIDTH);
@@ -1000,6 +1078,7 @@ body.weditor-fullscreen-active{overflow:hidden}
       newWidth = Math.max(minWidth, newWidth);
       const cg = table.querySelector("colgroup");
       if (cg && ratios.length) {
+        logTableDebug("table resize move", { delta, newWidth });
         const widths = distributeWidths(newWidth, ratios, MIN_COL_WIDTH);
         const cols = Array.from(cg.children);
         widths.forEach((w, idx)=>{
