@@ -60,6 +60,8 @@ body.weditor-fullscreen-active{overflow:hidden}
   })();
 
   // ---------- Helpers ----------
+  const TABLE_DEBUG = true;
+  const tableDebug = (...args)=>{ if (TABLE_DEBUG && typeof console !== "undefined") console.log("[weditor-table]", ...args); };
   const $$ = (s, r=document)=>Array.from(r.querySelectorAll(s));
   const el = (tag, attrs, kids=[])=>{
     const n = document.createElement(tag);
@@ -664,15 +666,29 @@ body.weditor-fullscreen-active{overflow:hidden}
       const cells = Array.from(row.children);
       const selected = [];
       for (const cell of cells){
-        const cellRange = document.createRange();
-        cellRange.selectNodeContents(cell);
-        const endsBefore = range.compareBoundaryPoints(Range.END_TO_START, cellRange) <= 0;
-        const startsAfter = range.compareBoundaryPoints(Range.START_TO_END, cellRange) >= 0;
-        if (!endsBefore && !startsAfter){
+        let intersects = false;
+        if (typeof range.intersectsNode === "function"){
+          try {
+            intersects = range.intersectsNode(cell);
+          } catch (err) {
+            intersects = false;
+          }
+        }
+        if (!intersects){
+          const cellRange = document.createRange();
+          cellRange.selectNodeContents(cell);
+          const endsBefore = range.compareBoundaryPoints(Range.END_TO_START, cellRange) < 0;
+          const startsAfter = range.compareBoundaryPoints(Range.START_TO_END, cellRange) > 0;
+          if (!endsBefore && !startsAfter){
+            intersects = true;
+          }
+          cellRange.detach?.();
+        }
+        if (intersects){
           selected.push(cell);
         }
-        cellRange.detach?.();
       }
+      tableDebug("getSelectedCellsInRow", { count: selected.length, row, range });
       return selected;
     }
 
@@ -1007,48 +1023,109 @@ body.weditor-fullscreen-active{overflow:hidden}
     }
 
     function mergeSelectedCellsHorizontally() {
-      if (!restoreEditorSelection()) divEditor.focus();
+      const restored = restoreEditorSelection();
+      tableDebug("mergeSelectedCellsHorizontally invoked", { restored });
+      if (!restored) divEditor.focus();
       const sel = window.getSelection();
       if (!sel || !sel.rangeCount) return;
 
       const range = sel.getRangeAt(0);
-      const startNode = range.startContainer.nodeType === 1 ? range.startContainer : range.startContainer.parentElement;
-      const endNode = range.endContainer.nodeType === 1 ? range.endContainer : range.endContainer.parentElement;
-      if (!startNode || !endNode) return;
+      const startHost = range.startContainer.nodeType === 1 ? range.startContainer : range.startContainer.parentElement;
+      const endHost = range.endContainer.nodeType === 1 ? range.endContainer : range.endContainer.parentElement;
+      const startCell = startHost ? startHost.closest("td,th") : null;
+      const endCell = endHost ? endHost.closest("td,th") : null;
 
-      const startCell = startNode.closest("td,th");
-      const endCell = endNode.closest("td,th");
-      if (!startCell || !endCell) return;
+      const ancestorHost = range.commonAncestorContainer && range.commonAncestorContainer.nodeType === 1
+        ? range.commonAncestorContainer
+        : range.commonAncestorContainer ? range.commonAncestorContainer.parentElement : null;
 
-      const row = startCell.parentElement;
-      if (row !== endCell.parentElement) {
+      let row = startCell ? startCell.parentElement : null;
+      if (!row && endCell) row = endCell.parentElement;
+      if (!row && ancestorHost) row = ancestorHost.closest("tr");
+      if (!row) {
+        tableDebug("merge abort: no row found", { startCell, endCell, ancestorHost });
+        return;
+      }
+
+      let table = row.closest("table");
+      if (!table || !divEditor.contains(table)) {
+        const fallback = Array.from(divEditor.querySelectorAll("table")).find(t=>t.contains(row));
+        if (fallback) {
+          tableDebug("merge info: using fallback table resolution", { hadClosest: !!table });
+          table = fallback;
+        } else {
+          tableDebug("merge abort: table missing or outside editor", { hasTable: !!table, rowInside: divEditor.contains(row) });
+          return;
+        }
+      }
+
+      if (endCell && endCell.parentElement !== row) {
         alert("Please select cells within a single row to merge.");
         return;
       }
 
-      const table = row.closest("table");
-      if (!table || !divEditor.contains(table)) return;
-
       normalizeTable(table);
 
-      const rowCells = Array.from(row.children);
-      let startIndex = rowCells.indexOf(startCell);
-      let endIndex = rowCells.indexOf(endCell);
-      if (startIndex === -1 || endIndex === -1) return;
-      if (startIndex > endIndex) {
+      const rowCells = Array.from(row.children).filter(cell=>cell && cell.matches && cell.matches("td,th"));
+      if (!rowCells.length) {
+        tableDebug("merge abort: row has no cell elements", { row });
+        return;
+      }
+
+      let startIndex = startCell ? rowCells.indexOf(startCell) : -1;
+      let endIndex = endCell ? rowCells.indexOf(endCell) : -1;
+      tableDebug("merge range indices", { startIndex, endIndex, hasStart: !!startCell, hasEnd: !!endCell });
+      if (startIndex !== -1 && endIndex !== -1 && startIndex > endIndex) {
         const tmp = startIndex;
         startIndex = endIndex;
         endIndex = tmp;
       }
 
-      let cellsToMerge = rowCells.slice(startIndex, endIndex + 1);
+      let cellsToMerge = [];
+      if (startIndex !== -1 && endIndex !== -1) {
+        cellsToMerge = rowCells.slice(startIndex, endIndex + 1);
+      }
+
+      const selectionCells = rowCells.filter(cell=>{
+        let intersects = false;
+        try {
+          if (sel && typeof sel.containsNode === "function") {
+            intersects = sel.containsNode(cell, true);
+          }
+          if (!intersects && typeof range.intersectsNode === "function") {
+            intersects = range.intersectsNode(cell);
+          }
+        } catch (err) {
+          intersects = false;
+        }
+        if (!intersects) {
+          const cellRange = document.createRange();
+          cellRange.selectNodeContents(cell);
+          const endsBefore = range.compareBoundaryPoints(Range.END_TO_START, cellRange) < 0;
+          const startsAfter = range.compareBoundaryPoints(Range.START_TO_END, cellRange) > 0;
+          intersects = !endsBefore && !startsAfter;
+          cellRange.detach?.();
+        }
+        return intersects;
+      });
+
+      if (selectionCells.length > 1 && selectionCells.every(cell=>cell.parentElement === row)) {
+        cellsToMerge = selectionCells;
+      }
+
+      tableDebug("merge cells candidate slice", { defaultCount: cellsToMerge.length, selectionCount: selectionCells.length });
       if (cellsToMerge.length <= 1) {
         const expanded = getSelectedCellsInRow(row, range);
         if (expanded.length > 1) {
           cellsToMerge = expanded;
         }
       }
-      if (cellsToMerge.length <= 1) return;
+
+      tableDebug("merge cells resolved", { candidateCount: cellsToMerge.length, indices: cellsToMerge.map(cell=>rowCells.indexOf(cell)) });
+      if (cellsToMerge.length <= 1) {
+        tableDebug("merge abort: less than two cells selected", {});
+        return;
+      }
       if (cellsToMerge.some(cell => (parseInt(cell.getAttribute("rowspan") || "1", 10) || 1) > 1)) {
         alert("Merging cells that span multiple rows is not supported yet.");
         return;
@@ -1096,6 +1173,7 @@ body.weditor-fullscreen-active{overflow:hidden}
       if (!sel || !sel.rangeCount) return;
       const range = sel.getRangeAt(0);
       if (!isNodeInside(range.commonAncestorContainer, divEditor)) return;
+      tableDebug("saveEditorSelection", { collapsed: range.collapsed, start: range.startContainer, end: range.endContainer });
       savedEditorRange = range.cloneRange();
       updateTableToolsVisibility();
     }
@@ -1104,6 +1182,7 @@ body.weditor-fullscreen-active{overflow:hidden}
       if (!savedEditorRange || !sel) return false;
       sel.removeAllRanges();
       sel.addRange(savedEditorRange);
+      tableDebug("restoreEditorSelection applied", { collapsed: savedEditorRange.collapsed, start: savedEditorRange.startContainer, end: savedEditorRange.endContainer });
       return true;
     }
     divEditor.addEventListener("mouseup", saveEditorSelection);
@@ -1485,7 +1564,7 @@ body.weditor-fullscreen-active{overflow:hidden}
     const EDGE = 6;
     const TABLE_EDGE = 10;
     const ROW_EDGE = 6;
-    const MIN_COL_WIDTH = 40;
+    const MIN_COL_WIDTH = 5;
     const MIN_ROW_HEIGHT = 28;
     const MIN_TABLE_WIDTH = 160;
 
@@ -1635,7 +1714,7 @@ body.weditor-fullscreen-active{overflow:hidden}
         const idx = getColIndexFromHit(cell, e.clientX);
         const table = cell.closest("table");
         if (idx >= 0 && (!tableResizeHover || tableResizeHover.table !== table || tableResizeHover.delta < 0)) {
-          if (e.detail < 2) {
+          if (e.button !== 0) {
             return;
           }
           normalizeTable(table);
