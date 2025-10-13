@@ -464,9 +464,14 @@ body.weditor-fullscreen-active{overflow:hidden}
 
     // Mount DOM
     const parent = divEditor.parentNode;
-    parent.insertBefore(wrap, divEditor);
+    const nextSibling = parent ? divEditor.nextSibling : null;
     wrap.appendChild(toolbar);
     wrap.appendChild(divEditor);
+    if (parent) {
+      // Keep placement stable even inside tables by re-inserting at the original slot.
+      if (nextSibling) parent.insertBefore(wrap, nextSibling);
+      else parent.appendChild(wrap);
+    }
 
     // ---------- 外部：Textarea → Editor 同步 ----------
     function setEditorHTMLFromTextarea(v) {
@@ -534,14 +539,17 @@ body.weditor-fullscreen-active{overflow:hidden}
       const sel = window.getSelection();
       if (!sel || !sel.anchorNode) return null;
       const el = sel.anchorNode.nodeType === 1 ? sel.anchorNode : sel.anchorNode.parentElement;
-      return el ? el.closest("td,th") : null;
+      if (!el) return null;
+      const cell = el.closest("td,th");
+      if (!cell) return null;
+      return divEditor.contains(cell) ? cell : null;
     }
     function getTableContext() {
       const cell = getCellFromSelection();
       if (!cell) return null;
       const row = cell.parentElement;
       const table = cell.closest("table");
-      if (!table) return null;
+      if (!table || !divEditor.contains(table)) return null;
       const rowIndex = Array.from(row.parentElement.children).indexOf(row);
       let colIndex = 0;
       for (const td of row.children) {
