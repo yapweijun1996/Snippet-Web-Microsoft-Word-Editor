@@ -987,6 +987,83 @@ body.weditor-fullscreen-active{overflow:hidden}
       divEditor.dispatchEvent(new Event("input",{bubbles:true}));
     }
 
+    function mergeSelectedCellsHorizontally() {
+      if (!restoreEditorSelection()) divEditor.focus();
+      const sel = window.getSelection();
+      if (!sel || !sel.rangeCount) return;
+
+      const range = sel.getRangeAt(0);
+      const startNode = range.startContainer.nodeType === 1 ? range.startContainer : range.startContainer.parentElement;
+      const endNode = range.endContainer.nodeType === 1 ? range.endContainer : range.endContainer.parentElement;
+      if (!startNode || !endNode) return;
+
+      const startCell = startNode.closest("td,th");
+      const endCell = endNode.closest("td,th");
+      if (!startCell || !endCell) return;
+
+      const row = startCell.parentElement;
+      if (row !== endCell.parentElement) {
+        alert("Please select cells within a single row to merge.");
+        return;
+      }
+
+      const table = row.closest("table");
+      if (!table || !divEditor.contains(table)) return;
+
+      normalizeTable(table);
+
+      const rowCells = Array.from(row.children);
+      let startIndex = rowCells.indexOf(startCell);
+      let endIndex = rowCells.indexOf(endCell);
+      if (startIndex === -1 || endIndex === -1) return;
+      if (startIndex > endIndex) {
+        const tmp = startIndex;
+        startIndex = endIndex;
+        endIndex = tmp;
+      }
+
+      const cellsToMerge = rowCells.slice(startIndex, endIndex + 1);
+      if (cellsToMerge.length <= 1) return;
+      if (cellsToMerge.some(cell => (parseInt(cell.getAttribute("rowspan") || "1", 10) || 1) > 1)) {
+        alert("Merging cells that span multiple rows is not supported yet.");
+        return;
+      }
+
+      const combinedColspan = cellsToMerge.reduce((sum, cell)=>{
+        return sum + Math.max(1, parseInt(cell.getAttribute("colspan") || "1", 10));
+      }, 0);
+
+      const hasMeaningfulContent = (cell)=>{
+        const text = cell.textContent ? cell.textContent.replace(/\u00A0/g,"").trim() : "";
+        if (text.length > 0) return true;
+        return Boolean(cell.querySelector && cell.querySelector("img,table,iframe,video,svg,canvas"));
+      };
+      const contentParts = [];
+      cellsToMerge.forEach(cell=>{
+        if (hasMeaningfulContent(cell)) {
+          contentParts.push(cell.innerHTML);
+        }
+      });
+
+      const first = cellsToMerge[0];
+      for (let i = 1; i < cellsToMerge.length; i++) {
+        cellsToMerge[i].remove();
+      }
+
+      if (combinedColspan > 1) first.setAttribute("colspan", combinedColspan);
+      else first.removeAttribute("colspan");
+
+      if (contentParts.length) {
+        first.innerHTML = contentParts.join("<br>");
+      } else {
+        first.innerHTML = "&nbsp;";
+      }
+
+      placeCaretInside(first);
+      const restyled = enforceStoredTableBorderState(table);
+      if (!restyled) divEditor.dispatchEvent(new Event("input",{bubbles:true}));
+    }
+
     // track last caret inside editor (for popup actions)
     let savedEditorRange = null;
     function saveEditorSelection(){
@@ -1707,6 +1784,9 @@ body.weditor-fullscreen-active{overflow:hidden}
     addTableAction("Balance","Columns","Distribute columns (%)", ()=>distributeColumns(), tableWidth);
     addTableAction("Auto Fit","Columns","Auto-fit column width", ()=>autofitColumns(), tableWidth);
     addTableAction("Set Width","This Column","Set current column width", ()=>setCurrentColumnWidth(), tableWidth);
+
+    const tableCells = createTableSubgroup("Cells");
+    addTableAction("Merge Cells","Horiz","Merge selected cells in the current row", ()=>mergeSelectedCellsHorizontally(), tableCells);
 
     const tableBorders = createTableSubgroup("Borders");
     const btnBorderStyle = addTableAction("Border Style","Line & Color","Adjust table border width, style, and color", ()=>tableBorderPopup.open(btnBorderStyle), tableBorders);
