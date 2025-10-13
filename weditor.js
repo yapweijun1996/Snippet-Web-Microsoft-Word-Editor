@@ -302,98 +302,6 @@ body.weditor-fullscreen-active{overflow:hidden}
       return b;
     }
 
-    const groupText = createToolbarGroup("Text");
-    addBtn("B","Bold", ()=>exec("bold"), groupText.inner);
-    addBtn("I","Italic", ()=>exec("italic"), groupText.inner);
-    addBtn("U","Underline", ()=>exec("underline"), groupText.inner);
-    addBtn("Clr","Clear formatting", ()=>exec("removeFormat"), groupText.inner);
-
-    const groupBlocks = createToolbarGroup("Headings");
-    addBtn("H1","Heading 1", ()=>exec("formatBlock","<h1>"), groupBlocks.inner);
-    addBtn("H2","Heading 2", ()=>exec("formatBlock","<h2>"), groupBlocks.inner);
-    addBtn("P","Paragraph", ()=>exec("formatBlock","<p>"), groupBlocks.inner);
-
-    const groupLists = createToolbarGroup("Lists");
-    addBtn("*","Bulleted list", ()=>exec("insertUnorderedList"), groupLists.inner);
-    addBtn("1.","Numbered list", ()=>exec("insertOrderedList"), groupLists.inner);
-
-    const groupAlign = createToolbarGroup("Align");
-    addBtn("L","Align left", ()=>exec("justifyLeft"), groupAlign.inner);
-    addBtn("C","Center", ()=>exec("justifyCenter"), groupAlign.inner);
-    addBtn("R","Align right", ()=>exec("justifyRight"), groupAlign.inner);
-
-    const groupInsert = createToolbarGroup("Insert");
-    addBtn("Link","Insert link", ()=>{
-      const u = prompt("Link URL:");
-      if (!u) return;
-      if (!isHttpUrl(u)) { alert("Only http(s) URL allowed"); return; }
-      exec("createLink", u);
-      const sel = window.getSelection();
-      if (sel && sel.anchorNode) {
-        let a = sel.anchorNode.nodeType===1? sel.anchorNode : sel.anchorNode.parentElement;
-        if (a && a.tagName === "A") {
-          a.setAttribute("target","_blank");
-          a.setAttribute("rel","noopener noreferrer");
-        }
-      }
-    }, groupInsert.inner);
-    addBtn("Img","Insert image (URL)", ()=>{
-      const u = prompt("Image URL:");
-      if (!u) return;
-      if (!isHttpUrl(u)) { alert("Only http(s) image URL allowed"); return; }
-      exec("insertImage", u);
-    }, groupInsert.inner);
-    addBtn("HR","Horizontal rule", ()=>exec("insertHorizontalRule"), groupInsert.inner);
-
-    const groupTableTools = createToolbarGroup("Table", { initiallyHidden: true });
-
-    function createTableSubgroup(labelText) {
-      const wrapper = el("div", { class: "weditor-table-subgroup" });
-      if (labelText) {
-        wrapper.appendChild(el("span", { class: "weditor-table-subgroup-label" }, [labelText]));
-      }
-      const container = el("div", { class: "weditor-table-subgroup-buttons" });
-      wrapper.appendChild(container);
-      groupTableTools.inner.appendChild(wrapper);
-      return container;
-    }
-
-    function addTableAction(primary, secondary, title, handler, container) {
-      const btn = el("button", { type: "button", title, class: "weditor-table-btn" });
-      btn.appendChild(el("span", { class: "weditor-table-btn-primary" }, [primary]));
-      if (secondary) {
-        btn.appendChild(el("span", { class: "weditor-table-btn-secondary" }, [secondary]));
-      }
-      btn.addEventListener("click", handler);
-      container.appendChild(btn);
-      return btn;
-    }
-
-    function updateTableToolsVisibility() {
-      const sel = window.getSelection();
-      const hasSelection = sel && sel.rangeCount && isNodeInside(sel.anchorNode, divEditor);
-      if (!hasSelection) {
-        groupTableTools.group.setAttribute("data-hidden", "true");
-        return;
-      }
-      const ctx = getTableContext();
-      if (ctx && ctx.table) {
-        groupTableTools.group.removeAttribute("data-hidden");
-      } else {
-        groupTableTools.group.setAttribute("data-hidden", "true");
-      }
-    }
-
-    const handleSelectionChange = () => {
-      const sel = window.getSelection();
-      if (!sel || !sel.rangeCount) return;
-      if (isNodeInside(sel.anchorNode, divEditor) || isNodeInside(sel.focusNode, divEditor)) {
-        updateTableToolsVisibility();
-      }
-    };
-    document.addEventListener("selectionchange", handleSelectionChange);
-    updateTableToolsVisibility();
-
     // Undo / Redo / HTML (redo-safe)
     const groupHistory = createToolbarGroup("History");
     btnUndo = addBtn("Undo","Undo (Ctrl/Cmd+Z)", ()=>history.undo(), groupHistory.inner);
@@ -445,6 +353,87 @@ body.weditor-fullscreen-active{overflow:hidden}
         document.removeEventListener("keydown", handleEscKey);
       }
     }
+
+    const groupText = createToolbarGroup("Text");
+    addBtn("B","Bold", ()=>exec("bold"), groupText.inner);
+    addBtn("I","Italic", ()=>exec("italic"), groupText.inner);
+    addBtn("U","Underline", ()=>exec("underline"), groupText.inner);
+    addBtn("Clr","Clear formatting", ()=>exec("removeFormat"), groupText.inner);
+
+    const groupBlocks = createToolbarGroup("Headings");
+    addBtn("H1","Heading 1", ()=>exec("formatBlock","<h1>"), groupBlocks.inner);
+    addBtn("H2","Heading 2", ()=>exec("formatBlock","<h2>"), groupBlocks.inner);
+    addBtn("P","Paragraph", ()=>exec("formatBlock","<p>"), groupBlocks.inner);
+
+    const groupLists = createToolbarGroup("Lists");
+    addBtn("*","Bulleted list", ()=>exec("insertUnorderedList"), groupLists.inner);
+    addBtn("1.","Numbered list", ()=>exec("insertOrderedList"), groupLists.inner);
+
+    const groupAlign = createToolbarGroup("Align");
+    addBtn("L","Align left", ()=>exec("justifyLeft"), groupAlign.inner);
+    addBtn("C","Center", ()=>exec("justifyCenter"), groupAlign.inner);
+    addBtn("R","Align right", ()=>exec("justifyRight"), groupAlign.inner);
+
+    const groupInsert = createToolbarGroup("Insert");
+    addBtn("Link","Insert link", ()=>{
+      const u = prompt("Link URL:");
+      if (!u) return;
+      if (!isHttpUrl(u)) { alert("Only http(s) URL allowed"); return; }
+      exec("createLink", u);
+      const sel = window.getSelection();
+      if (sel && sel.anchorNode) {
+        let a = sel.anchorNode.nodeType===1? sel.anchorNode : sel.anchorNode.parentElement;
+        if (a && a.tagName === "A") {
+          a.setAttribute("target","_blank");
+          a.setAttribute("rel","noopener noreferrer");
+        }
+      }
+    }, groupInsert.inner);
+    addBtn("Img","Insert image (URL)", ()=>{
+      const u = prompt("Image URL:");
+      if (!u) return;
+      if (!isHttpUrl(u)) { alert("Only http(s) image URL allowed"); return; }
+      exec("insertImage", u);
+    }, groupInsert.inner);
+    addBtn("HR","Horizontal rule", ()=>exec("insertHorizontalRule"), groupInsert.inner);
+
+    const groupTableTools = createToolbarGroup("Table");
+
+    function createTableSubgroup(labelText) {
+      const wrapper = el("div", { class: "weditor-table-subgroup" });
+      if (labelText) {
+        wrapper.appendChild(el("span", { class: "weditor-table-subgroup-label" }, [labelText]));
+      }
+      const container = el("div", { class: "weditor-table-subgroup-buttons" });
+      wrapper.appendChild(container);
+      groupTableTools.inner.appendChild(wrapper);
+      return container;
+    }
+
+    function addTableAction(primary, secondary, title, handler, container) {
+      const btn = el("button", { type: "button", title, class: "weditor-table-btn" });
+      btn.appendChild(el("span", { class: "weditor-table-btn-primary" }, [primary]));
+      if (secondary) {
+        btn.appendChild(el("span", { class: "weditor-table-btn-secondary" }, [secondary]));
+      }
+      btn.addEventListener("click", handler);
+      container.appendChild(btn);
+      return btn;
+    }
+
+    function updateTableToolsVisibility() {
+      groupTableTools.group.removeAttribute("data-hidden");
+    }
+
+    const handleSelectionChange = () => {
+      const sel = window.getSelection();
+      if (!sel || !sel.rangeCount) return;
+      if (isNodeInside(sel.anchorNode, divEditor) || isNodeInside(sel.focusNode, divEditor)) {
+        updateTableToolsVisibility();
+      }
+    };
+    document.addEventListener("selectionchange", handleSelectionChange);
+    updateTableToolsVisibility();
 
     updateUndoRedoButtons();
 
