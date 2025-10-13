@@ -606,6 +606,7 @@ body.weditor-fullscreen-active{overflow:hidden}
       const idx = after ? colIndex + 1 : colIndex;
 
       // Insert a cell in each row at visual index
+      const createdCells = [];
       Array.from(table.rows).forEach(tr=>{
         const tdList = Array.from(tr.children);
         let vIndex = 0, insertBefore = null;
@@ -619,6 +620,7 @@ body.weditor-fullscreen-active{overflow:hidden}
         td.style.verticalAlign = "top";
         td.innerHTML = "&nbsp;";
         tr.insertBefore(td, insertBefore);
+        createdCells.push(td);
       });
 
       // Mirror the structure in <colgroup>
@@ -632,6 +634,25 @@ body.weditor-fullscreen-active{overflow:hidden}
         }) || (table.style.width && /\dpx\s*$/i.test(table.style.width));
         if (usesPxSizing) {
           ensurePixelColWidths(table);
+        } else {
+          const needsFix = createdCells.every(cell=>{
+            const rect = cell.getBoundingClientRect ? cell.getBoundingClientRect() : null;
+            const width = rect ? rect.width : cell.offsetWidth;
+            return !Number.isFinite(width) || width < 1;
+          });
+          if (needsFix) {
+            ensurePixelColWidths(table);
+          } else {
+            const n = cg.children.length;
+            if (n > 0) {
+              const pct = (100 / n).toFixed(3) + "%";
+              Array.from(cg.children).forEach(col=>{
+                if (!col.style.width || !/\S/.test(col.style.width) || !/%\s*$/i.test(col.style.width)) {
+                  col.style.width = pct;
+                }
+              });
+            }
+          }
         }
       }
 
