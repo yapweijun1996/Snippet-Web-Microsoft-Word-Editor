@@ -424,6 +424,73 @@ body.weditor-fullscreen-active{overflow:hidden}
       table.style.tableLayout = table.style.tableLayout || "fixed";
     }
 
+    function getVisualColumnIndex(cell) {
+      if (!cell) return -1;
+      const row = cell.parentElement;
+      const table = row ? row.closest("table") : null;
+      if (!row || !table) return -1;
+      const rows = Array.from(table.rows);
+      const spanMap = [];
+      for (const tr of rows) {
+        for (let i = 0; i < spanMap.length; i++) {
+          if (spanMap[i] > 0) spanMap[i] -= 1;
+        }
+        let colCursor = 0;
+        for (const td of Array.from(tr.children)) {
+          while ((spanMap[colCursor] || 0) > 0) {
+            colCursor++;
+          }
+          const colspan = parseInt(td.getAttribute("colspan") || "1", 10) || 1;
+          const rowspan = (parseInt(td.getAttribute("rowspan") || "1", 10) || 1) - 1;
+          if (td === cell) {
+            return colCursor;
+          }
+          for (let span = 0; span < colspan; span++) {
+            spanMap[colCursor + span] = Math.max(rowspan, 0);
+          }
+          colCursor += colspan;
+        }
+      }
+      return -1;
+    }
+
+    function findCellCoveringColumn(table, colIndex) {
+      if (!table || colIndex < 0) return null;
+      const spanMap = [];
+      for (const tr of Array.from(table.rows)) {
+        for (let i = 0; i < spanMap.length; i++) {
+          if (spanMap[i] > 0) spanMap[i] -= 1;
+        }
+        let colCursor = 0;
+        for (const td of Array.from(tr.children)) {
+          while ((spanMap[colCursor] || 0) > 0) {
+            colCursor++;
+          }
+          const colspan = parseInt(td.getAttribute("colspan") || "1", 10) || 1;
+          const rowspan = (parseInt(td.getAttribute("rowspan") || "1", 10) || 1) - 1;
+          const covers = colCursor <= colIndex && colIndex < colCursor + colspan;
+          if (covers) {
+            return { cell: td, colspan };
+          }
+          for (let span = 0; span < colspan; span++) {
+            spanMap[colCursor + span] = Math.max(rowspan, 0);
+          }
+          colCursor += colspan;
+        }
+      }
+      return null;
+    }
+
+    function measureColumnWidth(table, colIndex, cachedHit) {
+      const hit = cachedHit || findCellCoveringColumn(table, colIndex);
+      if (!hit) return null;
+      const { cell, colspan } = hit;
+      const rect = cell.getBoundingClientRect ? cell.getBoundingClientRect() : null;
+      const raw = rect ? rect.width : cell.offsetWidth;
+      if (!Number.isFinite(raw) || raw <= 0) return null;
+      return raw / Math.max(colspan, 1);
+    }
+
     function insertRow(after = true) {
       const ctx = getTableContext(); if (!ctx) return;
       normalizeTable(ctx.table);
@@ -689,14 +756,7 @@ body.weditor-fullscreen-active{overflow:hidden}
       const rect = cell.getBoundingClientRect();
       const nearRight = (rect.right - clientX) <= EDGE && (rect.right - clientX) >= -2;
       if (!nearRight) return -1;
-      const row = cell.parentElement;
-      let colIndex = 0;
-      for (const td of row.children) {
-        const span = parseInt(td.getAttribute("colspan") || "1", 10);
-        if (td === cell) break;
-        colIndex += span;
-      }
-      return colIndex;
+      return getVisualColumnIndex(cell);
     }
 
     function getTableEdgeHover(clientX, clientY) {
@@ -799,18 +859,15 @@ body.weditor-fullscreen-active{overflow:hidden}
           e.preventDefault();
           e.stopPropagation();
 
-          let sampleCell = null;
-          for (const tr of Array.from(table.rows)) {
-            let vIndex = 0;
-            for (const td of Array.from(tr.children)) {
-              const span = parseInt(td.getAttribute("colspan") || "1", 10);
-              if (vIndex <= idx && idx < vIndex + span) { sampleCell = td; break; }
-              vIndex += span;
-            }
-            if (sampleCell) break;
-          }
-          if (!sampleCell) return;
-          const startWidthPx = sampleCell.offsetWidth;
+          const hit = findCellCoveringColumn(table, idx);
+          if (!hit) return;
+          const measured = measureColumnWidth(table, idx, hit);
+          const fallback = hit.cell ? hit.cell.offsetWidth : 0;
+          const fallbackPerCol = (Number.isFinite(fallback) && fallback > 0) ? (fallback / Math.max(hit.colspan, 1)) : null;
+          const startWidthPx = Math.max(
+            MIN_COL_WIDTH,
+            (measured != null ? measured : fallbackPerCol != null ? fallbackPerCol : MIN_COL_WIDTH)
+          );
 
           colResizeState = {
             table, colIndex: idx,
@@ -833,7 +890,7 @@ body.weditor-fullscreen-active{overflow:hidden}
       if (!colResizeState) return;
       const { table, colIndex, startX, startWidthPx } = colResizeState;
       const delta = e.clientX - startX;
-      const newWidth = Math.max(30, startWidthPx + delta);
+      const newWidth = Math.max(MIN_COL_WIDTH, startWidthPx + delta);
       const cg = table.querySelector("colgroup");
       if (!cg) return;
       const col = cg.children[colIndex];
