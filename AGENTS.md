@@ -36,9 +36,9 @@
 
 ---
 
-### **Step 5 — Summary**
+### **Step 5 — Response**
 
-* One short recap: what was built, why it works, and next step if needed.
+* Generate response to user.
 
 ---
 

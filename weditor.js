@@ -525,9 +525,14 @@ body.weditor-fullscreen-active{overflow:hidden}
       divEditor.dispatchEvent(new Event("input",{bubbles:true}));
     }
 
-    // ------ Column Resize via Drag ------
+    // ------ Column / Table Resize via Drag ------
     let colResizeState = null; // { table, colIndex, startX, startWidthPx }
+    let tableResizeState = null; // { table, startX, startWidth, ratios, minWidth }
+    let tableResizeHover = null; // { table, rect, delta }
     const EDGE = 6;
+    const TABLE_EDGE = 10;
+    const MIN_COL_WIDTH = 40;
+    const MIN_TABLE_WIDTH = 160;
 
     function getColIndexFromHit(cell, clientX) {
       const rect = cell.getBoundingClientRect();
@@ -543,48 +548,134 @@ body.weditor-fullscreen-active{overflow:hidden}
       return colIndex;
     }
 
+    function getTableEdgeHover(clientX, clientY) {
+      for (const table of Array.from(divEditor.querySelectorAll("table"))) {
+        if (!isNodeInside(table, divEditor)) continue;
+        const rect = table.getBoundingClientRect();
+        if (clientY < rect.top || clientY > rect.bottom) continue;
+        const delta = clientX - rect.right;
+        if (delta >= -TABLE_EDGE && delta <= TABLE_EDGE) {
+          return { table, rect, delta };
+        }
+      }
+      return null;
+    }
+
+    function collectColWidthRatios(table, totalWidth) {
+      normalizeTable(table);
+      const cg = table.querySelector("colgroup");
+      if (!cg) return [];
+      const cols = Array.from(cg.children);
+      if (!cols.length) return [];
+      let raw = cols.map(col=>{
+        const w = (col.style && col.style.width) || "";
+        if (!w) return 0;
+        if (w.endsWith("%")) return Math.max(0, parseFloat(w) / 100);
+        if (w.endsWith("px")) return Math.max(0, parseFloat(w) / Math.max(totalWidth, 1));
+        const num = parseFloat(w);
+        return Number.isFinite(num) ? Math.max(0, num / Math.max(totalWidth, 1)) : 0;
+      });
+      let sumRaw = raw.reduce((s,v)=>s + (Number.isFinite(v) ? v : 0), 0);
+      if (!sumRaw) {
+        const firstRow = table.rows[0];
+        if (firstRow) {
+          raw = [];
+          const cells = Array.from(firstRow.children);
+          for (const cell of cells) {
+            const cellRect = cell.getBoundingClientRect();
+            const span = parseInt(cell.getAttribute("colspan") || "1", 10) || 1;
+            const per = Math.max(0, cellRect.width / span / Math.max(totalWidth, 1));
+            for (let i=0;i<span;i++) raw.push(per);
+          }
+        }
+        if (!raw.length) raw = Array.from({length: cols.length}, ()=>1 / cols.length);
+        sumRaw = raw.reduce((s,v)=>s + v, 0);
+      }
+      if (raw.length < cols.length) {
+        raw = raw.concat(Array.from({length: cols.length - raw.length}, ()=>1 / cols.length));
+      }
+      const sum = raw.reduce((s,v)=>s + v, 0) || cols.length;
+      return raw.slice(0, cols.length).map(v=>v / sum);
+    }
+
+    function distributeWidths(total, ratios, minPerCol) {
+      const count = ratios.length;
+      if (!count) return [];
+      total = Math.max(total, count * minPerCol);
+      const normalized = ratios.map(v=>Math.max(0, v));
+      const sum = normalized.reduce((s,v)=>s + v, 0) || count;
+      const result = new Array(count).fill(minPerCol);
+      let remaining = total - count * minPerCol;
+      for (let i=0;i<count;i++){
+        const share = normalized[i] / sum;
+        const extra = (i === count - 1) ? remaining : Math.round(remaining * share);
+        result[i] += extra;
+        remaining -= extra;
+      }
+      if (remaining !== 0) result[count - 1] += remaining;
+      return result;
+    }
+
     divEditor.addEventListener("mousemove", (e)=>{
-      const cell = e.target.closest && e.target.closest("td,th");
-      if (!cell || !isNodeInside(cell, divEditor)) {
-        divEditor.style.cursor = "";
+      if (tableResizeState) {
+        divEditor.style.cursor = "ew-resize";
         return;
       }
-      const idx = getColIndexFromHit(cell, e.clientX);
-      divEditor.style.cursor = idx >= 0 ? "col-resize" : "";
+      tableResizeHover = null;
+      let cursor = "";
+      const edgeHit = getTableEdgeHover(e.clientX, e.clientY);
+      const cell = e.target.closest && e.target.closest("td,th");
+      if (cell && isNodeInside(cell, divEditor)) {
+        const idx = getColIndexFromHit(cell, e.clientX);
+        if (idx >= 0 && (!edgeHit || edgeHit.delta < 0)) {
+          cursor = "col-resize";
+        }
+      }
+      if (!cursor && edgeHit && edgeHit.delta >= -1) {
+        cursor = "ew-resize";
+        tableResizeHover = edgeHit;
+      }
+      divEditor.style.cursor = cursor;
     });
 
     divEditor.addEventListener("mousedown", (e)=>{
       const cell = e.target.closest && e.target.closest("td,th");
-      if (!cell || !isNodeInside(cell, divEditor)) return;
-      const idx = getColIndexFromHit(cell, e.clientX);
-      if (idx < 0) return;
+      if (cell && isNodeInside(cell, divEditor)) {
+        const idx = getColIndexFromHit(cell, e.clientX);
+        const table = cell.closest("table");
+        if (idx >= 0 && (!tableResizeHover || tableResizeHover.table !== table || tableResizeHover.delta < 0)) {
+          normalizeTable(table);
+          e.preventDefault();
+          e.stopPropagation();
 
-      const table = cell.closest("table");
-      normalizeTable(table);
-      e.preventDefault();
-      e.stopPropagation();
+          let sampleCell = null;
+          for (const tr of Array.from(table.rows)) {
+            let vIndex = 0;
+            for (const td of Array.from(tr.children)) {
+              const span = parseInt(td.getAttribute("colspan") || "1", 10);
+              if (vIndex <= idx && idx < vIndex + span) { sampleCell = td; break; }
+              vIndex += span;
+            }
+            if (sampleCell) break;
+          }
+          if (!sampleCell) return;
+          const startWidthPx = sampleCell.offsetWidth;
 
-      let sampleCell = null;
-      for (const tr of Array.from(table.rows)) {
-        let vIndex = 0;
-        for (const td of Array.from(tr.children)) {
-          const span = parseInt(td.getAttribute("colspan") || "1", 10);
-          if (vIndex <= idx && idx < vIndex + span) { sampleCell = td; break; }
-          vIndex += span;
+          colResizeState = {
+            table, colIndex: idx,
+            startX: e.clientX,
+            startWidthPx
+          };
+
+          document.addEventListener("mousemove", onColResizeMove);
+          document.addEventListener("mouseup", onColResizeUp);
+          return;
         }
-        if (sampleCell) break;
       }
-      if (!sampleCell) return;
-      const startWidthPx = sampleCell.offsetWidth;
 
-      colResizeState = {
-        table, colIndex: idx,
-        startX: e.clientX,
-        startWidthPx
-      };
-
-      document.addEventListener("mousemove", onColResizeMove);
-      document.addEventListener("mouseup", onColResizeUp);
+      if (tableResizeHover && isNodeInside(tableResizeHover.table, divEditor)) {
+        startTableResize(e, tableResizeHover);
+      }
     });
 
     function onColResizeMove(e){
@@ -603,6 +694,58 @@ body.weditor-fullscreen-active{overflow:hidden}
       document.removeEventListener("mousemove", onColResizeMove);
       document.removeEventListener("mouseup", onColResizeUp);
       colResizeState = null;
+      divEditor.dispatchEvent(new Event("input",{bubbles:true}));
+    }
+
+    function startTableResize(e, hover) {
+      const { table } = hover;
+      normalizeTable(table);
+      e.preventDefault();
+      e.stopPropagation();
+      const rect = table.getBoundingClientRect();
+      const startWidth = rect.width || table.offsetWidth || 0;
+      const ratios = collectColWidthRatios(table, startWidth || 1);
+      const colCount = ratios.length || (table.rows[0] ? table.rows[0].cells.length : 0) || 1;
+      const minWidth = Math.max(MIN_TABLE_WIDTH, colCount * MIN_COL_WIDTH);
+      tableResizeState = {
+        table,
+        startX: e.clientX,
+        startWidth: startWidth || minWidth,
+        ratios: ratios.length ? ratios : Array.from({length: colCount}, ()=>1 / colCount),
+        minWidth: minWidth
+      };
+      document.addEventListener("mousemove", onTableResizeMove);
+      document.addEventListener("mouseup", onTableResizeUp);
+    }
+
+    function onTableResizeMove(e){
+      if (!tableResizeState) return;
+      const { table, startX, startWidth, ratios, minWidth } = tableResizeState;
+      const delta = e.clientX - startX;
+      let newWidth = Math.round(startWidth + delta);
+      if (!Number.isFinite(newWidth)) return;
+      newWidth = Math.max(minWidth, newWidth);
+      const cg = table.querySelector("colgroup");
+      if (cg && ratios.length) {
+        const widths = distributeWidths(newWidth, ratios, MIN_COL_WIDTH);
+        const cols = Array.from(cg.children);
+        widths.forEach((w, idx)=>{
+          if (cols[idx]) cols[idx].style.width = w + "px";
+        });
+        const totalAssigned = widths.reduce((sum, w)=>sum + w, 0);
+        table.style.width = totalAssigned + "px";
+      } else {
+        table.style.width = newWidth + "px";
+      }
+      divEditor.style.cursor = "ew-resize";
+    }
+    function onTableResizeUp(){
+      if (!tableResizeState) return;
+      document.removeEventListener("mousemove", onTableResizeMove);
+      document.removeEventListener("mouseup", onTableResizeUp);
+      tableResizeState = null;
+      tableResizeHover = null;
+      divEditor.style.cursor = "";
       divEditor.dispatchEvent(new Event("input",{bubbles:true}));
     }
 
