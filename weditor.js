@@ -512,7 +512,6 @@ body.weditor-fullscreen-active{overflow:hidden}
       });
       const finalWidth = totalAssigned > 0 ? totalAssigned : Math.max(MIN_TABLE_WIDTH, Math.round(fallbackTotal));
       if (finalWidth > 0) table.style.width = finalWidth + "px";
-      logTableDebug("ensurePixelColWidths", { widthsPx: cols.map(col=>col.style.width), tableWidth: table.style.width });
     }
 
     function insertRow(after = true) {
@@ -779,14 +778,6 @@ body.weditor-fullscreen-active{overflow:hidden}
     const MIN_COL_WIDTH = 40;
     const MIN_ROW_HEIGHT = 28;
     const MIN_TABLE_WIDTH = 160;
-    const DEBUG_TABLE_RESIZE = true;
-
-    function logTableDebug() {
-      if (!DEBUG_TABLE_RESIZE) return;
-      const parts = Array.from(arguments);
-      parts.unshift("[weditor][table]");
-      console.log.apply(console, parts);
-    }
 
     function getColIndexFromHit(cell, clientX) {
       const rect = cell.getBoundingClientRect();
@@ -794,7 +785,6 @@ body.weditor-fullscreen-active{overflow:hidden}
       const nearRight = offsetRight <= EDGE && offsetRight >= -2;
       if (nearRight) {
         const idx = getVisualColumnIndex(cell);
-        logTableDebug("hit right edge", { clientX, idx, cell });
         return idx;
       }
       const offsetLeft = clientX - rect.left;
@@ -802,10 +792,8 @@ body.weditor-fullscreen-active{overflow:hidden}
       if (nearLeft) {
         const idx = getVisualColumnIndex(cell);
         const mapped = idx > 0 ? idx - 1 : -1;
-        logTableDebug("hit left edge", { clientX, idx, mapped, cell });
         return mapped;
       }
-      logTableDebug("no column edge", { clientX, cell });
       return -1;
     }
 
@@ -890,7 +878,6 @@ body.weditor-fullscreen-active{overflow:hidden}
         const cell = probe.closest("td,th");
         if (cell && isNodeInside(cell, divEditor)) return cell;
       }
-      logTableDebug("resolveCellForPoint miss", { clientX, clientY, target });
       return null;
     }
 
@@ -911,7 +898,6 @@ body.weditor-fullscreen-active{overflow:hidden}
       if (cell && isNodeInside(cell, divEditor)) {
         const idx = getColIndexFromHit(cell, e.clientX);
         if (idx >= 0 && (!edgeHit || edgeHit.delta < 0)) {
-          logTableDebug("mousemove col-resize", { idx, cell });
           cursor = "col-resize";
         }
       }
@@ -938,7 +924,6 @@ body.weditor-fullscreen-active{overflow:hidden}
       if (cell && isNodeInside(cell, divEditor)) {
         const idx = getColIndexFromHit(cell, e.clientX);
         const table = cell.closest("table");
-        logTableDebug("mousedown", { idx, cell });
         if (idx >= 0 && (!tableResizeHover || tableResizeHover.table !== table || tableResizeHover.delta < 0)) {
           normalizeTable(table);
           ensurePixelColWidths(table);
@@ -954,7 +939,6 @@ body.weditor-fullscreen-active{overflow:hidden}
             MIN_COL_WIDTH,
             (measured != null ? measured : fallbackPerCol != null ? fallbackPerCol : MIN_COL_WIDTH)
           );
-          logTableDebug("start column resize", { idx, startWidthPx, measured, fallbackPerCol, table });
 
           colResizeState = {
             table, colIndex: idx,
@@ -983,7 +967,6 @@ body.weditor-fullscreen-active{overflow:hidden}
       const { table, colIndex, startX, startWidthPx } = colResizeState;
       const delta = e.clientX - startX;
       const newWidth = Math.max(MIN_COL_WIDTH, startWidthPx + delta);
-      logTableDebug("col resize move", { delta, newWidth });
       const cg = table.querySelector("colgroup");
       if (!cg) return;
       const col = cg.children[colIndex];
@@ -1006,7 +989,6 @@ body.weditor-fullscreen-active{overflow:hidden}
     }
 
     function startRowResize(e, hover) {
-      logTableDebug("start row resize", hover);
       const { row, table } = hover;
       if (!row || !table) return;
       normalizeTable(table);
@@ -1029,7 +1011,6 @@ body.weditor-fullscreen-active{overflow:hidden}
       const { row, startY, startHeight } = rowResizeState;
       const delta = e.clientY - startY;
       const newHeight = Math.max(MIN_ROW_HEIGHT, Math.round(startHeight + delta));
-      logTableDebug("row resize move", { delta, newHeight });
       row.style.height = newHeight + "px";
       Array.from(row.children).forEach(cell=>{
         cell.style.height = newHeight + "px";
@@ -1054,7 +1035,6 @@ body.weditor-fullscreen-active{overflow:hidden}
       e.stopPropagation();
       const rect = table.getBoundingClientRect();
       const startWidth = rect.width || table.offsetWidth || 0;
-      logTableDebug("start table resize", { startWidth });
       const ratios = collectColWidthRatios(table, startWidth || 1);
       const colCount = ratios.length || (table.rows[0] ? table.rows[0].cells.length : 0) || 1;
       const minWidth = Math.max(MIN_TABLE_WIDTH, colCount * MIN_COL_WIDTH);
@@ -1078,7 +1058,6 @@ body.weditor-fullscreen-active{overflow:hidden}
       newWidth = Math.max(minWidth, newWidth);
       const cg = table.querySelector("colgroup");
       if (cg && ratios.length) {
-        logTableDebug("table resize move", { delta, newWidth });
         const widths = distributeWidths(newWidth, ratios, MIN_COL_WIDTH);
         const cols = Array.from(cg.children);
         widths.forEach((w, idx)=>{
