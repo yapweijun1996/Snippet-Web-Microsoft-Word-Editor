@@ -229,15 +229,15 @@ body.weditor-fullscreen-active{overflow:hidden}
     addBtn("H1","Heading 1", ()=>exec("formatBlock","<h1>"));
     addBtn("H2","Heading 2", ()=>exec("formatBlock","<h2>"));
     addBtn("P","Paragraph", ()=>exec("formatBlock","<p>"));
-    addBtn("•","Bulleted list", ()=>exec("insertUnorderedList"));
+    addBtn("*","Bulleted list", ()=>exec("insertUnorderedList"));
     addBtn("1.","Numbered list", ()=>exec("insertOrderedList"));
-    addBtn("⟸","Align left", ()=>exec("justifyLeft"));
-    addBtn("⟷","Center", ()=>exec("justifyCenter"));
-    addBtn("⟹","Align right", ()=>exec("justifyRight"));
+    addBtn("L","Align left", ()=>exec("justifyLeft"));
+    addBtn("C","Center", ()=>exec("justifyCenter"));
+    addBtn("R","Align right", ()=>exec("justifyRight"));
     addBtn("Link","Insert link", ()=>{
       const u = prompt("Link URL:");
       if (!u) return;
-      if (!isHttpUrl(u)) { alert("只支持 http(s) 链接"); return; }
+      if (!isHttpUrl(u)) { alert("Only http(s) URL allowed"); return; }
       exec("createLink", u);
       const sel = window.getSelection();
       if (sel && sel.anchorNode) {
@@ -251,10 +251,10 @@ body.weditor-fullscreen-active{overflow:hidden}
     addBtn("Img","Insert image (URL)", ()=>{
       const u = prompt("Image URL:");
       if (!u) return;
-      if (!isHttpUrl(u)) { alert("只支持 http(s) 图片链接"); return; }
+      if (!isHttpUrl(u)) { alert("Only http(s) image URL allowed"); return; }
       exec("insertImage", u);
     });
-    addBtn("—","Horizontal rule", ()=>exec("insertHorizontalRule"));
+    addBtn("HR","Horizontal rule", ()=>exec("insertHorizontalRule"));
     addBtn("Clr","Clear formatting", ()=>exec("removeFormat"));
 
     // Undo / Redo / HTML (redo-safe)
@@ -285,7 +285,7 @@ body.weditor-fullscreen-active{overflow:hidden}
 
     // Fullscreen
     let isFullScreen = false;
-    const btnFs = addBtn("⛶", "Fullscreen", toggleFullScreen);
+    const btnFs = addBtn("FS", "Fullscreen", toggleFullScreen);
     function handleEscKey(e) {
       if (isFullScreen && e.key === "Escape") {
         e.preventDefault();
@@ -296,7 +296,7 @@ body.weditor-fullscreen-active{overflow:hidden}
       isFullScreen = !isFullScreen;
       wrap.classList.toggle("weditor-fullscreen", isFullScreen);
       document.body.classList.toggle("weditor-fullscreen-active", isFullScreen);
-      btnFs.textContent = isFullScreen ? "✕" : "⛶";
+      btnFs.textContent = isFullScreen ? "X" : "FS";
       btnFs.title = isFullScreen ? "Exit Fullscreen" : "Fullscreen";
       if (isFullScreen) {
         document.addEventListener("keydown", handleEscKey);
@@ -468,9 +468,9 @@ body.weditor-fullscreen-active{overflow:hidden}
     function setCurrentColumnWidth() {
       const ctx = getTableContext(); if (!ctx) return;
       const { table, colIndex } = ctx;
-      const val = prompt("列宽（例如 120px 或 20%）：", "120px");
+      const val = prompt("Column width (e.g. 120px or 20%):", "120px");
       if (!val) return;
-      if (!/^\s*\d+(\.\d+)?(px|%)\s*$/.test(val)) { alert("请输入有效的 px 或 % 值"); return; }
+      if (!/^\s*\d+(\.\d+)?(px|%)\s*$/.test(val)) { alert("Please enter a valid px or % value"); return; }
       const width = val.trim();
       Array.from(table.rows).forEach(tr=>{
         let vIndex = 0;
@@ -576,15 +576,15 @@ body.weditor-fullscreen-active{overflow:hidden}
       const c = prompt("Cols?", "2");
       insertTableAtCaret(divEditor, r, c);
     });
-    addBtn("+Row","在下方插入一行", ()=>insertRow(true));
-    addBtn("↑Row","在上方插入一行", ()=>insertRow(false));
-    addBtn("×Row","删除当前行", ()=>deleteRow());
-    addBtn("+Col","在右侧插入一列", ()=>insertCol(true));
-    addBtn("←Col","在左侧插入一列", ()=>insertCol(false));
-    addBtn("×Col","删除当前列", ()=>deleteCol());
-    addBtn("＝Cols","平均分配列宽（%）", ()=>distributeColumns());
-    addBtn("Fit","自动适配列宽", ()=>autofitColumns());
-    addBtn("W","设置当前列宽", ()=>setCurrentColumnWidth());
+    addBtn("+Row","Insert row below", ()=>insertRow(true));
+    addBtn("^Row","Insert row above", ()=>insertRow(false));
+    addBtn("DelRow","Delete current row", ()=>deleteRow());
+    addBtn("+Col","Insert column right", ()=>insertCol(true));
+    addBtn("<-Col","Insert column left", ()=>insertCol(false));
+    addBtn("DelCol","Delete current column", ()=>deleteCol());
+    addBtn("=Cols","Distribute columns (%)", ()=>distributeColumns());
+    addBtn("Fit","Auto-fit column width", ()=>autofitColumns());
+    addBtn("W","Set current column width", ()=>setCurrentColumnWidth());
   }
 
   // ---------- Init all editors ----------
