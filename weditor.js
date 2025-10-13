@@ -1902,29 +1902,44 @@ body.weditor-fullscreen-active{overflow:hidden}
     }
 
     function onCellMouseDown(e) {
+      // Do not engage if it's not a primary button click or if resizing is active
+      if (e.button !== 0 || colResizeState || rowResizeState || tableResizeState) {
+        return;
+      }
+
       const targetCell = e.target.closest("td,th");
       if (!targetCell || !isNodeInside(targetCell, divEditor)) {
-        clearCellSelection();
+        // If clicking outside a cell, clear any existing selection
+        if (!e.target.closest("table")) {
+          clearCellSelection();
+        }
         return;
       }
       
-      // Prevent default text selection behavior
-      e.preventDefault();
-      
+      // On mousedown, we only *prepare* to select. We don't prevent default yet.
+      // We clear previous selection and set a potential start cell.
       clearCellSelection();
-      cellSelectionState.isSelecting = true;
       cellSelectionState.startCell = targetCell;
-      cellSelectionState.endCell = targetCell;
-      targetCell.classList.add("weditor-cell-selected");
-      cellSelectionState.selectedCells = [targetCell];
       
       document.addEventListener("mousemove", onCellMouseMove);
       document.addEventListener("mouseup", onCellMouseUp);
-      tableDebug("Cell selection started", { startCell: targetCell });
+      tableDebug("Cell selection prepared", { startCell: targetCell });
     }
 
     function onCellMouseMove(e) {
-      if (!cellSelectionState.isSelecting) return;
+      if (!cellSelectionState.startCell) return;
+
+      // If we are not yet in selection mode, check if the mouse has moved enough
+      // to be considered a drag, not a click.
+      if (!cellSelectionState.isSelecting) {
+        // This is the first mousemove after a mousedown. Now we engage selection mode.
+        cellSelectionState.isSelecting = true;
+        // Prevent text selection now that we're sure it's a drag
+        e.preventDefault();
+        // Clear native selection
+        window.getSelection()?.removeAllRanges();
+        tableDebug("Cell selection engaged by dragging");
+      }
 
       const targetCell = e.target.closest("td,th");
       if (!targetCell || !isNodeInside(targetCell, divEditor) || targetCell === cellSelectionState.endCell) {
@@ -1970,12 +1985,19 @@ body.weditor-fullscreen-active{overflow:hidden}
     }
 
     function onCellMouseUp(e) {
-      if (!cellSelectionState.isSelecting) return;
+      if (!cellSelectionState.startCell) return;
+
+      if (!cellSelectionState.isSelecting) {
+        // This was a simple click, not a drag. Clear the potential selection.
+        clearCellSelection();
+      } else {
+        tableDebug("Cell selection finalized", { start: cellSelectionState.startCell, end: cellSelectionState.endCell, count: cellSelectionState.selectedCells.length });
+      }
       
       cellSelectionState.isSelecting = false;
+      cellSelectionState.startCell = null;
       document.removeEventListener("mousemove", onCellMouseMove);
       document.removeEventListener("mouseup", onCellMouseUp);
-      tableDebug("Cell selection ended", { start: cellSelectionState.startCell, end: cellSelectionState.endCell, count: cellSelectionState.selectedCells.length });
     }
 
     divEditor.addEventListener("mousedown", onCellMouseDown);
