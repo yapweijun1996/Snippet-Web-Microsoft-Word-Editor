@@ -307,6 +307,7 @@ body.weditor-fullscreen-active{overflow:hidden}
     divEditor.addEventListener("input", scheduleSnapshot);
     divEditor.addEventListener("input", syncToTextarea);
     divEditor.addEventListener("input", updateToggleStates);
+    divEditor.addEventListener("input", updateTableToolsVisibility);
     divEditor.addEventListener("blur",  ()=>{
       updateTableToolsVisibility();
       syncToTextarea();
@@ -443,6 +444,7 @@ body.weditor-fullscreen-active{overflow:hidden}
     
     // Collapsed toggle for Table tools when caret not inside a table
     let tablePanelManualOpen = false;
+    let tablePanelManualClosed = false; // remember if user explicitly collapsed (中文解释: 用户手动关闭后抑制自动展开)
     let tablePanelOutsideHandler = null;
     // Give the Table tools panel a stable id for a11y
     const tablePanelId = "weditor-table-panel-" + Math.random().toString(36).slice(2,9);
@@ -459,6 +461,8 @@ body.weditor-fullscreen-active{overflow:hidden}
     function toggleTablePanel(anchor){
       tablePanelManualOpen = !tablePanelManualOpen;
       if (tablePanelManualOpen){
+        // User explicitly opened -> clear manual-closed suppression
+        tablePanelManualClosed = false;
         groupTableTools.group.removeAttribute("data-hidden");
         anchor.setAttribute("aria-expanded","true");
         // Outside click to close
@@ -467,6 +471,7 @@ body.weditor-fullscreen-active{overflow:hidden}
             const target = evt.target;
             if (!groupTableTools.group.contains(target) && !anchor.contains(target)){
               tablePanelManualOpen = false;
+              tablePanelManualClosed = true; // mark user-intended collapse (中文解释: 记住用户关闭)
               groupTableTools.group.setAttribute("data-hidden","true");
               anchor.setAttribute("aria-expanded","false");
               document.removeEventListener("mousedown", tablePanelOutsideHandler, true);
@@ -476,6 +481,8 @@ body.weditor-fullscreen-active{overflow:hidden}
           document.addEventListener("mousedown", tablePanelOutsideHandler, true);
         }
       } else {
+        // User clicked toggle to close -> suppress auto-open until user opens again
+        tablePanelManualClosed = true;
         groupTableTools.group.setAttribute("data-hidden","true");
         anchor.setAttribute("aria-expanded","false");
         if (tablePanelOutsideHandler){
@@ -507,22 +514,40 @@ body.weditor-fullscreen-active{overflow:hidden}
     }
 
     function updateTableToolsVisibility() {
-      // Context-aware visibility with manual override (collapsed toggle).
+      // Auto-open when content contains a table unless user manually collapsed (中文解释: 用户手动关闭后不再自动展开)
       try {
+        // Manual open always wins
         if (tablePanelManualOpen) {
           groupTableTools.group.removeAttribute("data-hidden");
           btnTableCollapsed.setAttribute("aria-expanded","true");
           return;
         }
-        const sel = window.getSelection();
+        // Respect manual close (suppresses auto-open)
+        if (tablePanelManualClosed) {
+          groupTableTools.group.setAttribute("data-hidden","true");
+          btnTableCollapsed.setAttribute("aria-expanded","false");
+          return;
+        }
+        const hasAnyTable = !!divEditor.querySelector("table");
+        // When no tables remain, clear suppression so future tables can auto-open
+        if (!hasAnyTable) {
+          tablePanelManualClosed = false;
+        }
         let show = false;
-        if (sel && sel.rangeCount) {
-          const anchor = sel.anchorNode;
-          const focus = sel.focusNode;
-          const insideEditor = isNodeInside(anchor, divEditor) || isNodeInside(focus, divEditor);
-          if (insideEditor) {
-            const ctx = getTableContext();
-            show = !!(ctx && ctx.table);
+        if (hasAnyTable) {
+          // Auto-open if any table exists
+          show = true;
+        } else {
+          // Fallback: caret-in-table (practically false if no table)
+          const sel = window.getSelection();
+          if (sel && sel.rangeCount) {
+            const anchor = sel.anchorNode;
+            const focus = sel.focusNode;
+            const insideEditor = isNodeInside(anchor, divEditor) || isNodeInside(focus, divEditor);
+            if (insideEditor) {
+              const ctx = getTableContext();
+              show = !!(ctx && ctx.table);
+            }
           }
         }
         if (show) {
@@ -608,6 +633,8 @@ body.weditor-fullscreen-active{overflow:hidden}
       history.push(val);
       lastSaved = val;
       updateUndoRedoButtons();
+      // Keep table tools in sync with content presence (中文解释: 内容含表格时自动展开)
+      updateTableToolsVisibility();
     }
     pair.addEventListener("input", () => setEditorHTMLFromTextarea(pair.value));
     pair.addEventListener("change", () => setEditorHTMLFromTextarea(pair.value));
