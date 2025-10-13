@@ -132,7 +132,7 @@ body.weditor-fullscreen-active{overflow:hidden}
     const colPct = (100/cols).toFixed(3) + "%";
     const colgroup = el("colgroup", null, Array.from({length:cols}, ()=> el("col",{style:{width:colPct}})));
 
-    const table = el("table",{border:"1",style:{borderCollapse:"collapse",width:"100%",tableLayout:"fixed"}});
+    const table = el("table",{style:{borderCollapse:"collapse",width:"100%",tableLayout:"fixed"}});
     table.appendChild(colgroup);
 
     const tbody = el("tbody");
@@ -144,12 +144,6 @@ body.weditor-fullscreen-active{overflow:hidden}
       tbody.appendChild(tr);
     }
     table.appendChild(tbody);
-    if (table.dataset){
-      table.dataset.weditorBorderPreset = "table-all";
-      table.dataset.weditorBorderWidth = "1";
-      table.dataset.weditorBorderStyle = "solid";
-      table.dataset.weditorBorderColor = "#cccccc";
-    }
 
     const sel = window.getSelection();
     if (sel && sel.rangeCount){
@@ -161,7 +155,7 @@ body.weditor-fullscreen-active{overflow:hidden}
     }
     const firstCell = table.querySelector("td");
     if (firstCell) placeCaretInside(firstCell);
-    editor.dispatchEvent(new Event("input",{bubbles:true}));
+    applyTableBorderStyles({ width: 1, style: "solid", color: "#cccccc" }, "table-all", table);
   }
 
   // ---------- Build one editor (div.weditor + next textarea.weditor_textarea) ----------
