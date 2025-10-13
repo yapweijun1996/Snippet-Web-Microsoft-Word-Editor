@@ -1030,26 +1030,65 @@ body.weditor-fullscreen-active{overflow:hidden}
       if (!sel || !sel.rangeCount) return;
 
       const range = sel.getRangeAt(0);
+      const intersectsCell = (cell)=>{
+        let intersects = false;
+        try {
+          if (sel && typeof sel.containsNode === "function") {
+            intersects = sel.containsNode(cell, true);
+          }
+          if (!intersects && typeof range.intersectsNode === "function") {
+            intersects = range.intersectsNode(cell);
+          }
+        } catch (err) {
+          intersects = false;
+        }
+        if (!intersects) {
+          const cellRange = document.createRange();
+          cellRange.selectNodeContents(cell);
+          const endsBefore = range.compareBoundaryPoints(Range.END_TO_START, cellRange) < 0;
+          const startsAfter = range.compareBoundaryPoints(Range.START_TO_END, cellRange) > 0;
+          intersects = !endsBefore && !startsAfter;
+          cellRange.detach?.();
+        }
+        return intersects;
+      };
+
+      const candidateCells = Array.from(divEditor.querySelectorAll("td,th")).filter(intersectsCell);
+      tableDebug("merge candidate cells", { count: candidateCells.length });
+
       const startHost = range.startContainer.nodeType === 1 ? range.startContainer : range.startContainer.parentElement;
       const endHost = range.endContainer.nodeType === 1 ? range.endContainer : range.endContainer.parentElement;
-      const startCell = startHost ? startHost.closest("td,th") : null;
-      const endCell = endHost ? endHost.closest("td,th") : null;
+      let startCell = startHost ? startHost.closest("td,th") : null;
+      let endCell = endHost ? endHost.closest("td,th") : null;
+      if (!startCell && candidateCells.length) startCell = candidateCells[0];
+      if (!endCell && candidateCells.length) endCell = candidateCells[candidateCells.length - 1];
 
       const ancestorHost = range.commonAncestorContainer && range.commonAncestorContainer.nodeType === 1
         ? range.commonAncestorContainer
         : range.commonAncestorContainer ? range.commonAncestorContainer.parentElement : null;
 
       let row = startCell ? startCell.parentElement : null;
-      if (!row && endCell) row = endCell.parentElement;
+      if ((!row || !divEditor.contains(row)) && endCell) row = endCell.parentElement;
+      if ((!row || !divEditor.contains(row)) && candidateCells.length) {
+        const insideCell = candidateCells.find(cell=>divEditor.contains(cell));
+        if (insideCell) row = insideCell.parentElement;
+      }
       if (!row && ancestorHost) row = ancestorHost.closest("tr");
+
       if (!row) {
         tableDebug("merge abort: no row found", { startCell, endCell, ancestorHost });
         return;
       }
 
-      let table = row.closest("table");
+      let table = startCell ? startCell.closest("table") : null;
+      if ((!table || !divEditor.contains(table)) && endCell) table = endCell.closest("table");
+      if ((!table || !divEditor.contains(table)) && row) table = row.closest("table");
+      if ((!table || !divEditor.contains(table)) && candidateCells.length) {
+        const insideCell = candidateCells.find(cell=>divEditor.contains(cell));
+        if (insideCell) table = insideCell.closest("table");
+      }
       if (!table || !divEditor.contains(table)) {
-        const fallback = Array.from(divEditor.querySelectorAll("table")).find(t=>t.contains(row));
+        const fallback = Array.from(divEditor.querySelectorAll("table")).find(t=>candidateCells.some(cell=>t.contains(cell)));
         if (fallback) {
           tableDebug("merge info: using fallback table resolution", { hadClosest: !!table });
           table = fallback;
@@ -1059,7 +1098,17 @@ body.weditor-fullscreen-active{overflow:hidden}
         }
       }
 
-      if (endCell && endCell.parentElement !== row) {
+      if (!row || !table.contains(row)) {
+        const rowCandidate = candidateCells.find(cell=>cell.closest("table") === table);
+        if (rowCandidate) row = rowCandidate.parentElement;
+      }
+      if (!row || !table.contains(row)) {
+        tableDebug("merge abort: unable to resolve row inside table", { hasRow: !!row });
+        return;
+      }
+
+      const crossRowSelection = candidateCells.some(cell=>cell.closest("table") === table && cell.parentElement !== row);
+      if (crossRowSelection) {
         alert("Please select cells within a single row to merge.");
         return;
       }
@@ -1081,35 +1130,13 @@ body.weditor-fullscreen-active{overflow:hidden}
         endIndex = tmp;
       }
 
+      const selectionCells = candidateCells.filter(cell=>cell.closest("table") === table && cell.parentElement === row);
+
       let cellsToMerge = [];
       if (startIndex !== -1 && endIndex !== -1) {
         cellsToMerge = rowCells.slice(startIndex, endIndex + 1);
       }
-
-      const selectionCells = rowCells.filter(cell=>{
-        let intersects = false;
-        try {
-          if (sel && typeof sel.containsNode === "function") {
-            intersects = sel.containsNode(cell, true);
-          }
-          if (!intersects && typeof range.intersectsNode === "function") {
-            intersects = range.intersectsNode(cell);
-          }
-        } catch (err) {
-          intersects = false;
-        }
-        if (!intersects) {
-          const cellRange = document.createRange();
-          cellRange.selectNodeContents(cell);
-          const endsBefore = range.compareBoundaryPoints(Range.END_TO_START, cellRange) < 0;
-          const startsAfter = range.compareBoundaryPoints(Range.START_TO_END, cellRange) > 0;
-          intersects = !endsBefore && !startsAfter;
-          cellRange.detach?.();
-        }
-        return intersects;
-      });
-
-      if (selectionCells.length > 1 && selectionCells.every(cell=>cell.parentElement === row)) {
+      if (selectionCells.length > 1) {
         cellsToMerge = selectionCells;
       }
 
