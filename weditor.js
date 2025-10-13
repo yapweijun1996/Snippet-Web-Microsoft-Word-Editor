@@ -11,6 +11,12 @@
 .weditor-toolbar-group-label{font-size:11px;font-weight:600;color:#64748b;text-transform:uppercase;letter-spacing:.05em}
 .weditor-toolbar-group-inner{display:flex;flex-wrap:wrap;gap:4px}
 .weditor-toolbar button{padding:4px 8px;border:1px solid #cbd5f5;background:#fff;border-radius:4px;cursor:pointer;transition:background .15s,border-color .15s,box-shadow .15s}
+.weditor-table-subgroup{display:flex;flex-direction:column;gap:4px;padding:4px 6px;background:#f1f5f9;border-radius:6px}
+.weditor-table-subgroup-label{font-size:10px;font-weight:600;color:#475569;text-transform:uppercase;letter-spacing:.04em}
+.weditor-table-subgroup-buttons{display:flex;flex-wrap:wrap;gap:4px}
+.weditor-toolbar button.weditor-table-btn{display:flex;flex-direction:column;align-items:flex-start;gap:2px;min-width:118px;padding:6px 12px;font-size:12px;line-height:1.2}
+.weditor-toolbar button.weditor-table-btn .weditor-table-btn-primary{font-weight:600;color:#1e293b}
+.weditor-toolbar button.weditor-table-btn .weditor-table-btn-secondary{font-size:11px;color:#475569}
 .weditor-toolbar button:hover:not(:disabled){background:#eef2ff;border-color:#94a3b8;box-shadow:0 1px 3px rgba(15,23,42,0.12)}
 .weditor-toolbar button:disabled{opacity:.5;cursor:not-allowed}
 .weditor-area{min-height:160px;padding:10px;outline:0;overflow-y:auto}
@@ -303,6 +309,28 @@ body.weditor-fullscreen-active{overflow:hidden}
     addBtn("HR","Horizontal rule", ()=>exec("insertHorizontalRule"), groupInsert.inner);
 
     const groupTableTools = createToolbarGroup("Table", { initiallyHidden: true });
+
+    function createTableSubgroup(labelText) {
+      const wrapper = el("div", { class: "weditor-table-subgroup" });
+      if (labelText) {
+        wrapper.appendChild(el("span", { class: "weditor-table-subgroup-label" }, [labelText]));
+      }
+      const container = el("div", { class: "weditor-table-subgroup-buttons" });
+      wrapper.appendChild(container);
+      groupTableTools.inner.appendChild(wrapper);
+      return container;
+    }
+
+    function addTableAction(primary, secondary, title, handler, container) {
+      const btn = el("button", { type: "button", title, class: "weditor-table-btn" });
+      btn.appendChild(el("span", { class: "weditor-table-btn-primary" }, [primary]));
+      if (secondary) {
+        btn.appendChild(el("span", { class: "weditor-table-btn-secondary" }, [secondary]));
+      }
+      btn.addEventListener("click", handler);
+      container.appendChild(btn);
+      return btn;
+    }
 
     function updateTableToolsVisibility() {
       const sel = window.getSelection();
@@ -1169,19 +1197,24 @@ body.weditor-fullscreen-active{overflow:hidden}
     }
 
     // ------ Table Buttons ------
-    const btnTbl = addBtn("Tbl","Insert table", (evt)=>{
+    const btnTbl = addBtn("Table","Insert table", (evt)=>{
       evt.preventDefault();
       insertTablePopup.open(evt.currentTarget || btnTbl);
     }, groupInsert.inner);
-    addBtn("+Row","Insert row below", ()=>insertRow(true), groupTableTools.inner);
-    addBtn("^Row","Insert row above", ()=>insertRow(false), groupTableTools.inner);
-    addBtn("DelRow","Delete current row", ()=>deleteRow(), groupTableTools.inner);
-    addBtn("+Col","Insert column right", ()=>insertCol(true), groupTableTools.inner);
-    addBtn("<-Col","Insert column left", ()=>insertCol(false), groupTableTools.inner);
-    addBtn("DelCol","Delete current column", ()=>deleteCol(), groupTableTools.inner);
-    addBtn("=Cols","Distribute columns (%)", ()=>distributeColumns(), groupTableTools.inner);
-    addBtn("Fit","Auto-fit column width", ()=>autofitColumns(), groupTableTools.inner);
-    addBtn("W","Set current column width", ()=>setCurrentColumnWidth(), groupTableTools.inner);
+    const tableRows = createTableSubgroup("Rows");
+    addTableAction("Add Row","Below","Insert row below", ()=>insertRow(true), tableRows);
+    addTableAction("Add Row","Above","Insert row above", ()=>insertRow(false), tableRows);
+    addTableAction("Remove Row", null,"Delete current row", ()=>deleteRow(), tableRows);
+
+    const tableColumns = createTableSubgroup("Columns");
+    addTableAction("Add Column","Right","Insert column right", ()=>insertCol(true), tableColumns);
+    addTableAction("Add Column","Left","Insert column left", ()=>insertCol(false), tableColumns);
+    addTableAction("Remove Column", null,"Delete current column", ()=>deleteCol(), tableColumns);
+
+    const tableWidth = createTableSubgroup("Column Width");
+    addTableAction("Balance","Columns","Distribute columns (%)", ()=>distributeColumns(), tableWidth);
+    addTableAction("Auto Fit","Columns","Auto-fit column width", ()=>autofitColumns(), tableWidth);
+    addTableAction("Set Width","This Column","Set current column width", ()=>setCurrentColumnWidth(), tableWidth);
   }
 
   // ---------- Init all editors ----------
