@@ -38,7 +38,17 @@ body.weditor-fullscreen-active{overflow:hidden}
 .weditor-table-popup .actions{display:flex;justify-content:flex-end;gap:6px}
 .weditor-table-popup .actions button{padding:4px 10px}
 .weditor-table-popup button{border:1px solid #bbb;background:#f8f8f8;cursor:pointer}
-.weditor-border-popup{min-width:220px}
+.weditor-border-popup{min-width:240px}
+.weditor-border-section{display:flex;flex-direction:column;gap:6px}
+.weditor-border-section[data-hidden="true"]{display:none}
+.weditor-border-heading{font-size:11px;font-weight:600;color:#334155;text-transform:uppercase;letter-spacing:.04em}
+.weditor-border-scope{display:flex;gap:6px}
+.weditor-border-scope select{flex:1;padding:4px;border:1px solid #bbb;border-radius:3px;background:#fff}
+.weditor-border-presets{display:flex;flex-wrap:wrap;gap:4px}
+.weditor-border-presets[data-hidden="true"]{display:none}
+.weditor-border-option{padding:4px 8px;border:1px solid #cbd5f5;border-radius:4px;background:#fff;cursor:pointer;font-size:11px;line-height:1.2;transition:background .15s,border-color .15s}
+.weditor-border-option[data-active="true"]{background:#eef2ff;border-color:#94a3b8;font-weight:600}
+.weditor-border-option[data-disabled="true"]{opacity:.55;cursor:not-allowed}
 `.trim();
   (function ensureStyle(){
     if (!document.getElementById(STYLE_ID)){
@@ -474,6 +484,19 @@ body.weditor-fullscreen-active{overflow:hidden}
 
     // ====================== Table Utilities & UX ======================
     const BORDER_STYLE_OPTIONS = ["solid","dashed","dotted","double","none"];
+    function normalizeBorderOptions(options){
+      const base = options || {};
+      let width = Number(base.width);
+      if (!Number.isFinite(width) || width < 0) width = 1;
+      let style = String(base.style || "solid").toLowerCase();
+      if (!BORDER_STYLE_OPTIONS.includes(style)) style = "solid";
+      let color = normalizeColorToHex(base.color || "#cccccc");
+      if (style === "none" || width === 0) {
+        style = "none";
+        width = 0;
+      }
+      return { width, style, color };
+    }
     function getCellFromSelection() {
       const sel = window.getSelection();
       if (!sel || !sel.anchorNode) return null;
@@ -648,44 +671,93 @@ body.weditor-fullscreen-active{overflow:hidden}
       };
     }
 
-    function applyTableBorderStyles(options) {
+    function applyTableBorderStyles(options, preset = "table-all", tableOverride = null) {
       if (!options) return;
-      if (!restoreEditorSelection()) divEditor.focus();
-      const ctx = getTableContext();
-      if (!ctx || !ctx.table) return;
-      const { table } = ctx;
+      let table = tableOverride;
+      if (!table) {
+        if (!restoreEditorSelection()) divEditor.focus();
+        const ctx = getTableContext();
+        if (!ctx || !ctx.table) return;
+        table = ctx.table;
+      }
       normalizeTable(table);
-
-      let width = Math.max(0, Math.round(Number(options.width) || 0));
-      let style = String(options.style || "solid").toLowerCase();
-      if (!BORDER_STYLE_OPTIONS.includes(style)) style = "solid";
-      if (width === 0) style = "none";
-      const color = normalizeColorToHex(options.color || "#000000");
-      if (style === "none") {
+      const { width, style, color } = normalizeBorderOptions(options);
+      const zero = style === "none" || width === 0;
+      const value = width + "px " + style + " " + color;
+      if (preset === "table-none" || zero) {
         table.style.border = "none";
         table.style.borderStyle = "none";
         table.style.borderWidth = "0";
         table.style.borderColor = "";
-      } else {
-        const value = width + "px " + style + " " + color;
+        table.querySelectorAll("td,th").forEach(cell=>{
+          cell.style.border = "0";
+          cell.style.borderStyle = "none";
+          cell.style.borderWidth = "0";
+          cell.style.borderColor = "";
+        });
+      } else if (preset === "table-outer") {
         table.style.border = value;
         table.style.borderStyle = style;
         table.style.borderWidth = width + "px";
         table.style.borderColor = color;
-      }
-      table.style.borderCollapse = table.style.borderCollapse || "collapse";
-      table.querySelectorAll("td,th").forEach(cell=>{
-        if (style === "none") {
+        table.querySelectorAll("td,th").forEach(cell=>{
           cell.style.border = "0";
           cell.style.borderStyle = "none";
           cell.style.borderWidth = "0";
-        } else {
-          cell.style.border = width + "px " + style + " " + color;
+          cell.style.borderColor = "";
+        });
+      } else {
+        table.style.border = value;
+        table.style.borderStyle = style;
+        table.style.borderWidth = width + "px";
+        table.style.borderColor = color;
+        table.querySelectorAll("td,th").forEach(cell=>{
+          cell.style.border = value;
           cell.style.borderStyle = style;
           cell.style.borderWidth = width + "px";
           cell.style.borderColor = color;
-        }
-      });
+        });
+      }
+      table.style.borderCollapse = table.style.borderCollapse || "collapse";
+      divEditor.dispatchEvent(new Event("input",{bubbles:true}));
+    }
+
+    function applyCellBorderPreset(cell, options, preset = "cell-all") {
+      if (!cell) return;
+      const table = cell.closest("table");
+      if (table) {
+        normalizeTable(table);
+        table.style.borderCollapse = table.style.borderCollapse || "collapse";
+      }
+      const { width, style, color } = normalizeBorderOptions(options);
+      const zero = preset === "cell-none" || style === "none" || width === 0;
+      if (zero) {
+        cell.style.border = "0";
+        cell.style.borderStyle = "none";
+        cell.style.borderWidth = "0";
+        cell.style.borderColor = "";
+        divEditor.dispatchEvent(new Event("input",{bubbles:true}));
+        return;
+      }
+      const value = width + "px " + style + " " + color;
+      if (preset === "cell-all") {
+        cell.style.border = value;
+        cell.style.borderStyle = style;
+        cell.style.borderWidth = width + "px";
+        cell.style.borderColor = color;
+      } else {
+        const setSide = (prop, enabled)=>{
+          if (enabled) {
+            cell.style[prop] = value;
+          } else {
+            cell.style[prop] = "0";
+          }
+        };
+        setSide("borderTop", preset === "cell-top");
+        setSide("borderRight", preset === "cell-right");
+        setSide("borderBottom", preset === "cell-bottom");
+        setSide("borderLeft", preset === "cell-left");
+      }
       divEditor.dispatchEvent(new Event("input",{bubbles:true}));
     }
 
@@ -706,6 +778,10 @@ body.weditor-fullscreen-active{overflow:hidden}
         cell.style.borderColor = "";
       });
       divEditor.dispatchEvent(new Event("input",{bubbles:true}));
+    }
+
+    function hideTableBorders() {
+      applyTableBorderStyles({ width: 0, style: "none", color: "#000000" }, "table-none");
     }
 
     function insertRow(after = true) {
