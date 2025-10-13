@@ -130,6 +130,97 @@ python3 -m http.server 8080
 - **localStorage**: Field-specific draft storage with unique keys per page
 - **ContentEditable**: Standards-based rich text editing
 
+### System Architecture
+
+```mermaid
+graph TB
+    A[HTML Page] --> B[IIFE Editor Script]
+    B --> C[CSS Injection]
+    B --> D[DOM Discovery]
+    D --> E[Editor Instances]
+    E --> F[ContentEditable Div]
+    E --> G[Hidden Textarea]
+    F --> H[User Input]
+    H --> I[Autosave to localStorage]
+    H --> J[Custom Undo/Redo]
+    H --> K[Table Manipulation]
+    G --> L[Form Submission]
+    M[Word Document] --> N[Paste Handler]
+    N --> O[Content Sanitization]
+    O --> P[Format Preservation]
+    P --> F
+```
+
+### Integration Flow
+
+```mermaid
+sequenceDiagram
+    participant D as Developer
+    participant H as HTML Page
+    participant E as Editor Script
+    participant I as Editor Instance
+
+    D->>H: Add div.weditor + textarea.weditor_textarea
+    D->>H: Include script src="weditor.js"
+    H->>E: Load script
+    E->>E: Inject CSS styles
+    E->>H: Discover .weditor elements
+    E->>I: Create editor instance
+    I->>I: Setup toolbar & event handlers
+    I->>I: Load autosaved draft (if exists)
+    H->>D: Ready to use
+```
+
+### Component Structure
+
+```mermaid
+graph TD
+    A[Web Word Editor] --> B[Core Engine]
+    A --> C[UI Components]
+    A --> D[Storage System]
+    A --> E[Table Tools]
+
+    B --> F[ContentEditable Handler]
+    B --> G[Event Management]
+    B --> H[Paste Processor]
+    B --> I[Command Executor]
+
+    C --> J[Toolbar Generator]
+    C --> K[Fullscreen Manager]
+    C --> L[Popup Systems]
+    C --> M[Keyboard Shortcuts]
+
+    D --> N[Autosave Timer]
+    D --> O[localStorage Manager]
+    D --> P[Draft Recovery]
+
+    E --> Q[Table Builder]
+    E --> R[Border Styler]
+    E --> S[Column Resizer]
+    E --> T[Row Manager]
+
+    H --> U[HTML Sanitizer]
+    H --> V[Format Extractor]
+    H --> W[Content Normalizer]
+```
+
+### Paste Handling Flow
+
+```mermaid
+flowchart TD
+    A[User Pastes Content] --> B{Content Type?}
+    B -->|text/html| C[Extract HTML Content]
+    B -->|text/plain| D[Convert to Basic HTML]
+    C --> E[HTML Sanitization]
+    D --> E
+    E --> F[Allowed Tags Filter]
+    F --> G[Structure Preservation]
+    G --> H[Content Injection]
+    H --> I[Editor Update]
+    I --> J[Autosave Trigger]
+    J --> K[UI Refresh]
+```
+
 ## 🔧 Customization
 
 ### Styling
