@@ -127,6 +127,22 @@ body.weditor-fullscreen-active{overflow:hidden}
     return fallback;
   }
 
+  function applyDefaultTableBorder(table){
+    if (!table) return;
+    table.style.borderCollapse = table.style.borderCollapse || "collapse";
+    table.style.tableLayout = table.style.tableLayout || "fixed";
+    table.style.border = "1px solid #cccccc";
+    table.style.borderWidth = "1px";
+    table.style.borderStyle = "solid";
+    table.style.borderColor = "#cccccc";
+    table.querySelectorAll("td,th").forEach(cell=>{
+      cell.style.border = "1px solid #cccccc";
+      cell.style.borderWidth = "1px";
+      cell.style.borderStyle = "solid";
+      cell.style.borderColor = "#cccccc";
+    });
+  }
+
   function insertTableAtCaret(editor, rows=2, cols=2){
     rows = Math.max(1, parseInt(rows||2,10));
     cols = Math.max(1, parseInt(cols||2,10));
@@ -157,7 +173,7 @@ body.weditor-fullscreen-active{overflow:hidden}
     }
     const firstCell = table.querySelector("td");
     if (firstCell) placeCaretInside(firstCell);
-    applyTableBorderStyles({ width: 1, style: "solid", color: "#cccccc" }, "table-all", table);
+    applyDefaultTableBorder(table);
   }
 
   // ---------- Build one editor (div.weditor + next textarea.weditor_textarea) ----------
@@ -1592,7 +1608,7 @@ body.weditor-fullscreen-active{overflow:hidden}
     const TABLE_EDGE = 10;
     const ROW_EDGE = 6;
     const MIN_COL_WIDTH = 5;
-    const MIN_ROW_HEIGHT = 28;
+    const MIN_ROW_HEIGHT = 5;
     const MIN_TABLE_WIDTH = 160;
 
     function getColIndexFromHit(cell, clientX) {
