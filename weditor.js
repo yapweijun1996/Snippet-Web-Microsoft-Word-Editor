@@ -19,6 +19,7 @@
 .weditor-toolbar select:focus-visible{outline:2px solid #2563eb;outline-offset:1px}
 .weditor-toolbar select + button, .weditor-toolbar button + select{margin-left:2px}
 .weditor-style-select{min-width:140px}
+.weditor-font-select{min-width:160px}
 /* Typographic cues for buttons (中文解释: 直观的文字样式提示) */
 .weditor-btn-bold{font-weight:700}
 .weditor-btn-italic{font-style:italic}
@@ -420,6 +421,9 @@ body.weditor-fullscreen-active{overflow:hidden}
         divEditor.innerHTML = divEditor.textContent;
         showingSource = false;
       }
+      // Disable WYSIWYG-only controls when showing source (中文解释: 源码模式禁用下拉避免误操作)
+      setTimeout(()=>{ try{ if (typeof setWYSIWYGEnabled === "function") setWYSIWYGEnabled(!showingSource); }catch(_){ } }, 0);
+
       const after = getHTML();
       if (after !== history.current()){
         history.push(after);
@@ -474,6 +478,62 @@ body.weditor-fullscreen-active{overflow:hidden}
     sizeSelect.addEventListener("change", ()=> exec("fontSize", sizeSelect.value));
     groupFormatting.inner.appendChild(sizeSelect);
 
+    // Font family selector (minimal, execCommand 'fontName') (中文解释: 字体族选择器)
+    const FONT_FAMILY_PRESETS = [
+      "Arial",
+      "Calibri",
+      "Times New Roman",
+      "Georgia",
+      "Helvetica",
+      "Tahoma",
+      "Verdana",
+      "Courier New",
+      "Consolas"
+    ];
+    let fontSelect = el("select", {
+      title: "Font family",
+      "aria-label": "Font family",
+      class: "weditor-font-select"
+    });
+    FONT_FAMILY_PRESETS.forEach(name=>{
+      const opt = el("option", { value: name, style: { fontFamily: name }}, [name]);
+      fontSelect.appendChild(opt);
+    });
+    fontSelect.addEventListener("change", ()=>{
+      const v = fontSelect.value;
+      if (v) exec("fontName", v);
+    });
+    groupFormatting.inner.appendChild(fontSelect);
+
+    // Helpers for reflecting current font family (中文解释: 解析当前选区字体并匹配预设)
+    function normalizeFontNameValue(v){
+      if (!v) return "";
+      return String(v).replace(/^['"]|['"]$/g,"").trim();
+    }
+    function resolveCurrentFontFromSelection(){
+      // 1) Try execCommand reported fontName
+      let name = document.queryCommandValue && document.queryCommandValue("fontName");
+      name = normalizeFontNameValue(name || "");
+      // 2) Fallback to computed style of anchor
+      if (!name){
+        const sel = window.getSelection && window.getSelection();
+        if (sel && sel.anchorNode){
+          const n = sel.anchorNode.nodeType===1 ? sel.anchorNode : sel.anchorNode.parentElement;
+          if (n && n.nodeType===1){
+            const cs = window.getComputedStyle ? window.getComputedStyle(n) : null;
+            const fam = cs && cs.fontFamily ? cs.fontFamily.split(",")[0] : "";
+            name = normalizeFontNameValue(fam);
+          }
+        }
+      }
+      // 3) Match against presets (case-insensitive)
+      const key = name.toLowerCase();
+      for (const f of FONT_FAMILY_PRESETS){
+        if (f.toLowerCase() === key) return f;
+      }
+      return "";
+    }
+
     // New: Paragraph style select (Normal/H1/H2/H3) — minimal UX, Word-like
     const styleSelect = el("select", {
       title: "Paragraph style",
@@ -512,6 +572,17 @@ body.weditor-fullscreen-active{overflow:hidden}
       }
     });
     groupFormatting.inner.appendChild(styleSelect);
+
+    // Toggle enable/disable for WYSIWYG-only controls (中文解释: 根据模式启用/禁用三个下拉)
+    function setWYSIWYGEnabled(enabled){
+      try{
+        sizeSelect.disabled  = !enabled;
+        styleSelect.disabled = !enabled;
+        fontSelect.disabled  = !enabled;
+      }catch(_){}
+    }
+    // Initialize once based on current mode
+    setWYSIWYGEnabled(!showingSource);
     // Step 2a: Add minimal Text Color tool (native color picker) (中文解释: 使用浏览器自带颜色选择器)
     const inputTextColor = el("input", { type: "color", style: { display: "none" } });
     wrap.appendChild(inputTextColor);
@@ -749,6 +820,15 @@ inputBgColor.addEventListener("input", ()=>{
             sizeSelect.value = v;
           }
         }
+        // reflect font family to selector (中文解释: 将选区字体回显到字体下拉)
+        try {
+          if (typeof fontSelect !== "undefined" && fontSelect) {
+            const ffMatch = resolveCurrentFontFromSelection && resolveCurrentFontFromSelection();
+            if (ffMatch && fontSelect.value !== ffMatch) {
+              fontSelect.value = ffMatch;
+            }
+          }
+        } catch(_){}
         // reflect block format to styleSelect (p/h1/h2/h3)
         try {
           if (typeof styleSelect !== "undefined" && styleSelect) {
