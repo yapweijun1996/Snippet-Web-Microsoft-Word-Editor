@@ -311,8 +311,52 @@ body.weditor-fullscreen-active{overflow:hidden}
       divEditor.innerHTML = "<p><br></p>";
     }
 
+    function alignImage(alignment) {
+      const img = divEditor.querySelector('img.weditor-img-selected');
+      if (!img) return;
+
+      // Clear existing alignment styles
+      img.style.float = '';
+      img.style.margin = '';
+      img.style.display = '';
+      // Also clear text-align from parent paragraph if it exists
+      const p = img.closest('p');
+      if (p) p.style.textAlign = '';
+
+      switch(alignment) {
+        case 'left':
+          img.style.float = 'left';
+          img.style.marginRight = '10px';
+          break;
+        case 'center':
+          // For center, we wrap it in a paragraph and center the paragraph
+          if (p) {
+            p.style.textAlign = 'center';
+          } else {
+            // If not in a paragraph, wrap it
+            const wrapper = el('p', {style: {textAlign: 'center'}});
+            img.parentNode.insertBefore(wrapper, img);
+            wrapper.appendChild(img);
+          }
+          break;
+        case 'right':
+          img.style.float = 'right';
+          img.style.marginLeft = '10px';
+          break;
+      }
+      divEditor.dispatchEvent(new Event("input",{bubbles:true}));
+    }
+
     // Exec helper（保证选区在编辑器内）
     function exec(cmd, val=null){
+      const selectedImg = divEditor.querySelector('img.weditor-img-selected');
+
+      if (selectedImg && (cmd === 'justifyLeft' || cmd === 'justifyCenter' || cmd === 'justifyRight')) {
+        const alignment = cmd.replace('justify', '').toLowerCase();
+        alignImage(alignment);
+        return;
+      }
+
       const sel = window.getSelection();
       if (!sel || !sel.rangeCount || !isNodeInside(sel.anchorNode, divEditor)) {
         divEditor.focus();
@@ -3167,7 +3211,10 @@ inputBgColor.addEventListener("input", ()=>{
         }
       });
     }
-    return { setup, deselect: deselectImage };
+    function getSelectedImage() {
+      return selectedImage;
+    }
+    return { setup, deselect: deselectImage, getSelectedImage };
   })();
  
   // ---------- Init all editors ----------
