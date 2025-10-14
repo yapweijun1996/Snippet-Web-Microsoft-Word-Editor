@@ -3157,17 +3157,14 @@ inputBgColor.addEventListener("input", ()=>{
     }
 
     function setup(editorDiv, editorWrap) {
-      editorDiv.addEventListener("click", (e) => {
+      editorWrap.addEventListener("click", (e) => {
         const img = e.target.closest("img");
         if (img && isNodeInside(img, editorDiv)) {
           e.preventDefault();
           selectImage(img, editorWrap);
-        } else if (selectedImage && !e.target.closest(".weditor-img-resize-handle")) {
+        } else if (selectedImage) {
           deselectImage();
         }
-      });
-      editorDiv.addEventListener("mousedown", (e) => {
-        if (e.target.closest("img")) e.preventDefault();
       });
     }
     return { setup, deselect: deselectImage };
