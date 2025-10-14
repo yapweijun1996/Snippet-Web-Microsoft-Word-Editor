@@ -112,6 +112,25 @@ body.weditor-fullscreen-active{overflow:hidden}
   };
   const isHttpUrl = (u)=>/^https?:\/\//i.test(String(u||""));
 
+  // Font size presets (global; used by buildEditor and window.weditorTest)
+  const FONT_SIZE_PRESETS = [
+    { label: "6", value: "1" },
+    { label: "8", value: "2" },
+    { label: "10", value: "3" },
+    { label: "12", value: "4" },
+    { label: "14", value: "5" },
+    { label: "16", value: "6" },
+    { label: "18", value: "7" },
+    { label: "20", value: "css-20" },
+    { label: "22", value: "css-22" },
+    { label: "24", value: "css-24" },
+    { label: "26", value: "css-26" },
+    { label: "28", value: "css-28" },
+    { label: "32", value: "css-32" },
+    { label: "36", value: "css-36" },
+    { label: "48", value: "css-48" },
+    { label: "72", value: "css-72" }
+  ];
   function isNodeInside(node, container){
     if (!node) return false;
     let cur = (node.nodeType===1?node:node.parentElement);
@@ -462,25 +481,6 @@ body.weditor-fullscreen-active{overflow:hidden}
     // Unified Formatting group (merge Text/Headings/Lists/Align)
     const groupFormatting = createToolbarGroup("Formatting");
 
-    // Font size selector (enhanced with more options) (中文解释: 增强字号选择器，支持更多选项)
-    const FONT_SIZE_PRESETS = [
-      { label: "6", value: "1" },
-      { label: "8", value: "2" },
-      { label: "10", value: "3" },
-      { label: "12", value: "4" },
-      { label: "14", value: "5" },
-      { label: "16", value: "6" },
-      { label: "18", value: "7" },
-      { label: "20", value: "css-20" },
-      { label: "22", value: "css-22" },
-      { label: "24", value: "css-24" },
-      { label: "26", value: "css-26" },
-      { label: "28", value: "css-28" },
-      { label: "32", value: "css-32" },
-      { label: "36", value: "css-36" },
-      { label: "48", value: "css-48" },
-      { label: "72", value: "css-72" }
-    ];
     let sizeSelect = el("select", { title: "Font size", "aria-label": "Font size", class: "weditor-size-select" });
     FONT_SIZE_PRESETS.forEach(s=>{
       sizeSelect.appendChild(el("option", { value: s.value }, [s.label]));
