@@ -140,9 +140,16 @@ body.weditor-fullscreen-active{overflow:hidden}
 .weditor-img-resize-handle[data-dir="s"]{bottom:-5px;left:50%;margin-left:-4px;cursor:ns-resize}
 .weditor-img-resize-handle[data-dir="w"]{top:50%;left:-5px;margin-top:-4px;cursor:ew-resize}
 .weditor-img-resize-handle[data-dir="e"]{top:50%;right:-5px;margin-top:-4px;cursor:ew-resize}
+/* Page Break visualization */
+.weditor-page-break{display:block;height:24px;margin:12px 0;background:#f1f5f9 url("data:image/svg+xml,%3csvg width='100%25' height='100%25' xmlns='http://www.w3.org/2000/svg'%3e%3crect width='100%25' height='100%25' fill='none' stroke='%23cbd5e1' stroke-width='2' stroke-dasharray='6%2c 8' stroke-dashoffset='0' stroke-linecap='square'/%3e%3c/svg%3e") center center;position:relative;color:#94a3b8;font-size:11px;font-weight:600;text-align:center;line-height:24px;user-select:none;cursor:default}
+.weditor-page-break::before{content:"PAGE BREAK"}
+@media print{
+ .weditor-page-break{height:0;margin:0;border:0;visibility:hidden;page-break-after:always}
+ .weditor-page-break::before{content:""}
+}
 `;
-  (function ensureStyle(){
-    if (!document.getElementById(STYLE_ID)){
+ (function ensureStyle(){
+   if (!document.getElementById(STYLE_ID)){
       const tag = document.createElement("style");
       tag.id = STYLE_ID;
       tag.appendChild(document.createTextNode(CSS_TEXT));
@@ -1208,6 +1215,42 @@ inputBgColor.addEventListener("input", ()=>{
       imageInsertMenu.open(e.currentTarget);
     }, groupInsert.inner);
     addBtn("HR","Horizontal rule", ()=>exec("insertHorizontalRule"), groupInsert.inner);
+    addBtn("Page Break", "Insert page break", () => {
+      const pageBreakNode = el("div", {
+        class: "weditor-page-break",
+        contenteditable: "false"
+      });
+      // Insert a paragraph before and after to ensure proper block-level separation
+      const pBefore = el("p", {}, [el("br")]);
+      const pAfter = el("p", {}, [el("br")]);
+      
+      const sel = window.getSelection();
+      if (sel && sel.rangeCount) {
+        const range = sel.getRangeAt(0);
+        range.deleteContents();
+        
+        const frag = document.createDocumentFragment();
+        frag.appendChild(pBefore);
+        frag.appendChild(pageBreakNode);
+        frag.appendChild(pAfter);
+        
+        range.insertNode(frag);
+        
+        // Place caret in the paragraph after the page break
+        const newRange = document.createRange();
+        newRange.setStart(pAfter, 0);
+        newRange.collapse(true);
+        sel.removeAllRanges();
+        sel.addRange(newRange);
+      } else {
+        divEditor.appendChild(pBefore);
+        divEditor.appendChild(pageBreakNode);
+        divEditor.appendChild(pAfter);
+        moveCaretToEnd(pAfter);
+      }
+      
+      divEditor.dispatchEvent(new Event("input", { bubbles: true }));
+    }, groupInsert.inner);
     // Secondary row - More (Clear, Fullscreen)
     const groupMore = createToolbarGroup("More",{row:"secondary"});
     addBtn("Clear","Clear Formatting", ()=>exec("removeFormat"), groupMore.inner);
