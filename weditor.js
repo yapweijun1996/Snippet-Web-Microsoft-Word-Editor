@@ -538,6 +538,7 @@ inputBgColor.addEventListener("input", ()=>{
         tablePanelManualClosed = false;
         groupTableTools.group.removeAttribute("data-hidden");
         anchor.setAttribute("aria-expanded","true");
+        anchor.textContent = "Table ▴";
         // Outside click to close
         if (!tablePanelOutsideHandler){
           tablePanelOutsideHandler = (evt)=>{
@@ -546,6 +547,7 @@ inputBgColor.addEventListener("input", ()=>{
               tablePanelManualOpen = false;
               tablePanelManualClosed = true; // mark user-intended collapse (中文解释: 记住用户关闭)
               groupTableTools.group.setAttribute("data-hidden","true");
+              anchor.textContent = "Table ▾";
               anchor.setAttribute("aria-expanded","false");
               document.removeEventListener("mousedown", tablePanelOutsideHandler, true);
               tablePanelOutsideHandler = null;
@@ -557,6 +559,7 @@ inputBgColor.addEventListener("input", ()=>{
         // User clicked toggle to close -> suppress auto-open until user opens again
         tablePanelManualClosed = true;
         groupTableTools.group.setAttribute("data-hidden","true");
+        anchor.textContent = "Table ▾";
         anchor.setAttribute("aria-expanded","false");
         if (tablePanelOutsideHandler){
           document.removeEventListener("mousedown", tablePanelOutsideHandler, true);
