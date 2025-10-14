@@ -48,7 +48,13 @@
 /* Ensure table button inner labels invert correctly when primary */
 .weditor-btn--primary .weditor-table-btn-primary{color:#fff}
 .weditor-btn--primary .weditor-table-btn-secondary{color:#e2e8f0}
-.weditor-area{min-height:160px;padding:10px;outline:0;overflow-y:auto}
+.weditor-area{all:initial;min-height:160px;padding:10px;outline:0;overflow-y:auto}
+.weditor-area p, .weditor-area h1, .weditor-area h2, .weditor-area h3, .weditor-area ul, .weditor-area ol, .weditor-area li, .weditor-area table, .weditor-area tr, .weditor-area td, .weditor-area th, .weditor-area span, .weditor-area div, .weditor-area font {
+  all: revert; /* Revert to browser defaults, ignoring inherited styles from outside the editor */
+}
+.weditor-area font {
+  color: inherit; /* Allow font color to be set by the color attribute */
+}
 .weditor-area p.weditor-nospace{margin:0;line-height:1.35}
 .weditor_textarea{display:none}
 body.weditor-fullscreen-active{overflow:hidden}
@@ -560,10 +566,21 @@ body.weditor-fullscreen-active{overflow:hidden}
       const elements = divEditor.querySelectorAll('*');
       elements.forEach(el => {
         // Handle <font size="...">
-        if (el.tagName === 'FONT' && el.hasAttribute('size')) {
-          const size = el.getAttribute('size');
-          if (FONT_SIZE_MAP[size]) {
-            el.style.fontSize = FONT_SIZE_MAP[size];
+        if (el.tagName === 'FONT') {
+          if (el.hasAttribute('color')) {
+            el.style.color = el.getAttribute('color');
+            el.removeAttribute('color');
+          }
+          if (el.hasAttribute('face')) {
+            el.style.fontFamily = el.getAttribute('face');
+            el.removeAttribute('face');
+          }
+          if (el.hasAttribute('size')) {
+            const size = el.getAttribute('size');
+            if (FONT_SIZE_MAP[size]) {
+              el.style.fontSize = FONT_SIZE_MAP[size];
+            }
+            el.removeAttribute('size');
           }
         }
 
@@ -582,7 +599,11 @@ body.weditor-fullscreen-active{overflow:hidden}
              // Avoid adding default browser styles that are not explicitly set
             if (prop === 'color' && value === 'rgb(0, 0, 0)' && !el.style.color) return;
             if (prop === 'background-color' && value === 'rgba(0, 0, 0, 0)' && !el.style.backgroundColor) return;
-            
+            // Enhanced guards to prevent inheriting page defaults
+            if (prop === 'font-family' && !el.style.fontFamily) return; // Don't write inherited font
+            if (prop === 'font-size' && !el.style.fontSize && !el.closest('font')) return; // Don't write inherited size unless it's from a <font> tag
+            if (prop === 'line-height' && value === 'normal' && !el.style.lineHeight) return;
+
             styleText += `${prop}: ${value}; `;
           }
         });
