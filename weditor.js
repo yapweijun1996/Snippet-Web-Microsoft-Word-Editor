@@ -49,10 +49,10 @@ body.weditor-fullscreen-active{overflow:hidden}
 .weditor-wrap.weditor-fullscreen{position:fixed;top:0;left:0;width:100%;height:100%;z-index:9999;margin:0;border:0}
 .weditor-wrap.weditor-fullscreen .weditor-area{flex:1;min-height:0}
 /* Exit Fullscreen button (top-right in fullscreen) */
-.weditor-fs-exit{position:absolute;top:10px;right:8px;min-width:36px;min-height:36px;padding:6px 10px;display:none;align-items:center;justify-content:center;border:1px solid #cbd5f5;background:#fff;border-radius:4px;cursor:pointer;box-shadow:0 1px 3px rgba(15,23,42,0.12);z-index:10000}
+.weditor-fs-exit{position:absolute;top:10px;right:8px;min-width:36px;min-height:36px;padding:6px 10px;display:none;align-items:center;justify-content:center;border:1px solid #dc2626;background:#ef4444;color:#fff;border-radius:4px;cursor:pointer;box-shadow:0 1px 3px rgba(15,23,42,0.12);z-index:10000}
 .weditor-wrap.weditor-fullscreen .weditor-fs-exit{display:inline-flex}
-.weditor-fs-exit:hover{background:#eef2ff;border-color:#94a3b8}
-.weditor-fs-exit:focus-visible{outline:2px solid #2563eb;outline-offset:1px}
+.weditor-fs-exit:hover{background:#dc2626;border-color:#b91c1c}
+.weditor-fs-exit:focus-visible{outline:2px solid #b91c1c;outline-offset:1px}
 
 /* 轻量表格可视化增强（可删） */
 .weditor-area table{border-collapse:collapse;width:100%}
