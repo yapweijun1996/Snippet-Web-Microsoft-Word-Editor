@@ -14,7 +14,7 @@
 .weditor-toolbar-row + .weditor-toolbar-row{margin-top:4px}
 .weditor-toolbar button{display:inline-flex;align-items:center;justify-content:center;min-height:var(--weditor-btn-h);padding:var(--weditor-btn-py) var(--weditor-btn-px);border:1px solid #cbd5f5;background:#fff;border-radius:4px;cursor:pointer;transition:background .15s,border-color .15s,box-shadow .15s}
 .weditor-toolbar button.weditor-btn--icon{font-size:16px}
-.weditor-toolbar button svg{display:block;width:1em;height:1em}
+.weditor-toolbar button svg{display:block;width:1em;height:1em;stroke-width: 1px;}
 .weditor-toolbar select{min-height:var(--weditor-btn-h);padding:var(--weditor-btn-py) var(--weditor-btn-px);border:1px solid #cbd5f5;background:#fff;border-radius:4px;cursor:pointer}
 .weditor-toolbar select:hover:not(:disabled){background:#eef2ff;border-color:#94a3b8;box-shadow:0 1px 3px rgba(15,23,42,0.12)}
 .weditor-toolbar select:disabled{opacity:.5;cursor:not-allowed}
@@ -669,10 +669,10 @@ inputBgColor.addEventListener("input", ()=>{
     const btnUL = addBtn("*","Bulleted list", ()=>exec("insertUnorderedList"), groupFormatting.inner);
     const btnOL = addBtn("1.","Numbered list", ()=>exec("insertOrderedList"), groupFormatting.inner);
     
-    // Improved SVG Icons for alignment
-    const ICON_ALIGN_L = `<svg xmlns="http://www.w3.org/2000/svg" width="1em" height="1em" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="3" y1="6" x2="21" y2="6"></line><line x1="3" y1="10" x2="15" y2="10"></line><line x1="3" y1="14" x2="21" y2="14"></line><line x1="3" y1="18" x2="15" y2="18"></line></svg>`;
-    const ICON_ALIGN_C = `<svg xmlns="http://www.w3.org/2000/svg" width="1em" height="1em" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="3" y1="6" x2="21" y2="6"></line><line x1="6" y1="10" x2="18" y2="10"></line><line x1="3" y1="14" x2="21" y2="14"></line><line x1="6" y1="18" x2="18" y2="18"></line></svg>`;
-    const ICON_ALIGN_R = `<svg xmlns="http://www.w3.org/2000/svg" width="1em" height="1em" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="3" y1="6" x2="21" y2="6"></line><line x1="9" y1="10" x2="21" y2="10"></line><line x1="3" y1="14" x2="21" y2="14"></line><line x1="9" y1="18" x2="21" y2="18"></line></svg>`;
+    // Balanced SVG Icons for alignment (24x24, 4u padding, non-scaling stroke)
+    const ICON_ALIGN_L = `<svg xmlns="http://www.w3.org/2000/svg" width="1em" height="1em" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><line x1="4" y1="6" x2="20" y2="6" vector-effect="non-scaling-stroke"></line><line x1="4" x2="20" vector-effect="non-scaling-stroke" y1="16" y2="16"></line><line x1="4" x2="14" vector-effect="non-scaling-stroke" y2="11" y1="11"></line><line x1="4" x2="14" vector-effect="non-scaling-stroke" y1="21" y2="21"></line></svg>`;
+    const ICON_ALIGN_C = `<svg xmlns="http://www.w3.org/2000/svg" width="1em" height="1em" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><line x1="4" y1="6" x2="20" y2="6" vector-effect="non-scaling-stroke"></line><line x1="4" x2="20" vector-effect="non-scaling-stroke" y2="16" y1="16"></line><line x1="7" x2="17" vector-effect="non-scaling-stroke" y1="11" y2="11"></line><line x1="7" x2="17" vector-effect="non-scaling-stroke" y2="21" y1="21"></line></svg>`;
+    const ICON_ALIGN_R = `<svg xmlns="http://www.w3.org/2000/svg" width="1em" height="1em" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><line x1="4" y1="6" x2="20" y2="6" vector-effect="non-scaling-stroke"></line><line x1="4" x2="20" vector-effect="non-scaling-stroke" y2="16" y1="16"></line><line x1="10" x2="20" vector-effect="non-scaling-stroke" y1="11" y2="11"></line><line x1="10" x2="20" vector-effect="non-scaling-stroke" y2="21" y1="21"></line></svg>`;
 
     const btnAlignL = addBtn(ICON_ALIGN_L,"Align left", ()=>exec("justifyLeft"), groupFormatting.inner, "weditor-btn--icon");
     const btnAlignC = addBtn(ICON_ALIGN_C,"Center", ()=>exec("justifyCenter"), groupFormatting.inner, "weditor-btn--icon");
