@@ -718,22 +718,22 @@ inputBgColor.addEventListener("input", ()=>{
     btnTableCollapsed.setAttribute("aria-expanded", "false");
     
     function toggleTablePanel(anchor){
-      tablePanelManualOpen = !tablePanelManualOpen;
-      if (tablePanelManualOpen){
-        // User explicitly opened -> clear manual-closed suppression
-        tablePanelManualClosed = false;
-        groupTableTools.group.removeAttribute("data-hidden");
-        anchor.setAttribute("aria-expanded","true");
-        anchor.textContent = "Table ▴";
-        // Outside click to close (disabled by design)
-        // Intentionally remove outside-click auto-close to avoid unintended collapse.
-      } else {
-        // User clicked toggle to close -> suppress auto-open until user opens again
-        tablePanelManualClosed = true;
+      // Determine actual current open state from DOM (中文解释: 基于真实可见状态判断)
+      const isOpen = !groupTableTools.group.hasAttribute("data-hidden");
+      if (isOpen){
+        // Close
+        tablePanelManualOpen = false;
+        tablePanelManualClosed = true; // 用户明确关闭，抑制自动展开
         groupTableTools.group.setAttribute("data-hidden","true");
         anchor.textContent = "Table ▾";
         anchor.setAttribute("aria-expanded","false");
-        // No outside-click handler attached, nothing to clean up.
+      } else {
+        // Open
+        tablePanelManualOpen = true;   // 用户明确打开，优先级最高
+        tablePanelManualClosed = false;
+        groupTableTools.group.removeAttribute("data-hidden");
+        anchor.textContent = "Table ▴";
+        anchor.setAttribute("aria-expanded","true");
       }
     }
     function createTableSubgroup(labelText) {
@@ -765,12 +765,14 @@ inputBgColor.addEventListener("input", ()=>{
         if (tablePanelManualOpen) {
           groupTableTools.group.removeAttribute("data-hidden");
           btnTableCollapsed.setAttribute("aria-expanded","true");
+          btnTableCollapsed.textContent = "Table ▴";
           return;
         }
         // Respect manual close (suppresses auto-open)
         if (tablePanelManualClosed) {
           groupTableTools.group.setAttribute("data-hidden","true");
           btnTableCollapsed.setAttribute("aria-expanded","false");
+          btnTableCollapsed.textContent = "Table ▾";
           return;
         }
         const hasAnyTable = !!divEditor.querySelector("table");
@@ -798,9 +800,11 @@ inputBgColor.addEventListener("input", ()=>{
         if (show) {
           groupTableTools.group.removeAttribute("data-hidden");
           btnTableCollapsed.setAttribute("aria-expanded","true");
+          btnTableCollapsed.textContent = "Table ▴";
         } else {
           groupTableTools.group.setAttribute("data-hidden", "true");
           btnTableCollapsed.setAttribute("aria-expanded","false");
+          btnTableCollapsed.textContent = "Table ▾";
         }
       } catch (err) {
         groupTableTools.group.setAttribute("data-hidden", "true");
