@@ -100,6 +100,14 @@ body.weditor-fullscreen-active{overflow:hidden}
 .weditor-menu-popup button[data-active="true"]{
   background:#e0e7ff;color:#2563eb;font-weight:600
 }
+.weditor-menu-tabs{display:flex;border-bottom:1px solid #e2e8f0;margin:0 8px}
+.weditor-tab-btn{border:none;background:transparent;padding:8px 12px;cursor:pointer;font-size:13px;color:#475569;border-bottom:2px solid transparent}
+.weditor-tab-btn[data-active="true"]{color:#2563eb;font-weight:600;border-bottom-color:#2563eb}
+.weditor-tab-content{padding:12px}
+.weditor-input{width:100%;padding:6px;border:1px solid #cbd5f5;border-radius:4px}
+.weditor-file-input-area{display:flex;flex-direction:column;align-items:center;gap:8px}
+.weditor-preview-img{max-width:100%;max-height:120px;margin-top:8px;border:1px solid #e2e8f0;border-radius:4px}
+.weditor-menu-actions{display:flex;justify-content:flex-end;gap:8px;padding:8px 12px;border-top:1px solid #e2e8f0}
 .weditor-border-popup{min-width:240px}
 .weditor-border-section{display:flex;flex-direction:column;gap:6px}
 .weditor-border-section[data-hidden="true"]{display:none}
@@ -827,6 +835,163 @@ body.weditor-fullscreen-active{overflow:hidden}
     })();
 
     const btnLhIcon = addBtn(ICON_LINE_HEIGHT, "Line height", () => lineHeightMenu.open(btnLhIcon), groupFormatting.inner, "weditor-btn--icon");
+
+    // ---------- New Image Insert Popup System ----------
+    const imageInsertMenu = (() => {
+      let node = null;
+      let outsideHandler = null;
+      let activeTab = "url";
+      let urlInput = null;
+      let fileInput = null;
+      let previewImg = null;
+      let anchorForFocus = null;
+
+      function fileToBase64(file) {
+        return new Promise((resolve, reject) => {
+          if (!file || !file.type.startsWith("image/")) {
+            reject(new Error("Please select a valid image file"));
+            return;
+          }
+          const reader = new FileReader();
+          reader.onload = (e) => resolve(e.target.result);
+          reader.onerror = () => reject(new Error("Failed to read file"));
+          reader.readAsDataURL(file);
+        });
+      }
+
+      function isValidImageUrl(url) {
+        return /^https?:\/\/.+\.(jpg|jpeg|png|gif|webp)$/i.test(url);
+      }
+
+      function insertImageToEditor(imageData) {
+        try {
+          if (!restoreEditorSelection || !restoreEditorSelection()) {
+            divEditor.focus();
+            moveCaretToEnd(divEditor);
+          }
+          exec("insertImage", imageData);
+          closePopup();
+        } catch (error) {
+          alert("Image insert failed: " + error.message);
+        }
+      }
+
+      function ensurePopup() {
+        if (node) return node;
+        
+        const tabButtons = el("div", { class: "weditor-menu-tabs" }, [
+          el("button", { type: "button", class: "weditor-tab-btn", "data-tab": "url" }, ["URL"]),
+          el("button", { type: "button", class: "weditor-tab-btn", "data-tab": "file" }, ["Upload"])
+        ]);
+        
+        const urlTab = el("div", { class: "weditor-tab-content", "data-tab": "url" }, [
+          el("label", null, [ "Image URL",
+            urlInput = el("input", { type: "url", placeholder: "https://example.com/image.jpg", class: "weditor-input" })
+          ])
+        ]);
+        
+        const fileTab = el("div", { class: "weditor-tab-content", "data-tab": "file" }, [
+          el("div", { class: "weditor-file-input-area" }, [
+            fileInput = el("input", { type: "file", accept: "image/*", class: "weditor-file-input", style: { display: "none" } }),
+            el("button", { type: "button", class: "weditor-file-btn" }, ["Select Image"]),
+            previewImg = el("img", { class: "weditor-preview-img", style: { display: "none" } })
+          ])
+        ]);
+        
+        const actions = el("div", { class: "weditor-menu-actions" }, [
+          el("button", { type: "button", "data-action": "cancel" }, ["Cancel"]),
+          el("button", { type: "button", "data-action": "insert" }, ["Insert"])
+        ]);
+        
+        node = el("div", { class: "weditor-menu-popup" }, [ tabButtons, urlTab, fileTab, actions ]);
+        
+        setupPopupInteractions();
+        return node;
+      }
+
+      function setupPopupInteractions() {
+        const tabs = $$(".weditor-tab-btn", node);
+        const contents = $$(".weditor-tab-content", node);
+        const fileSelectBtn = node.querySelector(".weditor-file-btn");
+
+        function switchTab(tabName) {
+          activeTab = tabName;
+          tabs.forEach(t => t.setAttribute("data-active", t.dataset.tab === tabName ? "true" : "false"));
+          contents.forEach(c => c.style.display = c.dataset.tab === tabName ? "" : "none");
+          if (tabName === "url" && urlInput) urlInput.focus();
+        }
+
+        tabs.forEach(tab => tab.addEventListener("click", () => switchTab(tab.dataset.tab)));
+        if (fileSelectBtn) fileSelectBtn.addEventListener("click", () => fileInput.click());
+
+        if (fileInput) {
+          fileInput.addEventListener("change", async () => {
+            const file = fileInput.files[0];
+            if (file) {
+              try {
+                previewImg.src = await fileToBase64(file);
+                previewImg.style.display = "block";
+              } catch (err) {
+                alert(err.message);
+                previewImg.style.display = "none";
+              }
+            }
+          });
+        }
+        
+        node.addEventListener("click", async (e) => {
+          const action = e.target.dataset.action;
+          if (action === "cancel") closePopup();
+          else if (action === "insert") {
+            if (activeTab === "url") {
+              const url = urlInput.value.trim();
+              if (isValidImageUrl(url)) insertImageToEditor(url);
+              else { alert("Please enter a valid image URL."); urlInput.focus(); }
+            } else if (activeTab === "file") {
+              if (previewImg.src && previewImg.src.startsWith("data:image")) {
+                insertImageToEditor(previewImg.src);
+              } else {
+                alert("Please select an image file first.");
+              }
+            }
+          }
+        });
+        switchTab("url");
+      }
+
+      function openPopup(anchor) {
+        closePopup();
+        saveEditorSelection();
+        const popup = ensurePopup();
+        anchorForFocus = anchor;
+        toolbar.appendChild(popup);
+        popup.setAttribute("data-open", "true");
+        requestAnimationFrame(() => {
+          positionToolbarPopup(anchor, popup);
+          if (urlInput) urlInput.focus();
+        });
+        outsideHandler = (evt) => {
+          if (!popup.contains(evt.target) && (!anchor || !anchor.contains(evt.target))) {
+            closePopup();
+          }
+        };
+        document.addEventListener("mousedown", outsideHandler, true);
+      }
+
+      function closePopup() {
+        if (!node) return;
+        node.removeAttribute("data-open");
+        if (node.parentNode) node.parentNode.removeChild(node);
+        if (outsideHandler) {
+          document.removeEventListener("mousedown", outsideHandler, true);
+          outsideHandler = null;
+        }
+        if (anchorForFocus) anchorForFocus.focus();
+        anchorForFocus = null;
+      }
+
+      return { open: openPopup, close: closePopup };
+    })();
     
 
     // Toggle enable/disable for WYSIWYG-only controls (中文解释: 根据模式启用/禁用三个下拉)
@@ -911,11 +1076,8 @@ inputBgColor.addEventListener("input", ()=>{
         }
       }
     }, groupInsert.inner);
-    addBtn("Img","Insert image (URL)", ()=>{
-      const u = prompt("Image URL:");
-      if (!u) return;
-      if (!isHttpUrl(u)) { alert("Only http(s) image URL allowed"); return; }
-      exec("insertImage", u);
+    const btnImg = addBtn("Img", "Insert image", (e) => {
+      imageInsertMenu.open(e.currentTarget);
     }, groupInsert.inner);
     addBtn("HR","Horizontal rule", ()=>exec("insertHorizontalRule"), groupInsert.inner);
     // Secondary row - More (Clear, Fullscreen)
