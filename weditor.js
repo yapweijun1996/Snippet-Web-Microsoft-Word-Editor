@@ -127,7 +127,20 @@ body.weditor-fullscreen-active{overflow:hidden}
   .weditor-toolbar-group-label{display:none}
   .weditor-toolbar button{padding:4px 6px;min-height:28px}
 }
-  `.trim();
+  `.trim() + `
+/* Image Resize Handles */
+.weditor-area img{position:relative;cursor:pointer}
+.weditor-img-selected{outline:2px solid #2563eb;outline-offset:2px;user-select:none}
+.weditor-img-resize-handle{position:absolute;width:8px;height:8px;background:#fff;border:1px solid #2563eb;box-shadow:0 0 3px rgba(0,0,0,0.2);z-index:1001}
+.weditor-img-resize-handle[data-dir="nw"]{top:-5px;left:-5px;cursor:nwse-resize}
+.weditor-img-resize-handle[data-dir="ne"]{top:-5px;right:-5px;cursor:nesw-resize}
+.weditor-img-resize-handle[data-dir="sw"]{bottom:-5px;left:-5px;cursor:nesw-resize}
+.weditor-img-resize-handle[data-dir="se"]{bottom:-5px;right:-5px;cursor:nwse-resize}
+.weditor-img-resize-handle[data-dir="n"]{top:-5px;left:50%;margin-left:-4px;cursor:ns-resize}
+.weditor-img-resize-handle[data-dir="s"]{bottom:-5px;left:50%;margin-left:-4px;cursor:ns-resize}
+.weditor-img-resize-handle[data-dir="w"]{top:50%;left:-5px;margin-top:-4px;cursor:ew-resize}
+.weditor-img-resize-handle[data-dir="e"]{top:50%;right:-5px;margin-top:-4px;cursor:ew-resize}
+`;
   (function ensureStyle(){
     if (!document.getElementById(STYLE_ID)){
       const tag = document.createElement("style");
@@ -1370,6 +1383,9 @@ inputBgColor.addEventListener("input", ()=>{
       if (nextSibling) parent.insertBefore(wrap, nextSibling);
       else parent.appendChild(wrap);
     }
+
+    // Setup image resize functionality for this editor instance
+    imageSelectionAndResize.setup(divEditor, wrap);
 
     // ---------- 外部：Textarea → Editor 同步 ----------
     function setEditorHTMLFromTextarea(v) {
@@ -2930,6 +2946,139 @@ inputBgColor.addEventListener("input", ()=>{
     addTableAction("Reset Borders","Default","Reset border styling to default (⇧⌥R)", ()=>resetTableBorders(), tableBorders);
   }
 
+  // ====================== Image Selection & Resize ======================
+  const imageSelectionAndResize = (() => {
+    let selectedImage = null;
+    let resizeState = null;
+    const MIN_SIZE = 20;
+    const directions = ["nw", "ne", "sw", "se", "n", "s", "w", "e"];
+    let handleContainer = null;
+
+    function ensureHandleContainer(editorWrap) {
+      if (handleContainer && editorWrap.contains(handleContainer)) return;
+      handleContainer = el("div", { style: { position: "absolute", top: "0", left: "0", width: "100%", height: "100%", pointerEvents: "none", zIndex: 1002 } });
+      editorWrap.appendChild(handleContainer);
+    }
+
+    function createResizeHandles(img) {
+      if (!handleContainer) return;
+      directions.forEach(dir => {
+        const handle = el("div", { class: "weditor-img-resize-handle", "data-dir": dir, style: { pointerEvents: "auto" } });
+        handle.addEventListener("mousedown", (e) => {
+          e.preventDefault();
+          e.stopPropagation();
+          startResize(e, img, dir);
+        });
+        handleContainer.appendChild(handle);
+      });
+      positionHandles(img);
+    }
+
+    function positionHandles(img) {
+      if (!handleContainer) return;
+      const handles = handleContainer.querySelectorAll(".weditor-img-resize-handle");
+      const rect = img.getBoundingClientRect();
+      const containerRect = handleContainer.getBoundingClientRect();
+      const top = rect.top - containerRect.top;
+      const left = rect.left - containerRect.left;
+      const width = rect.width;
+      const height = rect.height;
+
+      handles.forEach(h => {
+        const dir = h.dataset.dir;
+        if (dir.includes("n")) h.style.top = (top - 5) + "px";
+        if (dir.includes("s")) h.style.top = (top + height - 5) + "px";
+        if (dir.includes("w")) h.style.left = (left - 5) + "px";
+        if (dir.includes("e")) h.style.left = (left + width - 5) + "px";
+        if (dir === "n" || dir === "s") h.style.left = (left + width / 2 - 4) + "px";
+        if (dir === "w" || dir === "e") h.style.top = (top + height / 2 - 4) + "px";
+      });
+    }
+
+    function removeResizeHandles() {
+      if (handleContainer) handleContainer.innerHTML = "";
+    }
+
+    function selectImage(img, editorWrap) {
+      if (selectedImage && selectedImage !== img) deselectImage();
+      selectedImage = img;
+      img.classList.add("weditor-img-selected");
+      ensureHandleContainer(editorWrap);
+      createResizeHandles(img);
+      window.getSelection()?.removeAllRanges();
+    }
+
+    function deselectImage() {
+      if (!selectedImage) return;
+      selectedImage.classList.remove("weditor-img-selected");
+      removeResizeHandles();
+      selectedImage = null;
+    }
+
+    function startResize(e, img, direction) {
+      const rect = img.getBoundingClientRect();
+      resizeState = {
+        img, direction,
+        startX: e.clientX, startY: e.clientY,
+        startWidth: rect.width, startHeight: rect.height,
+        aspectRatio: rect.width / rect.height
+      };
+      document.addEventListener("mousemove", onResizeMove);
+      document.addEventListener("mouseup", onResizeEnd);
+      document.body.style.cursor = `${direction.includes("n") || direction.includes("s") ? "ns" : ""}${direction.includes("w") || direction.includes("e") ? "ew" : ""}-resize`;
+    }
+
+    function onResizeMove(e) {
+      if (!resizeState) return;
+      const { img, direction, startX, startY, startWidth, startHeight, aspectRatio } = resizeState;
+      let newWidth = startWidth;
+      let newHeight = startHeight;
+      const deltaX = e.clientX - startX;
+      const deltaY = e.clientY - startY;
+
+      if (direction.includes("e")) newWidth = Math.max(MIN_SIZE, startWidth + deltaX);
+      if (direction.includes("w")) newWidth = Math.max(MIN_SIZE, startWidth - deltaX);
+      if (direction.includes("s")) newHeight = Math.max(MIN_SIZE, startHeight + deltaY);
+      if (direction.includes("n")) newHeight = Math.max(MIN_SIZE, startHeight - deltaY);
+
+      if (direction.length === 2) { // Corner handles
+        const isDiagonal = direction === "se" || direction === "nw";
+        const ratio = isDiagonal ? (startWidth + deltaX) / startWidth : (startHeight + (direction.includes("s") ? deltaY : -deltaY)) / startHeight;
+        newWidth = Math.max(MIN_SIZE, startWidth * ratio);
+        newHeight = Math.max(MIN_SIZE, startHeight * ratio);
+      }
+      
+      img.style.width = Math.round(newWidth) + "px";
+      img.style.height = Math.round(newHeight) + "px";
+      positionHandles(img);
+    }
+
+    function onResizeEnd() {
+      if (!resizeState) return;
+      document.removeEventListener("mousemove", onResizeMove);
+      document.removeEventListener("mouseup", onResizeEnd);
+      document.body.style.cursor = "";
+      resizeState.img.dispatchEvent(new Event("input", { bubbles: true }));
+      resizeState = null;
+    }
+
+    function setup(editorDiv, editorWrap) {
+      editorDiv.addEventListener("click", (e) => {
+        const img = e.target.closest("img");
+        if (img && isNodeInside(img, editorDiv)) {
+          e.preventDefault();
+          selectImage(img, editorWrap);
+        } else if (selectedImage && !e.target.closest(".weditor-img-resize-handle")) {
+          deselectImage();
+        }
+      });
+      editorDiv.addEventListener("mousedown", (e) => {
+        if (e.target.closest("img")) e.preventDefault();
+      });
+    }
+    return { setup, deselect: deselectImage };
+  })();
+ 
   // ---------- Init all editors ----------
   function initAll(){ $$(".weditor").forEach(buildEditor); }
   if (document.readyState === "loading"){
