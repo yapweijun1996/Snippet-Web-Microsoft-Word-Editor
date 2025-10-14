@@ -978,7 +978,12 @@ body.weditor-fullscreen-active{overflow:hidden}
       if (trimmed === "auto" && !inlineValue) return true;
 
       if (prop === "color" && trimmed === "rgb(0, 0, 0)" && !inlineValue) return true;
-      if (prop === "background-color" && (trimmed === "rgba(0, 0, 0, 0)" || trimmed === "transparent") && !inlineValue) return true;
+      if (prop === "background-color") {
+        if ((el.dataset && el.dataset.weditorSelectionHighlight === "1") || (el.classList && el.classList.contains("weditor-cell-selected"))) {
+          return true;
+        }
+        if ((trimmed === "rgba(0, 0, 0, 0)" || trimmed === "transparent") && !inlineValue) return true;
+      }
       if (prop === "font-family" && !inlineValue) return true;
       const tagName = el.tagName;
       if ((tagName === "B" || tagName === "STRONG") && prop === "font-weight" && (trimmed === "700" || trimmed === "bold")) return true;
@@ -3780,6 +3785,7 @@ inputBgColor.addEventListener("input", ()=>{
     }
 
     // ------ New Cell Selection Logic ------
+    const CELL_SELECTION_HIGHLIGHT = "rgb(189, 224, 254)";
     let cellSelectionState = {
       isSelecting: false,
       startCell: null,
@@ -3789,7 +3795,19 @@ inputBgColor.addEventListener("input", ()=>{
 
     function clearCellSelection() {
       if (cellSelectionState.selectedCells.length > 0) {
-        cellSelectionState.selectedCells.forEach(cell => cell.classList.remove("weditor-cell-selected"));
+        cellSelectionState.selectedCells.forEach(cell => {
+          cell.classList.remove("weditor-cell-selected");
+          if (cell.dataset && cell.dataset.weditorSelectionHighlight === "1") {
+            if (cell.style && cell.style.getPropertyValue("background-color")) {
+              const current = cell.style.getPropertyValue("background-color").trim().toLowerCase();
+              if (current === CELL_SELECTION_HIGHLIGHT || current === "#bde0fe") {
+                cell.style.removeProperty("background-color");
+                if (!cell.getAttribute("style")) cell.removeAttribute("style");
+              }
+            }
+            delete cell.dataset.weditorSelectionHighlight;
+          }
+        });
       }
       cellSelectionState = { isSelecting: false, startCell: null, endCell: null, selectedCells: [] };
       tableDebug("Cell selection cleared");
@@ -3873,6 +3891,7 @@ inputBgColor.addEventListener("input", ()=>{
       newSelectedCells.forEach(cell => {
         if (!cell.classList.contains("weditor-cell-selected")) {
           cell.classList.add("weditor-cell-selected");
+          if (cell.dataset) cell.dataset.weditorSelectionHighlight = "1";
         }
       });
       cellSelectionState.selectedCells = newSelectedCells;
