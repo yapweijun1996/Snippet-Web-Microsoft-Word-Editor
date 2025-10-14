@@ -307,6 +307,27 @@ body.weditor-fullscreen-active{overflow:hidden}
       return result;
     }
 
+    function applyLineHeight(value) {
+      const paragraphs = getSelectedParagraphsInEditor();
+      if (paragraphs.length > 0) {
+        paragraphs.forEach(p => {
+          if (isNodeInside(p, divEditor)) {
+            p.style.lineHeight = value;
+          }
+        });
+      } else {
+        // Fallback for non-paragraph content if needed, for now we focus on paragraphs
+        exec("formatBlock", "<p>");
+        setTimeout(() => {
+          const list = getSelectedParagraphsInEditor();
+          list.forEach(p => {
+            if (isNodeInside(p, divEditor)) p.style.lineHeight = value;
+          });
+        }, 0);
+      }
+      divEditor.dispatchEvent(new Event("input", { bubbles: true }));
+    }
+
     // ---------- History manager (with redo-safe undo) ----------
     let showingSource = false;
     function getHTML(){ return showingSource ? divEditor.textContent : divEditor.innerHTML; }
@@ -614,12 +635,45 @@ body.weditor-fullscreen-active{overflow:hidden}
     });
     groupFormatting.inner.appendChild(styleSelect);
 
+    // Line height selector (行高选择器)
+    const LINE_HEIGHT_PRESETS = [
+      { label: "0.1", value: "0.1" },
+      { label: "0.2", value: "0.2" },
+      { label: "0.3", value: "0.3" },
+      { label: "0.4", value: "0.4" },
+      { label: "0.5", value: "0.5" },
+      { label: "0.6", value: "0.6" },
+      { label: "0.7", value: "0.7" },
+      { label: "0.8", value: "0.8" },
+      { label: "0.9", value: "0.9" },
+      { label: "1.0", value: "1.0" },
+      { label: "1.15", value: "1.15" },
+      { label: "1.5", value: "1.5" },
+      { label: "2.0", value: "2.0" },
+      { label: "2.5", value: "2.5" },
+      { label: "3.0", value: "3.0" }
+    ];
+    let lineHeightSelect = el("select", {
+      title: "Line height",
+      "aria-label": "Line height"
+    });
+    LINE_HEIGHT_PRESETS.forEach(preset=>{
+      lineHeightSelect.appendChild(el("option", { value: preset.value }, [preset.label]));
+    });
+    lineHeightSelect.addEventListener("change", ()=>{
+      const value = lineHeightSelect.value;
+      applyLineHeight(value);
+    });
+    groupFormatting.inner.appendChild(lineHeightSelect);
+
+
     // Toggle enable/disable for WYSIWYG-only controls (中文解释: 根据模式启用/禁用三个下拉)
     function setWYSIWYGEnabled(enabled){
       try{
         sizeSelect.disabled  = !enabled;
         styleSelect.disabled = !enabled;
         fontSelect.disabled  = !enabled;
+        lineHeightSelect.disabled = !enabled;
       }catch(_){}
     }
     // Initialize once based on current mode
@@ -899,6 +953,36 @@ inputBgColor.addEventListener("input", ()=>{
             }
           }
         } catch(_){}
+
+        // reflect line height to selector
+        try {
+          if (typeof lineHeightSelect !== "undefined" && lineHeightSelect) {
+            const sel = window.getSelection && window.getSelection();
+            if (sel && sel.anchorNode) {
+              let n = sel.anchorNode.nodeType === 1 ? sel.anchorNode : sel.anchorNode.parentElement;
+              const block = n ? n.closest("p,h1,h2,h3") : null;
+              if (block && isNodeInside(block, divEditor)) {
+                const cs = window.getComputedStyle ? window.getComputedStyle(block) : null;
+                const lh = cs ? cs.lineHeight : "";
+                const lhNum = parseFloat(lh);
+                const fontSize = cs ? parseFloat(cs.fontSize) : 16;
+                if (lhNum && fontSize && lh.endsWith("px")) {
+                  const relativeLh = (lhNum / fontSize).toFixed(2);
+                  let bestMatch = "";
+                  for (const preset of LINE_HEIGHT_PRESETS) {
+                    if (Math.abs(parseFloat(preset.value) - relativeLh) < 0.05) {
+                      bestMatch = preset.value;
+                      break;
+                    }
+                  }
+                  if (lineHeightSelect.value !== bestMatch) {
+                    lineHeightSelect.value = bestMatch;
+                  }
+                }
+              }
+            }
+          }
+        } catch (_) {}
 
         setToggleState(btnBold, bold);
         setToggleState(btnItalic, italic);
