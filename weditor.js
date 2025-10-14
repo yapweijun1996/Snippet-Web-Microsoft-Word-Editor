@@ -1216,37 +1216,49 @@ inputBgColor.addEventListener("input", ()=>{
     }, groupInsert.inner);
     addBtn("HR","Horizontal rule", ()=>exec("insertHorizontalRule"), groupInsert.inner);
     addBtn("Page Break", "Insert page break", () => {
+      // Remove any existing page breaks to ensure only one exists
+      // divEditor.querySelectorAll(".weditor-page-break").forEach(pb => pb.remove());
+
       const pageBreakNode = el("div", {
         class: "weditor-page-break",
-        contenteditable: "false"
+        contenteditable: "false",
+        style: {
+          pageBreakBefore: "always"
+        }
       });
-      // Insert a paragraph before and after to ensure proper block-level separation
-      const pBefore = el("p", {}, [el("br")]);
-      const pAfter = el("p", {}, [el("br")]);
-      
+
       const sel = window.getSelection();
       if (sel && sel.rangeCount) {
         const range = sel.getRangeAt(0);
         range.deleteContents();
+
+        let nodeToInsertAfter = range.startContainer;
+        if (nodeToInsertAfter.nodeType !== Node.ELEMENT_NODE) {
+          nodeToInsertAfter = nodeToInsertAfter.parentNode;
+        }
         
-        const frag = document.createDocumentFragment();
-        frag.appendChild(pBefore);
-        frag.appendChild(pageBreakNode);
-        frag.appendChild(pAfter);
-        
-        range.insertNode(frag);
-        
-        // Place caret in the paragraph after the page break
+        // Traverse up to find the top-level block element within the editor
+        while (nodeToInsertAfter.parentNode !== divEditor && nodeToInsertAfter.parentNode !== document.body) {
+          nodeToInsertAfter = nodeToInsertAfter.parentNode;
+        }
+
+        // Insert after the found block element
+        if (nodeToInsertAfter.parentNode === divEditor) {
+          nodeToInsertAfter.parentNode.insertBefore(pageBreakNode, nodeToInsertAfter.nextSibling);
+        } else {
+          divEditor.appendChild(pageBreakNode);
+        }
+
+        // Place caret after the inserted page break
         const newRange = document.createRange();
-        newRange.setStart(pAfter, 0);
+        newRange.setStartAfter(pageBreakNode);
         newRange.collapse(true);
         sel.removeAllRanges();
         sel.addRange(newRange);
+
       } else {
-        divEditor.appendChild(pBefore);
         divEditor.appendChild(pageBreakNode);
-        divEditor.appendChild(pAfter);
-        moveCaretToEnd(pAfter);
+        moveCaretToEnd(divEditor);
       }
       
       divEditor.dispatchEvent(new Event("input", { bubbles: true }));
