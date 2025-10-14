@@ -151,7 +151,7 @@ body.weditor-fullscreen-active{overflow:hidden}
   })();
 
   // ---------- Helpers ----------
-  const TABLE_DEBUG = true;
+  const TABLE_DEBUG = false;
   const tableDebug = (...args)=>{ if (TABLE_DEBUG && typeof console !== "undefined") console.log("[weditor-table]", ...args); };
   const $$ = (s, r=document)=>Array.from(r.querySelectorAll(s));
   const el = (tag, attrs, kids=[])=>{
