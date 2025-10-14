@@ -725,32 +725,15 @@ inputBgColor.addEventListener("input", ()=>{
         groupTableTools.group.removeAttribute("data-hidden");
         anchor.setAttribute("aria-expanded","true");
         anchor.textContent = "Table ▴";
-        // Outside click to close
-        if (!tablePanelOutsideHandler){
-          tablePanelOutsideHandler = (evt)=>{
-            const target = evt.target;
-            if (!groupTableTools.group.contains(target) && !anchor.contains(target)){
-              tablePanelManualOpen = false;
-              tablePanelManualClosed = true; // mark user-intended collapse (中文解释: 记住用户关闭)
-              groupTableTools.group.setAttribute("data-hidden","true");
-              anchor.textContent = "Table ▾";
-              anchor.setAttribute("aria-expanded","false");
-              document.removeEventListener("mousedown", tablePanelOutsideHandler, true);
-              tablePanelOutsideHandler = null;
-            }
-          };
-          document.addEventListener("mousedown", tablePanelOutsideHandler, true);
-        }
+        // Outside click to close (disabled by design)
+        // Intentionally remove outside-click auto-close to avoid unintended collapse.
       } else {
         // User clicked toggle to close -> suppress auto-open until user opens again
         tablePanelManualClosed = true;
         groupTableTools.group.setAttribute("data-hidden","true");
         anchor.textContent = "Table ▾";
         anchor.setAttribute("aria-expanded","false");
-        if (tablePanelOutsideHandler){
-          document.removeEventListener("mousedown", tablePanelOutsideHandler, true);
-          tablePanelOutsideHandler = null;
-        }
+        // No outside-click handler attached, nothing to clean up.
       }
     }
     function createTableSubgroup(labelText) {
