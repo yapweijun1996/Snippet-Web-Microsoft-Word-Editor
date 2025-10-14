@@ -430,6 +430,71 @@ body.weditor-fullscreen-active{overflow:hidden}
       return result;
     }
 
+    const BLOCK_ELEMENT_SELECTOR = "p,div,table,thead,tbody,tfoot,tr,td,th,ul,ol,li,section,article,header,footer,blockquote,h1,h2,h3,h4,h5,h6";
+    function normalizeSelectionToNode(node){
+      if (!node) return;
+      const sel = window.getSelection();
+      if (!sel) return;
+      try {
+        const range = document.createRange();
+        range.selectNodeContents(node);
+        sel.removeAllRanges();
+        sel.addRange(range);
+      } catch(_){}
+    }
+    function tryWrapRangeWithFontSize(range, fontSize){
+      const span = document.createElement("span");
+      span.style.fontSize = fontSize;
+      try {
+        range.surroundContents(span);
+        normalizeSelectionToNode(span);
+        return true;
+      } catch(err) {
+        let hasBlock = false;
+        try {
+          const fragment = range.cloneContents();
+          if (fragment && typeof fragment.querySelector === "function") {
+            hasBlock = !!fragment.querySelector(BLOCK_ELEMENT_SELECTOR);
+          }
+        } catch(_) {
+          hasBlock = true;
+        }
+        if (hasBlock) return false;
+        try {
+          const extracted = range.extractContents();
+          span.appendChild(extracted);
+          range.insertNode(span);
+          normalizeSelectionToNode(span);
+          return true;
+        } catch(_) {
+          return false;
+        }
+      }
+    }
+    function applyFontSizePx(fontSize){
+      if (!fontSize) return false;
+      const sel = window.getSelection();
+      if (!sel || !sel.rangeCount) return false;
+      const range = sel.getRangeAt(0);
+      if (!isNodeInside(range.commonAncestorContainer, divEditor)) return false;
+      if (range.collapsed) return false;
+      if (tryWrapRangeWithFontSize(range, fontSize)) {
+        divEditor.dispatchEvent(new Event("input", { bubbles: true }));
+        return true;
+      }
+      const paragraphs = getSelectedParagraphsInEditor();
+      if (paragraphs.length) {
+        paragraphs.forEach(p => {
+          if (isNodeInside(p, divEditor)) {
+            p.style.fontSize = fontSize;
+          }
+        });
+        divEditor.dispatchEvent(new Event("input", { bubbles: true }));
+        return true;
+      }
+      return false;
+    }
+
     function applyLineHeight(value) {
       const paragraphs = getSelectedParagraphsInEditor();
       if (paragraphs.length > 0) {
@@ -533,15 +598,7 @@ body.weditor-fullscreen-active{overflow:hidden}
     divEditor.addEventListener("input", syncToTextarea);
     divEditor.addEventListener("input", updateToggleStates);
     divEditor.addEventListener("input", updateTableToolsVisibility);
-    divEditor.addEventListener("blur",  ()=>{
-      updateTableToolsVisibility();
-      syncToTextarea();
-      const now = getHTML();
-      if (now !== history.current()){
-        history.push(now);
-        lastSaved = now;
-      }
-    });
+    divEditor.addEventListener("blur", syncToTextarea);
     divEditor.addEventListener("focus", updateTableToolsVisibility);
 
     // ---------- Inline Style Conversion Logic ----------
@@ -551,6 +608,428 @@ body.weditor-fullscreen-active{overflow:hidden}
       'css-24': '24px', 'css-26': '26px', 'css-28': '28px',
       'css-32': '32px', 'css-36': '36px', 'css-48': '48px', 'css-72': '72px'
     };
+    const FONT_SIZE_LOOKUPS = (() => {
+      const pxToValue = new Map();
+      Object.entries(FONT_SIZE_MAP).forEach(([key, px]) => {
+        const normalized = String(px).trim().toLowerCase();
+        if (!pxToValue.has(normalized) || key.startsWith("css-")) {
+          pxToValue.set(normalized, key);
+        }
+      });
+      const pxEntries = [];
+      pxToValue.forEach((valueKey, normalizedPx) => {
+        const numeric = parseFloat(normalizedPx);
+        if (!Number.isNaN(numeric)) {
+          pxEntries.push({ valueKey, normalizedPx, numeric });
+        }
+      });
+      return { pxToValue, pxEntries };
+    })();
+    const PIXEL_TO_FONT_SIZE_VALUE = FONT_SIZE_LOOKUPS.pxToValue;
+    const FONT_SIZE_PX_ENTRIES = FONT_SIZE_LOOKUPS.pxEntries;
+    function resolveFontSizeKeyFromPx(pxValue){
+      if (!pxValue) return "";
+      const normalized = String(pxValue).trim().toLowerCase();
+      if (!normalized) return "";
+      if (PIXEL_TO_FONT_SIZE_VALUE.has(normalized)) {
+        return PIXEL_TO_FONT_SIZE_VALUE.get(normalized);
+      }
+      if (/^\d+(\.\d+)?px$/.test(normalized)) {
+        const numeric = parseFloat(normalized);
+        let bestDiff = Infinity;
+        let bestKey = "";
+        FONT_SIZE_PX_ENTRIES.forEach(entry => {
+          const diff = Math.abs(entry.numeric - numeric);
+          if (diff < bestDiff) {
+            bestDiff = diff;
+            bestKey = entry.valueKey;
+          }
+        });
+        if (bestDiff <= 1) return bestKey;
+      }
+      return "";
+    }
+
+    function parseStyleAttribute(styleText = "") {
+      const entries = new Map();
+      styleText.split(";").forEach(chunk => {
+        if (!chunk.trim()) return;
+        const separatorIndex = chunk.indexOf(":");
+        if (separatorIndex === -1) return;
+        const prop = chunk.slice(0, separatorIndex).trim().toLowerCase();
+        const value = chunk.slice(separatorIndex + 1).trim();
+        if (prop && value) entries.set(prop, value);
+      });
+      return entries;
+    }
+
+  function serializeStyleMap(styleMap) {
+      return Array.from(styleMap.entries())
+        .map(([prop, value]) => `${prop}: ${value}`)
+        .join("; ");
+    }
+
+    const INLINE_STYLE_MODE = {
+      INLINE_ONLY: "inline-only",
+      TRACKED_INLINE: "tracked-inline"
+    };
+    let inlineStyleMode = INLINE_STYLE_MODE.INLINE_ONLY;
+
+    const styleLedger = new Map(); // prop -> Map<value, Set<Element>>
+    const suppressedInlineProps = new WeakMap();
+    const INHERITED_STYLE_PROPS = new Set([
+      "color",
+      "font-family",
+      "font-size",
+      "font-style",
+      "font-weight",
+      "line-height",
+      "text-align",
+      "text-decoration-line"
+    ]);
+
+    function markSuppressedInlineProp(el, prop) {
+      let bag = suppressedInlineProps.get(el);
+      if (!bag) {
+        bag = new Set();
+        suppressedInlineProps.set(el, bag);
+      }
+      bag.add(prop);
+    }
+
+    function releaseSuppressedInlineProp(el, prop) {
+      const bag = suppressedInlineProps.get(el);
+      if (!bag) return;
+      bag.delete(prop);
+      if (!bag.size) suppressedInlineProps.delete(el);
+    }
+
+    function isInlinePropSuppressed(el, prop) {
+      const bag = suppressedInlineProps.get(el);
+      return bag ? bag.has(prop) : false;
+    }
+
+    function resetStyleLedger() {
+      styleLedger.clear();
+    }
+
+    function recordInlineStyle(el, prop, value) {
+      releaseSuppressedInlineProp(el, prop);
+      if (!styleLedger.has(prop)) {
+        styleLedger.set(prop, new Map());
+      }
+      const valueMap = styleLedger.get(prop);
+      if (!valueMap.has(value)) {
+        valueMap.set(value, new Set());
+      }
+      valueMap.get(value).add(el);
+      if (inlineStyleMode !== INLINE_STYLE_MODE.INLINE_ONLY) {
+        el.dataset.weditorStyle = "1";
+      }
+    }
+
+    function removeLedgerEntry(el, prop, value) {
+      const valueMap = styleLedger.get(prop);
+      if (!valueMap) return;
+      const set = valueMap.get(value);
+      if (!set) return;
+      set.delete(el);
+      if (!set.size) {
+        valueMap.delete(value);
+      }
+      if (!valueMap.size) {
+        styleLedger.delete(prop);
+      }
+    }
+
+    function removeInlineStyles(prop, value) {
+      if (!prop) return;
+      const valueMap = styleLedger.get(prop);
+      if (!valueMap) return;
+      const targets = [];
+      if (value !== undefined && value !== null) {
+        const key = String(value);
+        const set = valueMap.get(key);
+        if (set) targets.push([key, set]);
+      } else {
+        valueMap.forEach((set, val) => targets.push([val, set]));
+      }
+      if (!targets.length) return;
+      targets.forEach(([val, set]) => {
+        set.forEach(el => {
+          if (!el || !isNodeInside(el, divEditor)) return;
+          el.style.removeProperty(prop);
+          if (!el.getAttribute("style")) {
+            el.removeAttribute("style");
+            if (inlineStyleMode !== INLINE_STYLE_MODE.INLINE_ONLY) {
+              delete el.dataset.weditorStyle;
+            }
+          }
+          markSuppressedInlineProp(el, prop);
+        });
+        set.clear();
+        valueMap.delete(val);
+      });
+      if (!valueMap.size) {
+        styleLedger.delete(prop);
+      }
+      syncToTextarea();
+      debouncedConvertToInlineStyles();
+    }
+
+    function setInlineStyleMode(mode) {
+      if (!mode) return;
+      const normalized = String(mode).toLowerCase();
+      const values = Object.values(INLINE_STYLE_MODE);
+      if (!values.includes(normalized)) return;
+      inlineStyleMode = normalized;
+      debouncedConvertToInlineStyles();
+    }
+
+    function normalizeFontElement(fontEl) {
+      const span = document.createElement("span");
+      const attrs = Array.from(fontEl.attributes);
+      const existingStyleAttr = attrs.find(attr => attr.name.toLowerCase() === "style");
+      if (existingStyleAttr) {
+        span.setAttribute("style", existingStyleAttr.value);
+      }
+      const suppressed = suppressedInlineProps.get(fontEl);
+      if (suppressed && suppressed.size) {
+        suppressedInlineProps.set(span, new Set(suppressed));
+        suppressedInlineProps.delete(fontEl);
+      }
+      attrs.forEach(attr => {
+        const name = attr.name.toLowerCase();
+        const val = attr.value;
+        if (name === "face") {
+          span.style.fontFamily = val;
+        } else if (name === "color") {
+          span.style.color = val;
+        } else if (name === "size") {
+          const sizeKey = val.trim();
+          if (FONT_SIZE_MAP[sizeKey]) {
+            span.style.fontSize = FONT_SIZE_MAP[sizeKey];
+          } else if (/^\d+(\.\d+)?px$/i.test(sizeKey)) {
+            span.style.fontSize = sizeKey;
+          }
+        } else if (name !== "style") {
+          span.setAttribute(attr.name, val);
+        }
+      });
+      while (fontEl.firstChild) span.appendChild(fontEl.firstChild);
+      fontEl.parentNode?.replaceChild(span, fontEl);
+      return span;
+    }
+
+    function unwrapNestedParagraph(element) {
+      let el = element;
+      while (el && el.tagName === "P") {
+        const parent = el.parentElement;
+        if (!parent || parent.tagName !== "P") break;
+        const grand = parent.parentElement;
+        if (!grand) break;
+        grand.insertBefore(el, parent.nextSibling);
+        if (!parent.textContent.trim()) {
+          parent.remove();
+        }
+      }
+      return el;
+    }
+
+    function cleanSemanticStyleOverrides(el, styleMap) {
+      const removeProp = prop => {
+        if (!styleMap.has(prop)) return;
+        styleMap.delete(prop);
+        try { el.style.removeProperty(prop); } catch(_) {}
+      };
+      const tag = el.tagName;
+      if (tag === "B" || tag === "STRONG") {
+        removeProp("font-weight");
+      }
+      if (tag === "I" || tag === "EM") {
+        removeProp("font-style");
+      }
+      if (tag === "U") {
+        removeProp("text-decoration-line");
+        removeProp("text-decoration");
+      }
+      if ((tag === "B" || tag === "STRONG" || tag === "I" || tag === "EM" || tag === "U") && !styleMap.size) {
+        el.removeAttribute("style");
+      }
+    }
+
+    function unwrapSpanIfEmpty(span) {
+      if (!span || span.tagName !== "SPAN") return;
+      if (span.attributes.length) return;
+      const parent = span.parentNode;
+      if (!parent) return;
+      while (span.firstChild) parent.insertBefore(span.firstChild, span);
+      span.remove();
+    }
+
+    function normalizeOrphanListItem(li) {
+      if (!li || li.tagName !== "LI") return li;
+      const parent = li.parentElement;
+      if (parent && parent.tagName && /^(UL|OL)$/i.test(parent.tagName)) return li;
+      const replacement = document.createElement("p");
+      Array.from(li.attributes).forEach(attr => {
+        if (attr.name.toLowerCase() === "value") return;
+        replacement.setAttribute(attr.name, attr.value);
+      });
+      while (li.firstChild) replacement.appendChild(li.firstChild);
+      li.parentNode?.replaceChild(replacement, li);
+      return replacement;
+    }
+
+    const HOIST_PARENT_TAGS = new Set(["P","DIV","LI","H1","H2","H3","H4","H5","H6"]);
+    const HOISTABLE_PROPS = ["color","font-family","font-size","font-weight","font-style","text-decoration-line","background-color"];
+    const BLOCK_TAGS = new Set(["P","DIV","LI","UL","OL","TABLE","TBODY","THEAD","TFOOT","TR","TD","TH","SECTION","ARTICLE","HEADER","FOOTER","BLOCKQUOTE"]);
+    const LIST_STRUCTURE_TAGS = new Set(["UL","OL","LI"]);
+    const TABLE_STRUCTURE_TAGS = new Set(["TABLE","TBODY","THEAD","TFOOT","TR","TD","TH"]);
+
+    function hoistSpanStylesAfterConversion() {
+      const spans = Array.from(divEditor.querySelectorAll("span"));
+      spans.forEach(span => {
+        const parent = span.parentElement;
+        if (!parent) return;
+        if (parent === divEditor) return;
+        if (!HOIST_PARENT_TAGS.has(parent.tagName)) return;
+        if (parent.childNodes.length !== 1) return;
+        const spanStyleText = span.getAttribute("style");
+        if (!spanStyleText) return;
+        const spanMap = parseStyleAttribute(spanStyleText);
+        let moved = false;
+        HOISTABLE_PROPS.forEach(prop => {
+          if (!spanMap.has(prop)) return;
+          const spanValue = spanMap.get(prop);
+          if (parent.style.getPropertyValue(prop)) {
+            const parentValue = parent.style.getPropertyValue(prop);
+            if (prop === "font-size" && parentValue) {
+              const parentPx = parentValue.trim().toLowerCase();
+              const childPx = (spanValue || "").trim().toLowerCase();
+              if (parentPx === childPx) {
+                spanMap.delete(prop);
+                removeLedgerEntry(span, prop, spanValue);
+              }
+            }
+            return;
+          }
+          const value = spanMap.get(prop);
+          parent.style.setProperty(prop, value);
+          recordInlineStyle(parent, prop, value);
+          spanMap.delete(prop);
+          removeLedgerEntry(span, prop, value);
+          moved = true;
+        });
+        if (!moved) {
+          unwrapSpanIfEmpty(span);
+          return;
+        }
+        if (parent.style.length) {
+          parent.setAttribute("style", parent.style.cssText);
+        }
+        if (spanMap.size) {
+          span.setAttribute("style", serializeStyleMap(spanMap));
+        } else {
+          span.removeAttribute("style");
+        }
+        unwrapSpanIfEmpty(span);
+      });
+    }
+
+    const DEFAULT_STYLE_VALUES = new Map([
+      ["margin-top", "0px"],
+      ["margin-right", "0px"],
+      ["margin-bottom", "0px"],
+      ["margin-left", "0px"],
+      ["padding-top", "0px"],
+      ["padding-right", "0px"],
+      ["padding-bottom", "0px"],
+      ["padding-left", "0px"],
+      ["border-top-width", "0px"],
+      ["border-right-width", "0px"],
+      ["border-bottom-width", "0px"],
+      ["border-left-width", "0px"],
+      ["border-top-style", "none"],
+      ["border-right-style", "none"],
+      ["border-bottom-style", "none"],
+      ["border-left-style", "none"],
+      ["border-top-color", "rgb(0, 0, 0)"],
+      ["border-right-color", "rgb(0, 0, 0)"],
+      ["border-bottom-color", "rgb(0, 0, 0)"],
+      ["border-left-color", "rgb(0, 0, 0)"],
+      ["font-weight", "400"],
+      ["font-style", "normal"],
+      ["text-decoration-line", "none"]
+    ]);
+
+    function hasBorderShorthand(styleMap) {
+      return ["border", "border-width", "border-style", "border-color"].some(key => styleMap.has(key));
+    }
+
+    function shouldSkipComputedProp(prop, value, el, styleMap, computed) {
+      const trimmed = (value || "").trim();
+      if (!trimmed || trimmed === "initial") return true;
+
+      if (isInlinePropSuppressed(el, prop)) return true;
+
+      const inlineValue = el.style.getPropertyValue(prop);
+      if (styleMap.has(prop)) return true;
+      if (trimmed === "auto" && !inlineValue) return true;
+
+      if (prop === "color" && trimmed === "rgb(0, 0, 0)" && !inlineValue) return true;
+      if (prop === "background-color" && (trimmed === "rgba(0, 0, 0, 0)" || trimmed === "transparent") && !inlineValue) return true;
+      if (prop === "font-family" && !inlineValue) return true;
+      const tagName = el.tagName;
+      if ((tagName === "B" || tagName === "STRONG") && prop === "font-weight" && (trimmed === "700" || trimmed === "bold")) return true;
+      if ((tagName === "I" || tagName === "EM") && prop === "font-style" && trimmed === "italic") return true;
+      if (tagName === "U" && prop === "text-decoration-line" && trimmed.indexOf("underline") !== -1) return true;
+      if (prop === "font-size" && !inlineValue && tagName !== "FONT") return true;
+      if (prop === "line-height" && !inlineValue) {
+        if (trimmed === "normal") return true;
+        try {
+          const display = computed.getPropertyValue("display");
+          if (display === "inline") return true;
+        } catch(_){ }
+        const numeric = parseFloat(trimmed);
+        if (!Number.isNaN(numeric) && numeric > 0) {
+          if (trimmed.toLowerCase().endsWith("px")) {
+            if (numeric < 8) return true;
+          } else if (numeric < 0.8) {
+            return true;
+          }
+        }
+      }
+
+      if (!inlineValue && INHERITED_STYLE_PROPS.has(prop)) {
+        const parent = el.parentElement;
+        if (parent && isNodeInside(parent, divEditor)) {
+          try {
+            const parentComputed = window.getComputedStyle(parent);
+            if (parentComputed && parentComputed.getPropertyValue(prop) === trimmed) {
+              return true;
+            }
+          } catch(_){}
+        }
+      }
+
+      if (DEFAULT_STYLE_VALUES.has(prop) && DEFAULT_STYLE_VALUES.get(prop) === trimmed && !inlineValue) return true;
+
+      if (prop.startsWith("margin-") && styleMap.has("margin")) return true;
+      if (prop.startsWith("padding-") && styleMap.has("padding")) return true;
+      if (prop.startsWith("border-") && hasBorderShorthand(styleMap)) return true;
+
+      if (prop.endsWith("-color")) {
+        const widthProp = prop.replace("-color", "-width");
+        const widthVal = computed.getPropertyValue(widthProp);
+        const inlineWidth = el.style.getPropertyValue(widthProp) || styleMap.get(widthProp);
+        if ((widthVal === "0px" || widthVal === "0") && (!inlineWidth || inlineWidth === "0px" || inlineWidth === "0")) {
+          return true;
+        }
+      }
+
+      return false;
+    }
 
     const IMPORTANT_STYLES = [
       'font-size', 'font-family', 'font-weight', 'font-style', 'text-decoration-line',
@@ -562,58 +1041,123 @@ body.weditor-fullscreen-active{overflow:hidden}
       'border-top-color', 'border-right-color', 'border-bottom-color', 'border-left-color'
     ];
 
+    let isConvertingInlineStyles = false;
+    let inlineStyleRerunNeeded = false;
+
     function convertToInlineStyles() {
-      const elements = divEditor.querySelectorAll('*');
-      elements.forEach(el => {
-        // Handle <font size="...">
-        if (el.tagName === 'FONT') {
-          if (el.hasAttribute('color')) {
-            el.style.color = el.getAttribute('color');
-            el.removeAttribute('color');
+      if (isConvertingInlineStyles) {
+        inlineStyleRerunNeeded = true;
+        return;
+      }
+      isConvertingInlineStyles = true;
+      inlineStyleRerunNeeded = false;
+      try {
+        resetStyleLedger();
+        const elements = divEditor.querySelectorAll('*');
+        elements.forEach(originalEl => {
+          let el = originalEl;
+          const hadTrackedInline = inlineStyleMode !== INLINE_STYLE_MODE.INLINE_ONLY && el.dataset.weditorStyle === "1";
+          if (inlineStyleMode !== INLINE_STYLE_MODE.INLINE_ONLY) {
+            delete el.dataset.weditorStyle;
           }
-          if (el.hasAttribute('face')) {
-            el.style.fontFamily = el.getAttribute('face');
-            el.removeAttribute('face');
+          if (el.tagName === 'FONT') {
+            el = normalizeFontElement(el);
           }
-          if (el.hasAttribute('size')) {
-            const size = el.getAttribute('size');
-            if (FONT_SIZE_MAP[size]) {
-              el.style.fontSize = FONT_SIZE_MAP[size];
+          if (el.tagName === 'P') {
+            el = unwrapNestedParagraph(el);
+          }
+          if (el.tagName === 'LI') {
+            el = normalizeOrphanListItem(el);
+          }
+          if (BLOCK_TAGS.has(el.tagName)) {
+            const parent = el.parentElement;
+            if (parent && parent !== divEditor && BLOCK_TAGS.has(parent.tagName)) {
+              const parentTag = parent.tagName;
+              const childTag = el.tagName;
+              const parentIsStructural = LIST_STRUCTURE_TAGS.has(parentTag) || TABLE_STRUCTURE_TAGS.has(parentTag);
+              const childIsStructural = LIST_STRUCTURE_TAGS.has(childTag) || TABLE_STRUCTURE_TAGS.has(childTag);
+              if (!parentIsStructural && !childIsStructural) {
+                const hasSiblingContent = Array.from(parent.childNodes).some(node => {
+                  if (node === el) return false;
+                  if (node.nodeType === Node.TEXT_NODE) return !!node.textContent.trim();
+                  if (node.nodeType === Node.COMMENT_NODE) return false;
+                  return true;
+                });
+                if (!hasSiblingContent) {
+                  const fragment = document.createDocumentFragment();
+                  fragment.appendChild(el);
+                  parent.parentNode?.insertBefore(fragment, parent.nextSibling);
+                  if (!parent.textContent.trim()) parent.remove();
+                }
+              }
             }
-            el.removeAttribute('size');
           }
-        }
 
-        const computed = window.getComputedStyle(el);
-        let styleText = el.getAttribute('style') || '';
-        const existingStyles = styleText.split(';').reduce((acc, item) => {
-          const parts = item.split(':');
-          if (parts.length === 2) acc[parts[0].trim()] = parts[1].trim();
-          return acc;
-        }, {});
+          const computed = window.getComputedStyle(el);
+          const existingStyleText = el.getAttribute('style') || '';
+          const styleMap = parseStyleAttribute(existingStyleText);
+          Array.from(styleMap.keys()).forEach(prop => {
+            if (isInlinePropSuppressed(el, prop)) {
+              styleMap.delete(prop);
+            }
+          });
 
-        IMPORTANT_STYLES.forEach(prop => {
-          const value = computed.getPropertyValue(prop);
-          // Only add if not already present with the same value
-          if (value && value !== 'normal' && value !== 'auto' && existingStyles[prop] !== value) {
-             // Avoid adding default browser styles that are not explicitly set
-            if (prop === 'color' && value === 'rgb(0, 0, 0)' && !el.style.color) return;
-            if (prop === 'background-color' && value === 'rgba(0, 0, 0, 0)' && !el.style.backgroundColor) return;
-            // Enhanced guards to prevent inheriting page defaults
-            if (prop === 'font-family' && !el.style.fontFamily) return; // Don't write inherited font
-            if (prop === 'font-size' && !el.style.fontSize && !el.closest('font')) return; // Don't write inherited size unless it's from a <font> tag
-            if (prop === 'line-height' && value === 'normal' && !el.style.lineHeight) return;
+          cleanSemanticStyleOverrides(el, styleMap);
 
-            styleText += `${prop}: ${value}; `;
+          try {
+            if (styleMap.has("line-height") && computed.getPropertyValue("display") === "inline") {
+              el.style.removeProperty("line-height");
+              styleMap.delete("line-height");
+            }
+          } catch(_){}
+
+          let parentComputed = null;
+          if (hadTrackedInline && INHERITED_STYLE_PROPS.size) {
+            const parent = el.parentElement;
+            if (parent && isNodeInside(parent, divEditor)) {
+              try {
+                parentComputed = window.getComputedStyle(parent);
+              } catch(_){}
+            }
           }
+          if (parentComputed) {
+            Array.from(styleMap.entries()).forEach(([prop, val]) => {
+              if (!INHERITED_STYLE_PROPS.has(prop)) return;
+              if (parentComputed.getPropertyValue(prop) === val) {
+                el.style.removeProperty(prop);
+                styleMap.delete(prop);
+              }
+            });
+          }
+
+          IMPORTANT_STYLES.forEach(prop => {
+            const value = computed.getPropertyValue(prop);
+            if (shouldSkipComputedProp(prop, value, el, styleMap, computed)) return;
+            styleMap.set(prop, value.trim());
+          });
+
+          if (styleMap.size) {
+            const serialized = serializeStyleMap(styleMap);
+            el.setAttribute('style', serialized);
+            styleMap.forEach((val, prop) => recordInlineStyle(el, prop, val));
+          } else {
+            el.removeAttribute('style');
+            if (inlineStyleMode !== INLINE_STYLE_MODE.INLINE_ONLY) {
+              delete el.dataset.weditorStyle;
+            }
+          }
+          unwrapSpanIfEmpty(el);
         });
-        
-        if (styleText.trim()) {
-          el.setAttribute('style', styleText.trim());
+        hoistSpanStylesAfterConversion();
+        // After converting styles, ensure the textarea is updated
+        syncToTextarea();
+      } finally {
+        isConvertingInlineStyles = false;
+        if (inlineStyleRerunNeeded) {
+          inlineStyleRerunNeeded = false;
+          convertToInlineStyles();
         }
-      });
-      // After converting styles, ensure the textarea is updated
-      syncToTextarea();
+      }
     }
 
     let inlineStyleTimer = null;
@@ -724,17 +1268,7 @@ body.weditor-fullscreen-active{overflow:hidden}
       if (value.startsWith("css-")) {
         // 使用CSS样式实现大字体大小
         const fontSize = value.substring(4) + "px";
-        const sel = window.getSelection();
-        if (sel && sel.rangeCount) {
-          const range = sel.getRangeAt(0);
-          if (!range.collapsed) {
-            // 对选中的文本应用字体大小
-            const span = document.createElement("span");
-            span.style.fontSize = fontSize;
-            range.surroundContents(span);
-          }
-        }
-        // 更新状态显示
+        applyFontSizePx(fontSize);
         updateToggleStates();
       } else {
         // 使用传统的execCommand（仅限于1-7）
@@ -795,6 +1329,36 @@ body.weditor-fullscreen-active{overflow:hidden}
       const key = name.toLowerCase();
       for (const f of FONT_FAMILY_PRESETS){
         if (f.toLowerCase() === key) return f;
+      }
+      return "";
+    }
+    function resolveCurrentFontSizeValue(){
+      // 1) Prefer execCommand result (only reliable for legacy 1-7 sizes)
+      const raw = document.queryCommandValue && document.queryCommandValue("fontSize");
+      const value = raw ? String(raw) : "";
+      if (["1","2","3","4","5","6","7"].includes(value)) {
+        return value;
+      }
+      // 2) Walk up DOM to find explicit inline font-size
+      const sel = window.getSelection && window.getSelection();
+      if (sel && sel.anchorNode){
+        let n = sel.anchorNode.nodeType===1 ? sel.anchorNode : sel.anchorNode.parentElement;
+        while (n && n !== divEditor){
+          if (n.style && n.style.fontSize){
+            const key = resolveFontSizeKeyFromPx(n.style.fontSize);
+            if (key) return key;
+          }
+          n = n.parentElement;
+        }
+      }
+      // 3) Fallback to computed style on anchor node
+      if (sel && sel.anchorNode){
+        const node = sel.anchorNode.nodeType===1 ? sel.anchorNode : sel.anchorNode.parentElement;
+        if (node && node.nodeType===1){
+          const cs = window.getComputedStyle ? window.getComputedStyle(node) : null;
+          const key = cs ? resolveFontSizeKeyFromPx(cs.fontSize) : "";
+          if (key) return key;
+        }
       }
       return "";
     }
@@ -1514,13 +2078,14 @@ inputBgColor.addEventListener("input", ()=>{
         const jc = !!document.queryCommandState("justifyCenter");
         const jr = !!document.queryCommandState("justifyRight");
 
-        // reflect font size (1-7) to selector (中文解释: 将选区字号回显到下拉框)
-        const fsRaw = document.queryCommandValue("fontSize");
+        // reflect font size to selector (中文解释: 将选区字号回显到下拉框)
         if (typeof sizeSelect !== "undefined" && sizeSelect) {
-          const v = String(fsRaw || "");
-          if (["1","2","3","4","5","6","7"].includes(v) && sizeSelect.value !== v) {
-            sizeSelect.value = v;
-          }
+          try {
+            const fsValue = resolveCurrentFontSizeValue && resolveCurrentFontSizeValue();
+            if (fsValue && sizeSelect.value !== fsValue) {
+              sizeSelect.value = fsValue;
+            }
+          } catch(_){}
         }
         // reflect font family to selector (中文解释: 将选区字体回显到字体下拉)
         try {
@@ -1713,8 +2278,8 @@ inputBgColor.addEventListener("input", ()=>{
       // Keep table tools in sync with content presence (中文解释: 内容含表格时自动展开)
       updateTableToolsVisibility();
     }
-    pair.addEventListener("input", () => setEditorHTMLFromTextarea(pair.value));
     pair.addEventListener("change", () => setEditorHTMLFromTextarea(pair.value));
+    pair.addEventListener("input", () => setEditorHTMLFromTextarea(pair.value));
     const mo = new MutationObserver(() => setEditorHTMLFromTextarea(pair.value));
     mo.observe(pair, { characterData: true, subtree: true });
 
@@ -3425,6 +3990,24 @@ inputBgColor.addEventListener("input", ()=>{
       FONT_SIZE_PRESETS,
       buildEditor,
       initAll
+    };
+    window.weditorStyles = {
+      remove(prop, value) {
+        removeInlineStyles(prop, value);
+      },
+      removeAll(prop) {
+        removeInlineStyles(prop);
+      },
+      setMode(mode) {
+        setInlineStyleMode(mode);
+      },
+      getMode() {
+        return inlineStyleMode;
+      },
+      MODES: {
+        INLINE_ONLY: "inline-only",
+        TRACKED_INLINE: "tracked-inline"
+      }
     };
   }
 

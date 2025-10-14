@@ -44,6 +44,12 @@
 
 ## Rules
 
+### Main Rules
+-reply me in mandarin, 
+-review code logic,
+-step by step with small action,
+-breakdown ideas in listing format, eg: 1,2,3.....
+
 ### Code Response
 - Before answering, review the provided code or codebase or .md to understand its logic. Only then make amendments or provide the final response.
 - Always tie the **final code** back to the user query + reasoning.  
