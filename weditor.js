@@ -601,7 +601,7 @@ body.weditor-fullscreen-active{overflow:hidden}
       inlineStyleTimer = setTimeout(convertToInlineStyles, 500);
     }
 
-    divEditor.addEventListener("blur", debouncedConvertToInlineStyles);
+    divEditor.addEventListener("input", debouncedConvertToInlineStyles);
  
     // Toolbar helpers
     function createToolbarGroup(label, opts = {}) {
