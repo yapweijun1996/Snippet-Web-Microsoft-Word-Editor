@@ -538,6 +538,71 @@ body.weditor-fullscreen-active{overflow:hidden}
     });
     divEditor.addEventListener("focus", updateTableToolsVisibility);
 
+    // ---------- Inline Style Conversion Logic ----------
+    const FONT_SIZE_MAP = {
+      '1': '10px', '2': '13px', '3': '16px', '4': '18px', '5': '24px',
+      '6': '32px', '7': '48px', 'css-20': '20px', 'css-22': '22px',
+      'css-24': '24px', 'css-26': '26px', 'css-28': '28px',
+      'css-32': '32px', 'css-36': '36px', 'css-48': '48px', 'css-72': '72px'
+    };
+
+    const IMPORTANT_STYLES = [
+      'font-size', 'font-family', 'font-weight', 'font-style', 'text-decoration-line',
+      'color', 'background-color', 'line-height', 'text-align',
+      'margin-top', 'margin-right', 'margin-bottom', 'margin-left',
+      'padding-top', 'padding-right', 'padding-bottom', 'padding-left',
+      'border-top-width', 'border-right-width', 'border-bottom-width', 'border-left-width',
+      'border-top-style', 'border-right-style', 'border-bottom-style', 'border-left-style',
+      'border-top-color', 'border-right-color', 'border-bottom-color', 'border-left-color'
+    ];
+
+    function convertToInlineStyles() {
+      const elements = divEditor.querySelectorAll('*');
+      elements.forEach(el => {
+        // Handle <font size="...">
+        if (el.tagName === 'FONT' && el.hasAttribute('size')) {
+          const size = el.getAttribute('size');
+          if (FONT_SIZE_MAP[size]) {
+            el.style.fontSize = FONT_SIZE_MAP[size];
+          }
+        }
+
+        const computed = window.getComputedStyle(el);
+        let styleText = el.getAttribute('style') || '';
+        const existingStyles = styleText.split(';').reduce((acc, item) => {
+          const parts = item.split(':');
+          if (parts.length === 2) acc[parts[0].trim()] = parts[1].trim();
+          return acc;
+        }, {});
+
+        IMPORTANT_STYLES.forEach(prop => {
+          const value = computed.getPropertyValue(prop);
+          // Only add if not already present with the same value
+          if (value && value !== 'normal' && value !== 'auto' && existingStyles[prop] !== value) {
+             // Avoid adding default browser styles that are not explicitly set
+            if (prop === 'color' && value === 'rgb(0, 0, 0)' && !el.style.color) return;
+            if (prop === 'background-color' && value === 'rgba(0, 0, 0, 0)' && !el.style.backgroundColor) return;
+            
+            styleText += `${prop}: ${value}; `;
+          }
+        });
+        
+        if (styleText.trim()) {
+          el.setAttribute('style', styleText.trim());
+        }
+      });
+      // After converting styles, ensure the textarea is updated
+      syncToTextarea();
+    }
+
+    let inlineStyleTimer = null;
+    function debouncedConvertToInlineStyles() {
+      clearTimeout(inlineStyleTimer);
+      inlineStyleTimer = setTimeout(convertToInlineStyles, 500);
+    }
+
+    divEditor.addEventListener("blur", debouncedConvertToInlineStyles);
+ 
     // Toolbar helpers
     function createToolbarGroup(label, opts = {}) {
       const group = el("div", { class: "weditor-toolbar-group", role: "group" });
