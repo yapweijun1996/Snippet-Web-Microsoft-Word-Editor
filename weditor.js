@@ -5,7 +5,7 @@
   const STYLE_ID = "weditor-lite-style";
   const CSS_TEXT = `
 .weditor-wrap{border:1px solid #ccc;margin:8px 0;background:#fff;display:flex;flex-direction:column}
-.weditor-toolbar{display:flex;flex-wrap:wrap;gap:6px;padding:6px 8px;border-bottom:1px solid #e2e8f0;background:#f7f7f7;position:relative;align-items:center;--weditor-btn-h:32px;--weditor-btn-py:6px;--weditor-btn-px:8px}
+.weditor-toolbar{display:flex;flex-wrap:wrap;gap:6px;padding:6px 8px;border-bottom:1px solid #e2e8f0;background:#f7f7f7;position:sticky;top:0;align-items:center;--weditor-btn-h:32px;--weditor-btn-py:6px;--weditor-btn-px:8px}
 .weditor-toolbar-group{display:flex;align-items:center;gap:6px;padding:6px 8px;border-radius:8px;background:#fff;border:1px solid #e2e8f0;box-shadow:0 1px 2px rgba(15,23,42,0.06)}
 .weditor-toolbar-group[data-hidden=\"true\"]{display:none}
 .weditor-toolbar-group-label{font-size:11px;font-weight:700;color:#475569;text-transform:uppercase;letter-spacing:.05em;margin-right:6px;padding-right:8px;border-right:1px solid #e2e8f0}
@@ -18,6 +18,11 @@
 .weditor-toolbar select:disabled{opacity:.5;cursor:not-allowed}
 .weditor-toolbar select:focus-visible{outline:2px solid #2563eb;outline-offset:1px}
 .weditor-toolbar select + button, .weditor-toolbar button + select{margin-left:2px}
+.weditor-style-select{min-width:140px}
+/* Typographic cues for buttons (中文解释: 直观的文字样式提示) */
+.weditor-btn-bold{font-weight:700}
+.weditor-btn-italic{font-style:italic}
+.weditor-btn-underline{text-decoration:underline;text-underline-offset:2px}
 .weditor-table-subgroup{display:flex;flex-direction:column;gap:4px;padding:4px 6px;background:#f1f5f9;border-radius:6px}
 .weditor-table-subgroup-label{font-size:10px;font-weight:600;color:#475569;text-transform:uppercase;letter-spacing:.04em}
 .weditor-table-subgroup-buttons{display:flex;flex-wrap:wrap;gap:4px}
@@ -36,6 +41,7 @@
 .weditor-btn--primary .weditor-table-btn-primary{color:#fff}
 .weditor-btn--primary .weditor-table-btn-secondary{color:#e2e8f0}
 .weditor-area{min-height:160px;padding:10px;outline:0;overflow-y:auto}
+.weditor-area p.weditor-nospace{margin:0;line-height:1.35}
 .weditor_textarea{display:none}
 body.weditor-fullscreen-active{overflow:hidden}
 .weditor-wrap.weditor-fullscreen{position:fixed;top:0;left:0;width:100%;height:100%;z-index:9999;margin:0;border:0}
@@ -243,6 +249,41 @@ body.weditor-fullscreen-active{overflow:hidden}
       try { updateToggleStates && updateToggleStates(); } catch(e){}
     }
 
+    // 获取当前选区内的所有段落P（用于 No Spacing 批量应用）(中文解释: 多段落时同时生效)
+    function getSelectedParagraphsInEditor(){
+      const sel = window.getSelection();
+      if (!sel || !sel.rangeCount) {
+        const p0 = divEditor.querySelector("p");
+        return p0 ? [p0] : [];
+      }
+      const range = sel.getRangeAt(0);
+      if (!isNodeInside(range.commonAncestorContainer, divEditor)) return [];
+      const ps = $$("p", divEditor);
+      const result = [];
+      ps.forEach(p=>{
+        let intersects = false;
+        if (typeof range.intersectsNode === "function") {
+          try { intersects = range.intersectsNode(p); } catch(_) { intersects = false; }
+        }
+        if (!intersects){
+          const pr = document.createRange();
+          pr.selectNodeContents(p);
+          const endsBefore = range.compareBoundaryPoints(Range.END_TO_START, pr) < 0;
+          const startsAfter = range.compareBoundaryPoints(Range.START_TO_END, pr) > 0;
+          if (!endsBefore && !startsAfter) intersects = true;
+          pr.detach?.();
+        }
+        if (intersects) result.push(p);
+      });
+      if (!result.length) {
+        const anchor = sel.anchorNode;
+        let n = anchor ? (anchor.nodeType===1 ? anchor : anchor.parentElement) : null;
+        const p = n && n.closest ? n.closest("p") : null;
+        if (p && isNodeInside(p, divEditor)) result.push(p);
+      }
+      return result;
+    }
+
     // ---------- History manager (with redo-safe undo) ----------
     let showingSource = false;
     function getHTML(){ return showingSource ? divEditor.textContent : divEditor.innerHTML; }
@@ -432,6 +473,45 @@ body.weditor-fullscreen-active{overflow:hidden}
     });
     sizeSelect.addEventListener("change", ()=> exec("fontSize", sizeSelect.value));
     groupFormatting.inner.appendChild(sizeSelect);
+
+    // New: Paragraph style select (Normal/H1/H2/H3) — minimal UX, Word-like
+    const styleSelect = el("select", {
+      title: "Paragraph style",
+      "aria-label": "Paragraph style",
+      class: "weditor-style-select"
+    });
+    [
+      { label: "Normal", value: "p" },
+      { label: "No Spacing", value: "noSpacing" },
+      { label: "Heading 1", value: "h1" },
+      { label: "Heading 2", value: "h2" },
+      { label: "Heading 3", value: "h3" }
+    ].forEach(opt=>{
+      styleSelect.appendChild(el("option", { value: opt.value }, [opt.label]));
+    });
+    styleSelect.addEventListener("change", ()=>{
+      const v = styleSelect.value;
+      if (v === "noSpacing"){
+        exec("formatBlock","<p>");
+        setTimeout(()=>{
+          const list = getSelectedParagraphsInEditor();
+          list.forEach(p=>{
+            if (isNodeInside(p, divEditor)) p.classList.add("weditor-nospace");
+          });
+          updateToggleStates();
+        },0);
+      } else if (v){
+        exec("formatBlock","<"+v+">");
+        setTimeout(()=>{
+          const list = getSelectedParagraphsInEditor();
+          list.forEach(p=>{
+            if (isNodeInside(p, divEditor)) p.classList.remove("weditor-nospace");
+          });
+          updateToggleStates();
+        },0);
+      }
+    });
+    groupFormatting.inner.appendChild(styleSelect);
     // Step 2a: Add minimal Text Color tool (native color picker) (中文解释: 使用浏览器自带颜色选择器)
     const inputTextColor = el("input", { type: "color", style: { display: "none" } });
     wrap.appendChild(inputTextColor);
@@ -464,11 +544,15 @@ inputBgColor.addEventListener("input", ()=>{
     const btnBold = addBtn("B","Bold (Ctrl/Cmd+B)", ()=>exec("bold"), groupFormatting.inner);
     const btnItalic = addBtn("I","Italic (Ctrl/Cmd+I)", ()=>exec("italic"), groupFormatting.inner);
     const btnUnderline = addBtn("U","Underline (Ctrl/Cmd+U)", ()=>exec("underline"), groupFormatting.inner);
+    btnBold.classList.add("weditor-btn-bold");
+    btnItalic.classList.add("weditor-btn-italic");
+    btnUnderline.classList.add("weditor-btn-underline");
     /* moved Clear Formatting to More group (secondary row) */
     
-    addBtn("H1","Heading 1", ()=>exec("formatBlock","<h1>"), groupFormatting.inner);
-    addBtn("H2","Heading 2", ()=>exec("formatBlock","<h2>"), groupFormatting.inner);
-    addBtn("P","Paragraph", ()=>exec("formatBlock","<p>"), groupFormatting.inner);
+    const btnH1 = null;
+    const btnH2 = null;
+    const btnH3 = null;
+    const btnP  = null;
     
     const btnUL = addBtn("*","Bulleted list", ()=>exec("insertUnorderedList"), groupFormatting.inner);
     const btnOL = addBtn("1.","Numbered list", ()=>exec("insertOrderedList"), groupFormatting.inner);
@@ -665,6 +749,43 @@ inputBgColor.addEventListener("input", ()=>{
             sizeSelect.value = v;
           }
         }
+        // reflect block format to styleSelect (p/h1/h2/h3)
+        try {
+          if (typeof styleSelect !== "undefined" && styleSelect) {
+            let fbRaw = document.queryCommandValue("formatBlock");
+            let tag = String(fbRaw || "").replace(/[<><>]/g,"").toLowerCase();
+            if (!tag) {
+              const sel = window.getSelection && window.getSelection();
+              if (sel && sel.anchorNode) {
+                let n = sel.anchorNode.nodeType===1 ? sel.anchorNode : sel.anchorNode.parentElement;
+                while (n && n !== divEditor && (!n.tagName || !/^(p|h1|h2|h3)$/i.test(n.tagName))) {
+                  n = n.parentElement;
+                }
+                if (n && n !== divEditor && n.tagName) tag = n.tagName.toLowerCase();
+              }
+            }
+            if (["p","h1","h2","h3"].includes(tag)) {
+              // Choose 'noSpacing' when current paragraph has .weditor-nospace (中文解释: P 段落无间距样式)
+              let chosen = tag;
+              if (tag === "p") {
+                const sel2 = window.getSelection && window.getSelection();
+                if (sel2 && sel2.anchorNode){
+                  let m = sel2.anchorNode.nodeType===1 ? sel2.anchorNode : sel2.anchorNode.parentElement;
+                  const p2 = m && m.closest ? m.closest("p") : null;
+                  if (p2 && isNodeInside(p2, divEditor) && p2.classList.contains("weditor-nospace")) {
+                    chosen = "noSpacing";
+                  }
+                }
+              }
+              if (styleSelect.value !== chosen) styleSelect.value = chosen;
+              // reflect active state to H1/H2/H3/P buttons (中文解释: 同步激活态)
+              setToggleState(btnP,  tag === "p");
+              setToggleState(btnH1, tag === "h1");
+              setToggleState(btnH2, tag === "h2");
+              setToggleState(btnH3, tag === "h3");
+            }
+          }
+        } catch(_){}
 
         setToggleState(btnBold, bold);
         setToggleState(btnItalic, italic);
@@ -683,6 +804,7 @@ inputBgColor.addEventListener("input", ()=>{
     };
     document.addEventListener("selectionchange", handleSelectionChange);
     updateTableToolsVisibility();
+    updateToggleStates();
 
     updateUndoRedoButtons();
 
@@ -697,6 +819,12 @@ inputBgColor.addEventListener("input", ()=>{
       } else if (k === "y" || (k === "z" && e.shiftKey)){
         e.preventDefault();
         history.redo();
+      } else if (e.altKey){
+        // Word-like heading shortcuts (中文解释: 快捷键与 Word 类似)
+        if (k === "1"){ e.preventDefault(); exec("formatBlock","<h1>"); }
+        else if (k === "2"){ e.preventDefault(); exec("formatBlock","<h2>"); }
+        else if (k === "3"){ e.preventDefault(); exec("formatBlock","<h3>"); }
+        else if (k === "0"){ e.preventDefault(); exec("formatBlock","<p>"); }
       }
     });
 
