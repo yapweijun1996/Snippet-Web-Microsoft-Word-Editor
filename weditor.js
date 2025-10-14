@@ -5,7 +5,7 @@
   const STYLE_ID = "weditor-lite-style";
   const CSS_TEXT = `
 .weditor-wrap{border:1px solid #ccc;margin:8px 0;background:#fff;display:flex;flex-direction:column}
-.weditor-toolbar{display:flex;flex-wrap:wrap;gap:6px;padding:6px 8px;border-bottom:1px solid #e2e8f0;background:#f7f7f7;position:sticky;top:0;align-items:center;--weditor-btn-h:32px;--weditor-btn-py:6px;--weditor-btn-px:8px}
+.weditor-toolbar{z-index:10;display:flex;flex-wrap:wrap;gap:6px;padding:6px 8px;border-bottom:1px solid #e2e8f0;background:#f7f7f7;position:sticky;top:0;align-items:center;--weditor-btn-h:32px;--weditor-btn-py:6px;--weditor-btn-px:8px}
 .weditor-toolbar-group{display:flex;align-items:center;gap:6px;padding:6px 8px;border-radius:8px;background:#fff;border:1px solid #e2e8f0;box-shadow:0 1px 2px rgba(15,23,42,0.06)}
 .weditor-toolbar-group[data-hidden=\"true\"]{display:none}
 .weditor-toolbar-group-label{font-size:11px;font-weight:700;color:#475569;text-transform:uppercase;letter-spacing:.05em;margin-right:6px;padding-right:8px;border-right:1px solid #e2e8f0}
@@ -1069,9 +1069,10 @@ inputBgColor.addEventListener("input", ()=>{
     const ICON_ALIGN_L = `<svg xmlns="http://www.w3.org/2000/svg" width="1em" height="1em" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><line x1="4" y1="6" x2="20" y2="6" vector-effect="non-scaling-stroke"></line><line x1="4" x2="20" vector-effect="non-scaling-stroke" y1="16" y2="16"></line><line x1="4" x2="14" vector-effect="non-scaling-stroke" y2="11" y1="11"></line><line x1="4" x2="14" vector-effect="non-scaling-stroke" y1="21" y2="21"></line></svg>`;
     const ICON_ALIGN_C = `<svg xmlns="http://www.w3.org/2000/svg" width="1em" height="1em" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><line x1="4" y1="6" x2="20" y2="6" vector-effect="non-scaling-stroke"></line><line x1="4" x2="20" vector-effect="non-scaling-stroke" y2="16" y1="16"></line><line x1="7" x2="17" vector-effect="non-scaling-stroke" y1="11" y2="11"></line><line x1="7" x2="17" vector-effect="non-scaling-stroke" y2="21" y1="21"></line></svg>`;
     const ICON_ALIGN_R = `<svg xmlns="http://www.w3.org/2000/svg" width="1em" height="1em" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><line x1="4" y1="6" x2="20" y2="6" vector-effect="non-scaling-stroke"></line><line x1="4" x2="20" vector-effect="non-scaling-stroke" y2="16" y1="16"></line><line x1="10" x2="20" vector-effect="non-scaling-stroke" y1="11" y2="11"></line><line x1="10" x2="20" vector-effect="non-scaling-stroke" y2="21" y1="21"></line></svg>`;
-
-    const btnAlignL = addBtn(ICON_ALIGN_L,"Align left", ()=>exec("justifyLeft"), groupFormatting.inner, "weditor-btn--icon");
-    const btnAlignC = addBtn(ICON_ALIGN_C,"Center", ()=>exec("justifyCenter"), groupFormatting.inner, "weditor-btn--icon");
+    const ICON_FULLSCREEN = `<svg xmlns="http://www.w3.org/2000/svg" width="1em" height="1em" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M8 3H5a2 2 0 0 0-2 2v3m18 0V5a2 2 0 0 0-2-2h-3m0 18h3a2 2 0 0 0 2-2v-3M3 16v3a2 2 0 0 0 2 2h3"/></svg>`;
+ 
+     const btnAlignL = addBtn(ICON_ALIGN_L,"Align left", ()=>exec("justifyLeft"), groupFormatting.inner, "weditor-btn--icon");
+     const btnAlignC = addBtn(ICON_ALIGN_C,"Center", ()=>exec("justifyCenter"), groupFormatting.inner, "weditor-btn--icon");
     const btnAlignR = addBtn(ICON_ALIGN_R,"Align right", ()=>exec("justifyRight"), groupFormatting.inner, "weditor-btn--icon");
 
     const groupInsert = createToolbarGroup("Insert",{row:"primary"});
