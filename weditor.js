@@ -551,7 +551,7 @@ body.weditor-fullscreen-active{overflow:hidden}
       isFullScreen = !isFullScreen;
       wrap.classList.toggle("weditor-fullscreen", isFullScreen);
       document.body.classList.toggle("weditor-fullscreen-active", isFullScreen);
-      btnFs.textContent = isFullScreen ? "X" : "FS";
+      btnFs.innerHTML = isFullScreen ? "X" : ICON_FULLSCREEN;
       btnFs.title = isFullScreen ? "Exit Fullscreen" : "Fullscreen";
       if (isFullScreen) {
         document.addEventListener("keydown", handleEscKey);
@@ -1097,7 +1097,7 @@ inputBgColor.addEventListener("input", ()=>{
     // Secondary row - More (Clear, Fullscreen)
     const groupMore = createToolbarGroup("More",{row:"secondary"});
     addBtn("Clear","Clear Formatting", ()=>exec("removeFormat"), groupMore.inner);
-    btnFs = addBtn("FS","Fullscreen", toggleFullScreen, groupMore.inner);
+    btnFs = addBtn(ICON_FULLSCREEN,"Fullscreen", toggleFullScreen, groupMore.inner, "weditor-btn--icon");
     // Create top-right Exit Fullscreen button (only visible in fullscreen via CSS)
     btnFsExit = el("button", {
       type: "button",
