@@ -1076,20 +1076,90 @@ inputBgColor.addEventListener("input", ()=>{
     const btnAlignR = addBtn(ICON_ALIGN_R,"Align right", ()=>exec("justifyRight"), groupFormatting.inner, "weditor-btn--icon");
 
     const groupInsert = createToolbarGroup("Insert",{row:"primary"});
-    addBtn("Link","Insert link", ()=>{
+    const btnLink = addBtn("Link","Insert link (Ctrl/Cmd+K)", ()=>{
+      // 1) If caret is already inside a link, treat as "Edit link"
+      try {
+        const sel0 = window.getSelection && window.getSelection();
+        const node0 = sel0 && sel0.anchorNode ? (sel0.anchorNode.nodeType===1 ? sel0.anchorNode : sel0.anchorNode.parentElement) : null;
+        const a0 = node0 && node0.closest ? node0.closest("a") : null;
+        if (a0 && isNodeInside(a0, divEditor)) {
+          const cur = a0.getAttribute("href") || "https://";
+          const next = prompt("Edit link URL:", cur);
+          if (!next) return;
+          if (!isHttpUrl(next)) { alert("Only http(s) URL allowed"); return; }
+          a0.setAttribute("href", next);
+          a0.setAttribute("target","_blank");
+          a0.setAttribute("rel","noopener noreferrer");
+          divEditor.dispatchEvent(new Event("input",{bubbles:true}));
+          return;
+        }
+      } catch(_){}
+      // 2) Must have a non-collapsed selection to create a new link
+      try {
+        const sel1 = window.getSelection && window.getSelection();
+        if (!sel1 || !sel1.rangeCount) return;
+        const range = sel1.getRangeAt(0);
+        if (range.collapsed) {
+          alert("Select text to link first.");
+          return;
+        }
+      } catch(_){}
+      // 3) Create a new link for the selected text
       const u = prompt("Link URL:");
       if (!u) return;
       if (!isHttpUrl(u)) { alert("Only http(s) URL allowed"); return; }
       exec("createLink", u);
-      const sel = window.getSelection();
-      if (sel && sel.anchorNode) {
-        let a = sel.anchorNode.nodeType===1? sel.anchorNode : sel.anchorNode.parentElement;
-        if (a && a.tagName === "A") {
-          a.setAttribute("target","_blank");
-          a.setAttribute("rel","noopener noreferrer");
+      const sel2 = window.getSelection();
+      if (sel2 && sel2.anchorNode) {
+        let a2 = sel2.anchorNode.nodeType===1? sel2.anchorNode : sel2.anchorNode.parentElement;
+        if (a2 && a2.tagName === "A") {
+          a2.setAttribute("target","_blank");
+          a2.setAttribute("rel","noopener noreferrer");
         }
       }
     }, groupInsert.inner);
+    // Step 1: Add Unlink button (remove link only, keep other formatting)
+    // (中文解释: 仅移除超链接，不清除其他文字样式)
+    const btnUnlink = addBtn("Unlink","Remove link (Ctrl/Cmd+Shift+K)", ()=>{
+      // Try native unlink first
+      exec("unlink");
+      // Fallback: if still inside an <a>, unwrap it
+      try {
+        const sel = window.getSelection();
+        if (sel && sel.anchorNode) {
+          let n = sel.anchorNode.nodeType===1 ? sel.anchorNode : sel.anchorNode.parentElement;
+          const a = n && n.closest ? n.closest("a") : null;
+          if (a && a.parentNode) {
+            const frag = document.createDocumentFragment();
+            while (a.firstChild) frag.appendChild(a.firstChild);
+            a.parentNode.replaceChild(frag, a);
+            divEditor.dispatchEvent(new Event("input",{bubbles:true}));
+          }
+        }
+      } catch(_){}
+    }, groupInsert.inner);
+    // Step 2: Add EditLink button (edit only the current anchor's href)
+    // (中文解释: 编辑当前光标所在链接的地址，保留其它文本样式)
+    const btnEditLink = addBtn("EditLink","Edit link", ()=>{
+      try{
+        const sel = window.getSelection && window.getSelection();
+        const n = sel && sel.anchorNode ? (sel.anchorNode.nodeType===1 ? sel.anchorNode : sel.anchorNode.parentElement) : null;
+        const a = n && n.closest ? n.closest("a") : null;
+        if (!a){
+          alert("Place caret inside a link to edit.");
+          return;
+        }
+        const cur = a.getAttribute("href") || "https://";
+        const next = prompt("Edit link URL:", cur);
+        if (!next) return;
+        if (!isHttpUrl(next)) { alert("Only http(s) URL allowed"); return; }
+        a.setAttribute("href", next);
+        a.setAttribute("target","_blank");
+        a.setAttribute("rel","noopener noreferrer");
+        divEditor.dispatchEvent(new Event("input",{bubbles:true}));
+      }catch(_){}
+    }, groupInsert.inner);
+
     const btnImg = addBtn("Img", "Insert image", (e) => {
       imageInsertMenu.open(e.currentTarget);
     }, groupInsert.inner);
@@ -1324,6 +1394,19 @@ inputBgColor.addEventListener("input", ()=>{
           }
         } catch (_) {}
 
+        // Link-related toggle: active when caret is within an anchor
+        try {
+          let insideLink = false;
+          const sel2 = window.getSelection && window.getSelection();
+          if (sel2 && sel2.anchorNode){
+            let n2 = sel2.anchorNode.nodeType===1 ? sel2.anchorNode : sel2.anchorNode.parentElement;
+            const a2 = n2 && n2.closest ? n2.closest("a") : null;
+            insideLink = !!(a2 && isNodeInside(a2, divEditor));
+          }
+          setToggleState(btnUnlink, insideLink);
+          setToggleState(btnEditLink, insideLink);
+        } catch(_){}
+
         setToggleState(btnBold, bold);
         setToggleState(btnItalic, italic);
         setToggleState(btnUnderline, underline);
@@ -1365,6 +1448,16 @@ inputBgColor.addEventListener("input", ()=>{
           sizeSelect.selectedIndex = nextIndex;
           sizeSelect.dispatchEvent(new Event("change"));
         }
+      } else if (k === "k"){
+        // Ctrl/Cmd+K: create link; Ctrl/Cmd+Shift+K: unlink (中文解释: 链接快捷键)
+        e.preventDefault();
+        try {
+          if (e.shiftKey) {
+            if (btnUnlink && btnUnlink.click) btnUnlink.click();
+          } else {
+            if (btnLink && btnLink.click) btnLink.click();
+          }
+        } catch(_){}
       } else if (e.altKey){
         // Word-like heading shortcuts (中文解释: 快捷键与 Word 类似)
         if (k === "1"){ e.preventDefault(); exec("formatBlock","<h1>"); }
