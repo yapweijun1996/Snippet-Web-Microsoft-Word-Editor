@@ -5,14 +5,19 @@
   const STYLE_ID = "weditor-lite-style";
   const CSS_TEXT = `
 .weditor-wrap{border:1px solid #ccc;margin:8px 0;background:#fff;display:flex;flex-direction:column}
-.weditor-toolbar{display:flex;flex-wrap:wrap;gap:8px;padding:8px;border-bottom:1px solid #ddd;background:#f7f7f7;position:relative;align-items:center;--weditor-btn-h:36px;--weditor-btn-py:8px;--weditor-btn-px:10px}
-.weditor-toolbar-group{display:flex;align-items:center;gap:6px;padding:4px 6px;border-radius:6px;background:#fff;box-shadow:0 1px 2px rgba(15,23,42,0.08)}
+.weditor-toolbar{display:flex;flex-wrap:wrap;gap:6px;padding:6px 8px;border-bottom:1px solid #e2e8f0;background:#f7f7f7;position:relative;align-items:center;--weditor-btn-h:32px;--weditor-btn-py:6px;--weditor-btn-px:8px}
+.weditor-toolbar-group{display:flex;align-items:center;gap:6px;padding:6px 8px;border-radius:8px;background:#fff;border:1px solid #e2e8f0;box-shadow:0 1px 2px rgba(15,23,42,0.06)}
 .weditor-toolbar-group[data-hidden=\"true\"]{display:none}
-.weditor-toolbar-group-label{font-size:11px;font-weight:600;color:#64748b;text-transform:uppercase;letter-spacing:.05em}
+.weditor-toolbar-group-label{font-size:11px;font-weight:700;color:#475569;text-transform:uppercase;letter-spacing:.05em;margin-right:6px;padding-right:8px;border-right:1px solid #e2e8f0}
 .weditor-toolbar-group-inner{display:flex;flex-wrap:wrap;gap:4px}
-.weditor-toolbar-row{display:flex;flex-wrap:wrap;gap:8px;width:100%}
-.weditor-toolbar-row + .weditor-toolbar-row{margin-top:6px}
+.weditor-toolbar-row{display:flex;flex-wrap:wrap;gap:6px;width:100%}
+.weditor-toolbar-row + .weditor-toolbar-row{margin-top:4px}
 .weditor-toolbar button{display:inline-flex;align-items:center;justify-content:center;min-height:var(--weditor-btn-h);padding:var(--weditor-btn-py) var(--weditor-btn-px);border:1px solid #cbd5f5;background:#fff;border-radius:4px;cursor:pointer;transition:background .15s,border-color .15s,box-shadow .15s}
+.weditor-toolbar select{min-height:var(--weditor-btn-h);padding:var(--weditor-btn-py) var(--weditor-btn-px);border:1px solid #cbd5f5;background:#fff;border-radius:4px;cursor:pointer}
+.weditor-toolbar select:hover:not(:disabled){background:#eef2ff;border-color:#94a3b8;box-shadow:0 1px 3px rgba(15,23,42,0.12)}
+.weditor-toolbar select:disabled{opacity:.5;cursor:not-allowed}
+.weditor-toolbar select:focus-visible{outline:2px solid #2563eb;outline-offset:1px}
+.weditor-toolbar select + button, .weditor-toolbar button + select{margin-left:2px}
 .weditor-table-subgroup{display:flex;flex-direction:column;gap:4px;padding:4px 6px;background:#f1f5f9;border-radius:6px}
 .weditor-table-subgroup-label{font-size:10px;font-weight:600;color:#475569;text-transform:uppercase;letter-spacing:.04em}
 .weditor-table-subgroup-buttons{display:flex;flex-wrap:wrap;gap:4px}
@@ -66,6 +71,13 @@ body.weditor-fullscreen-active{overflow:hidden}
 .weditor-border-option[data-active="true"]{background:#eef2ff;border-color:#94a3b8;font-weight:600}
 .weditor-border-option[data-disabled="true"]{opacity:.55;cursor:not-allowed}
 .weditor-area td.weditor-cell-selected,.weditor-area th.weditor-cell-selected{background-color:#bde0fe !important;outline:1px solid #007bff}
+@media (max-width:640px){
+  .weditor-toolbar{gap:4px;padding:4px 6px}
+  .weditor-toolbar-row{gap:4px}
+  .weditor-toolbar-group{padding:4px 6px;border-radius:6px}
+  .weditor-toolbar-group-label{display:none}
+  .weditor-toolbar button{padding:4px 6px;min-height:28px}
+}
   `.trim();
   (function ensureStyle(){
     if (!document.getElementById(STYLE_ID)){
@@ -403,6 +415,52 @@ body.weditor-fullscreen-active{overflow:hidden}
 
     // Unified Formatting group (merge Text/Headings/Lists/Align)
     const groupFormatting = createToolbarGroup("Formatting");
+
+    // Font size selector (minimal; execCommand 1-7) (中文解释: 小步新增字号选择器)
+    const FONT_SIZE_PRESETS = [
+      { label: "10", value: "1" },
+      { label: "12", value: "2" },
+      { label: "14", value: "3" },
+      { label: "16", value: "4" },
+      { label: "18", value: "5" },
+      { label: "24", value: "6" },
+      { label: "32", value: "7" }
+    ];
+    let sizeSelect = el("select", { title: "Font size", "aria-label": "Font size" });
+    FONT_SIZE_PRESETS.forEach(s=>{
+      sizeSelect.appendChild(el("option", { value: s.value }, [s.label]));
+    });
+    sizeSelect.addEventListener("change", ()=> exec("fontSize", sizeSelect.value));
+    groupFormatting.inner.appendChild(sizeSelect);
+    // Step 2a: Add minimal Text Color tool (native color picker) (中文解释: 使用浏览器自带颜色选择器)
+    const inputTextColor = el("input", { type: "color", style: { display: "none" } });
+    wrap.appendChild(inputTextColor);
+    const btnTextColor = addBtn("A","Text color", ()=>{
+      try { saveEditorSelection && saveEditorSelection(); } catch(_) {}
+      inputTextColor.click();
+    }, groupFormatting.inner);
+    inputTextColor.addEventListener("input", ()=>{
+      try { if (!restoreEditorSelection || !restoreEditorSelection()) divEditor.focus(); } catch(_) {}
+      exec("foreColor", inputTextColor.value);
+    });
+
+// Step 2b: Background/Highlight color picker (minimal, with selection restore)
+// (中文解释: 背景高亮颜色；选择颜色前后保持光标/选区)
+const inputBgColor = el("input", { type: "color", style: { display: "none" } });
+wrap.appendChild(inputBgColor);
+const btnBgColor = addBtn("Bg","Highlight color", ()=>{
+  try { saveEditorSelection && saveEditorSelection(); } catch(_) {}
+  inputBgColor.click();
+}, groupFormatting.inner);
+inputBgColor.addEventListener("input", ()=>{
+  try { if (!restoreEditorSelection || !restoreEditorSelection()) divEditor.focus(); } catch(_) {}
+  try { 
+    exec("hiliteColor", inputBgColor.value); 
+  } catch(_){ 
+    // Fallback for older engines (中文解释: 旧浏览器后备)
+    exec("backColor", inputBgColor.value); 
+  }
+});
     const btnBold = addBtn("B","Bold (Ctrl/Cmd+B)", ()=>exec("bold"), groupFormatting.inner);
     const btnItalic = addBtn("I","Italic (Ctrl/Cmd+I)", ()=>exec("italic"), groupFormatting.inner);
     const btnUnderline = addBtn("U","Underline (Ctrl/Cmd+U)", ()=>exec("underline"), groupFormatting.inner);
@@ -595,6 +653,16 @@ body.weditor-fullscreen-active{overflow:hidden}
         const jl = !!document.queryCommandState("justifyLeft");
         const jc = !!document.queryCommandState("justifyCenter");
         const jr = !!document.queryCommandState("justifyRight");
+
+        // reflect font size (1-7) to selector (中文解释: 将选区字号回显到下拉框)
+        const fsRaw = document.queryCommandValue("fontSize");
+        if (typeof sizeSelect !== "undefined" && sizeSelect) {
+          const v = String(fsRaw || "");
+          if (["1","2","3","4","5","6","7"].includes(v) && sizeSelect.value !== v) {
+            sizeSelect.value = v;
+          }
+        }
+
         setToggleState(btnBold, bold);
         setToggleState(btnItalic, italic);
         setToggleState(btnUnderline, underline);
