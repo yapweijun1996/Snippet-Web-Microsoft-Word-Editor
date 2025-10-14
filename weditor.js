@@ -3210,6 +3210,20 @@ inputBgColor.addEventListener("input", ()=>{
           deselectImage();
         }
       });
+
+      editorDiv.addEventListener("keydown", (e) => {
+        if (selectedImage && (e.key === "Backspace" || e.key === "Delete")) {
+          e.preventDefault();
+          const p = selectedImage.parentElement;
+          selectedImage.remove();
+          deselectImage();
+          // If the parent paragraph is now empty, ensure it's usable
+          if (p && p.tagName === 'P' && p.innerHTML.trim() === '') {
+            p.innerHTML = '<br>';
+          }
+          editorDiv.dispatchEvent(new Event("input", { bubbles: true }));
+        }
+      });
     }
     function getSelectedImage() {
       return selectedImage;
