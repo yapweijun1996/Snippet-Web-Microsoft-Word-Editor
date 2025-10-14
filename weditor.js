@@ -147,6 +147,8 @@ body.weditor-fullscreen-active{overflow:hidden}
  .weditor-page-break{height:0;margin:0;border:0;visibility:hidden;page-break-after:always}
  .weditor-page-break::before{content:""}
 }
+.weditor-page-break:hover{background-color:#eef2ff}
+.weditor-page-break-selected{outline:2px solid #2563eb;outline-offset:1px;background-color:#e0e7ff}
 `;
  (function ensureStyle(){
    if (!document.getElementById(STYLE_ID)){
@@ -295,6 +297,18 @@ body.weditor-fullscreen-active{overflow:hidden}
 
   // ---------- Build one editor (div.weditor + next textarea.weditor_textarea) ----------
   function buildEditor(divEditor){
+    let selectedPageBreak = null;
+    function selectPageBreak(pb) {
+      $$(".weditor-page-break-selected", divEditor).forEach(p => p.classList.remove("weditor-page-break-selected"));
+      if (pb) {
+        pb.classList.add("weditor-page-break-selected");
+        selectedPageBreak = pb;
+        window.getSelection()?.removeAllRanges();
+      } else {
+        selectedPageBreak = null;
+      }
+    }
+
     // find paired textarea
     let pair = divEditor.nextElementSibling;
     while (pair && !pair.classList.contains("weditor_textarea")) pair = pair.nextElementSibling;
@@ -1227,6 +1241,12 @@ inputBgColor.addEventListener("input", ()=>{
         }
       });
 
+      pageBreakNode.addEventListener("click", (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        selectPageBreak(pageBreakNode);
+      });
+ 
       const sel = window.getSelection();
       if (sel && sel.rangeCount) {
         const range = sel.getRangeAt(0);
@@ -1530,6 +1550,22 @@ inputBgColor.addEventListener("input", ()=>{
     // Keyboard shortcuts
     divEditor.addEventListener("keydown",(e)=>{
       const mod = e.ctrlKey || e.metaKey;
+      if (selectedPageBreak && (e.key === "Backspace" || e.key === "Delete")) {
+        e.preventDefault();
+        const prev = selectedPageBreak.previousElementSibling;
+        selectedPageBreak.remove();
+        selectPageBreak(null);
+        if (prev) {
+          const r = document.createRange();
+          r.selectNodeContents(prev);
+          r.collapse(false);
+          const sel = window.getSelection();
+          sel?.removeAllRanges();
+          sel?.addRange(r);
+        }
+        divEditor.dispatchEvent(new Event("input", { bubbles: true }));
+        return;
+      }
       if (!mod) return;
       const k = e.key.toLowerCase();
       if (k === "z" && !e.shiftKey){
@@ -2822,6 +2858,9 @@ inputBgColor.addEventListener("input", ()=>{
     });
 
     divEditor.addEventListener("mousedown", (e)=>{
+      if (!e.target.closest(".weditor-page-break")) {
+        selectPageBreak(null);
+      }
       const cell = resolveCellForPoint(e.target, e.clientX, e.clientY);
       if (cell && isNodeInside(cell, divEditor)) {
         const idx = getColIndexFromHit(cell, e.clientX);
