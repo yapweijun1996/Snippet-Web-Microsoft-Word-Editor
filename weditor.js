@@ -20,6 +20,7 @@
 .weditor-toolbar select + button, .weditor-toolbar button + select{margin-left:2px}
 .weditor-style-select{min-width:140px}
 .weditor-font-select{min-width:160px}
+.weditor-size-select{min-width:80px}
 /* Typographic cues for buttons (中文解释: 直观的文字样式提示) */
 .weditor-btn-bold{font-weight:700}
 .weditor-btn-italic{font-style:italic}
@@ -461,21 +462,51 @@ body.weditor-fullscreen-active{overflow:hidden}
     // Unified Formatting group (merge Text/Headings/Lists/Align)
     const groupFormatting = createToolbarGroup("Formatting");
 
-    // Font size selector (minimal; execCommand 1-7) (中文解释: 小步新增字号选择器)
+    // Font size selector (enhanced with more options) (中文解释: 增强字号选择器，支持更多选项)
     const FONT_SIZE_PRESETS = [
-      { label: "10", value: "1" },
-      { label: "12", value: "2" },
-      { label: "14", value: "3" },
-      { label: "16", value: "4" },
-      { label: "18", value: "5" },
-      { label: "24", value: "6" },
-      { label: "32", value: "7" }
+      { label: "6", value: "1" },
+      { label: "8", value: "2" },
+      { label: "10", value: "3" },
+      { label: "12", value: "4" },
+      { label: "14", value: "5" },
+      { label: "16", value: "6" },
+      { label: "18", value: "7" },
+      { label: "20", value: "css-20" },
+      { label: "22", value: "css-22" },
+      { label: "24", value: "css-24" },
+      { label: "26", value: "css-26" },
+      { label: "28", value: "css-28" },
+      { label: "32", value: "css-32" },
+      { label: "36", value: "css-36" },
+      { label: "48", value: "css-48" },
+      { label: "72", value: "css-72" }
     ];
-    let sizeSelect = el("select", { title: "Font size", "aria-label": "Font size" });
+    let sizeSelect = el("select", { title: "Font size", "aria-label": "Font size", class: "weditor-size-select" });
     FONT_SIZE_PRESETS.forEach(s=>{
       sizeSelect.appendChild(el("option", { value: s.value }, [s.label]));
     });
-    sizeSelect.addEventListener("change", ()=> exec("fontSize", sizeSelect.value));
+    sizeSelect.addEventListener("change", ()=>{
+      const value = sizeSelect.value;
+      if (value.startsWith("css-")) {
+        // 使用CSS样式实现大字体大小
+        const fontSize = value.substring(4) + "px";
+        const sel = window.getSelection();
+        if (sel && sel.rangeCount) {
+          const range = sel.getRangeAt(0);
+          if (!range.collapsed) {
+            // 对选中的文本应用字体大小
+            const span = document.createElement("span");
+            span.style.fontSize = fontSize;
+            range.surroundContents(span);
+          }
+        }
+        // 更新状态显示
+        updateToggleStates();
+      } else {
+        // 使用传统的execCommand（仅限于1-7）
+        exec("fontSize", value);
+      }
+    });
     groupFormatting.inner.appendChild(sizeSelect);
 
     // Font family selector (minimal, execCommand 'fontName') (中文解释: 字体族选择器)
@@ -899,6 +930,15 @@ inputBgColor.addEventListener("input", ()=>{
       } else if (k === "y" || (k === "z" && e.shiftKey)){
         e.preventDefault();
         history.redo();
+      } else if (k === "f" && e.shiftKey){
+        // Ctrl+Shift+F: 快速切换字体大小 (中文解释: 快速字体大小切换)
+        e.preventDefault();
+        if (sizeSelect) {
+          const currentIndex = sizeSelect.selectedIndex;
+          const nextIndex = (currentIndex + 1) % FONT_SIZE_PRESETS.length;
+          sizeSelect.selectedIndex = nextIndex;
+          sizeSelect.dispatchEvent(new Event("change"));
+        }
       } else if (e.altKey){
         // Word-like heading shortcuts (中文解释: 快捷键与 Word 类似)
         if (k === "1"){ e.preventDefault(); exec("formatBlock","<h1>"); }
@@ -2480,6 +2520,15 @@ inputBgColor.addEventListener("input", ()=>{
     document.addEventListener("DOMContentLoaded", initAll);
   } else {
     initAll();
+  }
+
+  // Export for testing (中文解释: 导出供测试使用)
+  if (typeof window !== "undefined") {
+    window.weditorTest = {
+      FONT_SIZE_PRESETS,
+      buildEditor,
+      initAll
+    };
   }
 
 })();
