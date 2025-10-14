@@ -23,6 +23,10 @@
 .weditor-style-select{min-width:140px}
 .weditor-font-select{min-width:160px}
 .weditor-size-select{min-width:80px}
+/* Optional: hide desktop line-height select when icon menu is present (中文解释: 桌面端隐藏原生行高下拉) */
+@media (min-width:768px){
+  .weditor-lineheight-select{display:none}
+}
 /* Typographic cues for buttons (中文解释: 直观的文字样式提示) */
 .weditor-btn-bold{font-weight:700}
 .weditor-btn-italic{font-style:italic}
@@ -69,6 +73,33 @@ body.weditor-fullscreen-active{overflow:hidden}
 .weditor-table-popup .actions{display:flex;justify-content:flex-end;gap:6px}
 .weditor-table-popup .actions button{padding:var(--weditor-btn-py,8px) var(--weditor-btn-px,10px)}
 .weditor-table-popup button{border:1px solid #bbb;background:#f8f8f8;cursor:pointer;min-height:var(--weditor-btn-h,36px);padding:var(--weditor-btn-py,8px) var(--weditor-btn-px,10px)}
+.weditor-table-popup button[data-active="true"]{background:#eef2ff;border-color:#94a3b8;font-weight:600}
+/* Compact dropdown-like menu for simple option lists (中文解释: 专用于选项菜单的紧凑样式) */
+.weditor-menu-popup{
+  position:absolute;padding:8px 0;
+  border:1px solid #e2e8f0;background:#fff;
+  box-shadow:0 4px 12px rgba(0,0,0,0.12);border-radius:8px;
+  display:none;flex-direction:column;gap:2px;min-width:120px;z-index:1000;
+  max-height:200px;overflow-y:auto
+}
+.weditor-menu-popup[data-open="true"]{display:flex}
+.weditor-menu-popup button{
+  display:flex;align-items:center;padding:8px 16px;
+  border:none;background:transparent;cursor:pointer;
+  font-size:13px;color:#475569;text-align:left;
+  transition:background .15s,color .15s;
+  border-radius:4px;margin:0 4px;
+  font-variant-numeric: tabular-nums
+}
+.weditor-menu-popup button:hover:not(:disabled){
+  background:#f1f5f9;color:#1e293b
+}
+.weditor-menu-popup button:focus-visible{
+  outline:2px solid #2563eb;outline-offset:-2px
+}
+.weditor-menu-popup button[data-active="true"]{
+  background:#e0e7ff;color:#2563eb;font-weight:600
+}
 .weditor-border-popup{min-width:240px}
 .weditor-border-section{display:flex;flex-direction:column;gap:6px}
 .weditor-border-section[data-hidden="true"]{display:none}
@@ -655,7 +686,8 @@ body.weditor-fullscreen-active{overflow:hidden}
     ];
     let lineHeightSelect = el("select", {
       title: "Line height",
-      "aria-label": "Line height"
+      "aria-label": "Line height",
+      class: "weditor-lineheight-select"
     });
     LINE_HEIGHT_PRESETS.forEach(preset=>{
       lineHeightSelect.appendChild(el("option", { value: preset.value }, [preset.label]));
@@ -665,7 +697,137 @@ body.weditor-fullscreen-active{overflow:hidden}
       applyLineHeight(value);
     });
     groupFormatting.inner.appendChild(lineHeightSelect);
+    
+    // Line height icon button + popup (non-destructive; keep select) (中文解释: 渐进式，保留原下拉)
+    const ICON_LINE_HEIGHT = `<svg xmlns="http://www.w3.org/2000/svg" width="1em" height="1em"
+         viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+         stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false">
+      <!-- Vertical arrow for spacing adjustment -->
+      <path d="M6 4v16m-2-2l2 2 2-2M4 6l2-2 2 2"/>
+      
+      <!-- Horizontal lines representing text -->
+      <line x1="10" y1="6" x2="20" y2="6"/>
+      <line x1="10" y1="10" x2="20" y2="10"/>
+      <line x1="10" y1="14" x2="20" y2="14"/>
+      <line x1="10" y1="18" x2="20" y2="18"/>
+    </svg>`;
 
+    // Lightweight menu reusing existing popup style/positioning (中文解释: 复用已有弹层样式与定位)
+    const lineHeightMenu = (() => {
+      let node = null;
+      let outsideHandler = null;
+      let lhButtons = [];
+      let anchorForFocus = null;
+
+      function ensurePopup() {
+        if (node) return node;
+        node = el("div", { class: "weditor-menu-popup", role: "menu" });
+        // Build option buttons for all presets
+        LINE_HEIGHT_PRESETS.forEach(preset => {
+          const b = el("button", { type: "button", title: "Line height " + preset.label, role: "menuitemradio" }, [preset.label]);
+          b.dataset.lhValue = preset.value;
+          b.setAttribute("aria-selected","false");
+          b.setAttribute("aria-checked","false");
+          b.addEventListener("click", () => {
+            try { if (!restoreEditorSelection || !restoreEditorSelection()) divEditor.focus(); } catch (_){}
+            applyLineHeight(preset.value);
+            closePopup();
+          });
+          node.appendChild(b);
+          lhButtons.push(b);
+        });
+        // Keyboard navigation inside popup (ArrowUp/Down/Home/End, Enter/Space, Escape)
+        node.addEventListener("keydown", (evt) => {
+          if (!lhButtons || !lhButtons.length) return;
+          const key = evt.key;
+          const current = document.activeElement;
+          const idx = lhButtons.indexOf(current);
+          const focusAt = (i) => { if (lhButtons[i]) { lhButtons[i].focus(); evt.preventDefault(); } };
+          if (key === "ArrowDown") { focusAt((idx >= 0 ? idx + 1 : 0) % lhButtons.length); }
+          else if (key === "ArrowUp") { focusAt(idx > 0 ? idx - 1 : lhButtons.length - 1); }
+          else if (key === "Home") { focusAt(0); }
+          else if (key === "End") { focusAt(lhButtons.length - 1); }
+          else if (key === "Enter" || key === " ") { if (idx >= 0) { lhButtons[idx].click(); evt.preventDefault(); } }
+          else if (key === "Escape") { closePopup(); try { if (btnLhIcon && btnLhIcon.focus) btnLhIcon.focus(); } catch(_){} }
+        });
+        return node;
+      }
+
+      function openPopup(anchor) {
+        closePopup();
+        try { saveEditorSelection && saveEditorSelection(); } catch (_){}
+        const popup = ensurePopup();
+        anchorForFocus = anchor;
+ 
+        // Highlight current active line-height in menu (中文解释: 打开时同步当前行高高亮)
+        let activeValue = "";
+        try {
+          if (typeof lineHeightSelect !== "undefined" && lineHeightSelect && lineHeightSelect.value) {
+            activeValue = lineHeightSelect.value;
+          } else {
+            const sel = window.getSelection && window.getSelection();
+            if (sel && sel.anchorNode) {
+              let n = sel.anchorNode.nodeType === 1 ? sel.anchorNode : sel.anchorNode.parentElement;
+              const block = n ? n.closest("p,h1,h2,h3") : null;
+              if (block && isNodeInside(block, divEditor)) {
+                const cs = window.getComputedStyle ? window.getComputedStyle(block) : null;
+                const lh = cs ? cs.lineHeight : "";
+                const lhNum = parseFloat(lh);
+                const fontSize = cs ? parseFloat(cs.fontSize) : 16;
+                if (lhNum && fontSize && /px\s*$/i.test(lh)) {
+                  const relativeLh = (lhNum / fontSize).toFixed(2);
+                  for (const preset of LINE_HEIGHT_PRESETS) {
+                    if (Math.abs(parseFloat(preset.value) - relativeLh) < 0.05) { activeValue = preset.value; break; }
+                  }
+                }
+              }
+            }
+          }
+        } catch(_){}
+
+        lhButtons.forEach(btn=>{
+          const on = btn.dataset.lhValue === activeValue;
+          btn.setAttribute("data-active", on ? "true" : "false");
+          btn.setAttribute("aria-selected", on ? "true" : "false");
+          btn.setAttribute("aria-checked", on ? "true" : "false");
+        });
+
+        toolbar.appendChild(popup);
+        popup.setAttribute("data-open","true");
+        requestAnimationFrame(() => {
+          positionToolbarPopup(anchor, popup);
+          const activeBtn = lhButtons.find(b => b.getAttribute("data-active") === "true") || lhButtons[0];
+          if (activeBtn && activeBtn.focus) activeBtn.focus();
+        });
+        outsideHandler = (evt) => {
+          if (!popup.contains(evt.target) && (!anchor || !anchor.contains(evt.target))) {
+            closePopup();
+          }
+        };
+        document.addEventListener("mousedown", outsideHandler, true);
+      }
+
+      function closePopup() {
+        // Always return focus back to trigger button (中文解释: 关闭后把焦点还给触发按钮)
+        if (!node) {
+          try { if (anchorForFocus && anchorForFocus.focus) anchorForFocus.focus(); } catch (_){}
+          anchorForFocus = null;
+          return;
+        }
+        node.removeAttribute("data-open");
+        if (node.parentNode) node.parentNode.removeChild(node);
+        if (outsideHandler) {
+          document.removeEventListener("mousedown", outsideHandler, true);
+          outsideHandler = null;
+        }
+        try { if (anchorForFocus && anchorForFocus.focus) anchorForFocus.focus(); } catch (_){}
+        anchorForFocus = null;
+      }
+      return { open: openPopup, close: closePopup };
+    })();
+
+    const btnLhIcon = addBtn(ICON_LINE_HEIGHT, "Line height", () => lineHeightMenu.open(btnLhIcon), groupFormatting.inner, "weditor-btn--icon");
+    
 
     // Toggle enable/disable for WYSIWYG-only controls (中文解释: 根据模式启用/禁用三个下拉)
     function setWYSIWYGEnabled(enabled){
@@ -674,6 +836,8 @@ body.weditor-fullscreen-active{overflow:hidden}
         styleSelect.disabled = !enabled;
         fontSelect.disabled  = !enabled;
         lineHeightSelect.disabled = !enabled;
+        // Guarded to avoid ReferenceError before declaration (中文解释: 使用 typeof 防止未声明错误)
+        if (typeof btnLhIcon !== "undefined" && btnLhIcon) btnLhIcon.disabled = !enabled;
       }catch(_){}
     }
     // Initialize once based on current mode
@@ -1769,7 +1933,11 @@ inputBgColor.addEventListener("input", ()=>{
       const rawLeft = buttonRect.left - toolbarRect.left;
       const maxLeft = Math.max(4, toolbarRect.width - popup.offsetWidth - 8);
       const left = Math.min(Math.max(4, rawLeft), maxLeft);
+      const gap = 6; // vertical gap below trigger (中文解释: 与按钮的垂直间距)
+      const top = Math.round(buttonRect.bottom - toolbarRect.top + gap);
       popup.style.left = left + "px";
+      popup.style.top = top + "px";
+      popup.style.position = "absolute";
     }
 
     // ------ Insert Table Popup ------
