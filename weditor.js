@@ -2201,6 +2201,16 @@ inputBgColor.addEventListener("input", ()=>{
     // Keyboard shortcuts
     divEditor.addEventListener("keydown",(e)=>{
       const mod = e.ctrlKey || e.metaKey;
+      if (e.key === "Tab" && !mod) {
+        const sel = window.getSelection?.();
+        const anchor = sel && sel.anchorNode;
+        if (anchor && isNodeInside(anchor, divEditor)) {
+          e.preventDefault();
+          exec(e.shiftKey ? "outdent" : "indent");
+          divEditor.dispatchEvent(new Event("input", { bubbles: true }));
+        }
+        return;
+      }
       if (selectedPageBreak && (e.key === "Backspace" || e.key === "Delete")) {
         e.preventDefault();
         const prev = selectedPageBreak.previousElementSibling;
@@ -2893,6 +2903,13 @@ inputBgColor.addEventListener("input", ()=>{
       divEditor.dispatchEvent(new Event("input",{bubbles:true}));
     }
 
+    function cellHasMeaningfulContent(cell) {
+      if (!cell) return false;
+      const text = cell.textContent ? cell.textContent.replace(/\u00A0/g, "").trim() : "";
+      if (text.length > 0) return true;
+      return Boolean(cell.querySelector && cell.querySelector("img,table,iframe,video,svg,canvas"));
+    }
+
     function mergeSelectedCellsHorizontally() {
       const cellsToMerge = cellSelectionState.selectedCells;
       tableDebug("mergeSelectedCellsHorizontally invoked with new logic", { count: cellsToMerge.length });
@@ -2929,14 +2946,9 @@ inputBgColor.addEventListener("input", ()=>{
         return sum + Math.max(1, parseInt(cell.getAttribute("colspan") || "1", 10));
       }, 0);
 
-      const hasMeaningfulContent = (cell) => {
-        const text = cell.textContent ? cell.textContent.replace(/\u00A0/g, "").trim() : "";
-        if (text.length > 0) return true;
-        return Boolean(cell.querySelector && cell.querySelector("img,table,iframe,video,svg,canvas"));
-      };
       const contentParts = [];
       cellsToMerge.forEach(cell => {
-        if (hasMeaningfulContent(cell)) {
+        if (cellHasMeaningfulContent(cell)) {
           contentParts.push(cell.innerHTML);
         }
       });
@@ -2956,6 +2968,93 @@ inputBgColor.addEventListener("input", ()=>{
       }
 
       placeCaretInside(first);
+      clearCellSelection();
+      const restyled = enforceStoredTableBorderState(table);
+      if (!restyled) divEditor.dispatchEvent(new Event("input", { bubbles: true }));
+    }
+
+    function mergeSelectedCellsVertically() {
+      const cellsToMerge = cellSelectionState.selectedCells;
+      tableDebug("mergeSelectedCellsVertically invoked", { count: cellsToMerge.length });
+
+      if (cellsToMerge.length <= 1) {
+        alert("Please select two or more cells to merge.");
+        return;
+      }
+
+      const table = cellsToMerge[0].closest("table");
+      if (!table) return;
+
+      if (cellsToMerge.some(cell => cell.closest("table") !== table)) {
+        alert("Please select cells within a single column to merge.");
+        return;
+      }
+
+      if (cellsToMerge.some(cell => (parseInt(cell.getAttribute("colspan") || "1", 10) || 1) > 1)) {
+        alert("Merging cells that span multiple columns is not supported yet.");
+        return;
+      }
+
+      normalizeTable(table);
+      const tableMap = buildTableMap(table);
+      const cellsWithCoords = [];
+      for (const cell of cellsToMerge) {
+        const coords = getCellCoords(tableMap, cell);
+        if (!coords) {
+          alert("Unable to determine cell positions for merge.");
+          return;
+        }
+        cellsWithCoords.push({ cell, coords });
+      }
+
+      cellsWithCoords.sort((a, b) => a.coords.r - b.coords.r);
+      const columnIndex = cellsWithCoords[0].coords.c;
+      if (cellsWithCoords.some(item => item.coords.c !== columnIndex)) {
+        alert("Please select cells within a single column to merge.");
+        return;
+      }
+
+      const selectedSet = new Set(cellsToMerge);
+      const topRow = cellsWithCoords[0].coords.r;
+      const bottomRow = cellsWithCoords[cellsWithCoords.length - 1].coords.r;
+      for (let r = topRow; r <= bottomRow; r++) {
+        const occupant = tableMap[r] && tableMap[r][columnIndex];
+        if (!occupant || !selectedSet.has(occupant)) {
+          alert("Selected cells must form a continuous column.");
+          return;
+        }
+      }
+
+      const primary = cellsWithCoords[0].cell;
+      const combinedRowspan = cellsWithCoords.reduce((sum, item) => {
+        return sum + Math.max(1, parseInt(item.cell.getAttribute("rowspan") || "1", 10));
+      }, 0);
+
+      const originalPrimaryContent = primary.innerHTML;
+      const extraParts = [];
+      for (let i = 1; i < cellsWithCoords.length; i++) {
+        const currentCell = cellsWithCoords[i].cell;
+        if (cellHasMeaningfulContent(currentCell)) {
+          extraParts.push(currentCell.innerHTML);
+        }
+        currentCell.remove();
+      }
+
+      if (combinedRowspan > 1) primary.setAttribute("rowspan", combinedRowspan);
+      else primary.removeAttribute("rowspan");
+
+      if (extraParts.length) {
+        if (cellHasMeaningfulContent(primary)) {
+          const parts = [originalPrimaryContent, ...extraParts].filter(Boolean);
+          primary.innerHTML = parts.join("<br>");
+        } else {
+          primary.innerHTML = extraParts.join("<br>");
+        }
+      } else if (!cellHasMeaningfulContent(primary)) {
+        primary.innerHTML = "&nbsp;";
+      }
+
+      placeCaretInside(primary);
       clearCellSelection();
       const restyled = enforceStoredTableBorderState(table);
       if (!restyled) divEditor.dispatchEvent(new Event("input", { bubbles: true }));
@@ -3819,8 +3918,9 @@ inputBgColor.addEventListener("input", ()=>{
     addTableAction("Set Width (This Col)", null, "Set current column width (⌥W)", ()=>setCurrentColumnWidth(), tableWidth);
 
     const tableCells = createTableSubgroup("Cells");
-    const btnMergeCells = addTableAction("Merge Cells", null, "Merge selected cells in the current row (⌥M)", ()=>mergeSelectedCellsHorizontally(), tableCells);
+    const btnMergeCells = addTableAction("Merge Cells →", null, "Merge selected cells in the current row (⌥M)", ()=>mergeSelectedCellsHorizontally(), tableCells);
     btnMergeCells.classList.add("weditor-btn--primary");
+    addTableAction("Merge Cells ↓", null, "Merge selected cells in the current column (⇧⌥M)", ()=>mergeSelectedCellsVertically(), tableCells);
 
     const tableBorders = createTableSubgroup("Borders");
     const btnBorderStyle = addTableAction("Borders","Line & Color","Adjust table border width, style, and color (⌥B)", ()=>tableBorderPopup.open(btnBorderStyle), tableBorders);
