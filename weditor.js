@@ -148,14 +148,12 @@ body.weditor-fullscreen-active{overflow:hidden}
 .weditor-img-resize-handle[data-dir="w"]{top:50%;left:-5px;margin-top:-4px;cursor:ew-resize}
 .weditor-img-resize-handle[data-dir="e"]{top:50%;right:-5px;margin-top:-4px;cursor:ew-resize}
 /* Page Break visualization */
-.weditor-page-break{display:block;height:24px;margin:12px 0;background:#f1f5f9 url("data:image/svg+xml,%3csvg width='100%25' height='100%25' xmlns='http://www.w3.org/2000/svg'%3e%3crect width='100%25' height='100%25' fill='none' stroke='%23cbd5e1' stroke-width='2' stroke-dasharray='6%2c 8' stroke-dashoffset='0' stroke-linecap='square'/%3e%3c/svg%3e") center center;position:relative;color:#94a3b8;font-size:11px;font-weight:600;text-align:center;line-height:24px;user-select:none;cursor:default}
-.weditor-page-break::before{content:"PAGE BREAK"}
+.weditor-page-break{display:block;height:24px;margin:12px 0;background-color:#f1f5f9;background-image:url("data:image/svg+xml,%3csvg width='100%25' height='100%25' xmlns='http://www.w3.org/2000/svg'%3e%3crect width='100%25' height='100%25' fill='none' stroke='%23cbd5e1' stroke-width='2' stroke-dasharray='6%2c 8' stroke-dashoffset='0' stroke-linecap='square'/%3e%3c/svg%3e");background-position:center center;background-repeat:repeat;position:relative;color:#94a3b8;font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:0.08em;text-align:center;line-height:24px;user-select:none;cursor:default}
 @media print{
- .weditor-page-break{height:0;margin:0;border:0;visibility:hidden;page-break-after:always}
- .weditor-page-break::before{content:""}
+ .weditor-page-break{height:0!important;margin:0!important;border:0!important;visibility:hidden!important;page-break-after:always!important}
 }
-.weditor-page-break:hover{background-color:#eef2ff}
-.weditor-page-break-selected{outline:2px solid #2563eb;outline-offset:1px;background-color:#e0e7ff}
+.weditor-page-break:hover{background-color:#eef2ff!important}
+.weditor-page-break-selected{outline:2px solid #2563eb;outline-offset:1px;background-color:#e0e7ff!important}
 `;
  (function ensureStyle(){
    if (!document.getElementById(STYLE_ID)){
@@ -168,6 +166,34 @@ body.weditor-fullscreen-active{overflow:hidden}
 
   // ---------- Helpers ----------
   const TABLE_DEBUG = false;
+  const PAGE_BREAK_BG_IMAGE = "url(\"data:image/svg+xml,%3csvg width='100%25' height='100%25' xmlns='http://www.w3.org/2000/svg'%3e%3crect width='100%25' height='100%25' fill='none' stroke='%23cbd5e1' stroke-width='2' stroke-dasharray='6%2c 8' stroke-dashoffset='0' stroke-linecap='square'/%3e%3c/svg%3e\")";
+  const PAGE_BREAK_BASE_BG = "#f1f5f9";
+  const PAGE_BREAK_SELECTED_BG = "#e0e7ff";
+  const PAGE_BREAK_SELECTED_OUTLINE = "2px solid #2563eb";
+  const PAGE_BREAK_LABEL = "PAGE BREAK";
+  const PAGE_BREAK_INLINE_STYLE = {
+    display: "block",
+    height: "24px",
+    margin: "12px 0",
+    padding: "0",
+    border: "0",
+    backgroundColor: PAGE_BREAK_BASE_BG,
+    backgroundImage: PAGE_BREAK_BG_IMAGE,
+    backgroundPosition: "center center",
+    backgroundRepeat: "repeat",
+    position: "relative",
+    color: "#94a3b8",
+    fontSize: "11px",
+    fontWeight: "600",
+    textTransform: "uppercase",
+    letterSpacing: "0.08em",
+    textAlign: "center",
+    lineHeight: "24px",
+    userSelect: "none",
+    cursor: "default",
+    pageBreakAfter: "always",
+    breakAfter: "page"
+  };
   const tableDebug = (...args)=>{ if (TABLE_DEBUG && typeof console !== "undefined") console.log("[weditor-table]", ...args); };
   const $$ = (s, r=document)=>Array.from(r.querySelectorAll(s));
   const el = (tag, attrs, kids=[])=>{
@@ -307,10 +333,42 @@ body.weditor-fullscreen-active{overflow:hidden}
     let selectedPageBreak = null;
     let suppressNextPageBreakClear = false;
     let showingSource = false;
-    function selectPageBreak(pb) {
-      $$(".weditor-page-break-selected", divEditor).forEach(p => p.classList.remove("weditor-page-break-selected"));
-      if (pb) {
+
+    const handlePageBreakClick = (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      if (typeof divEditor.focus === "function") {
+        try {
+          divEditor.focus({ preventScroll: true });
+        } catch (_err) {
+          divEditor.focus();
+        }
+      }
+      const target = e.currentTarget;
+      selectPageBreak(target);
+      suppressNextPageBreakClear = true;
+    };
+
+    function setPageBreakActive(pb, active){
+      if (!pb) return;
+      if (active) {
         pb.classList.add("weditor-page-break-selected");
+        pb.style.outline = PAGE_BREAK_SELECTED_OUTLINE;
+        pb.style.outlineOffset = "1px";
+        pb.style.backgroundColor = PAGE_BREAK_SELECTED_BG;
+      } else {
+        pb.classList.remove("weditor-page-break-selected");
+        pb.style.outline = "";
+        pb.style.outlineOffset = "";
+        const baseBg = pb.__weditorPageBreakBaseBg || PAGE_BREAK_BASE_BG;
+        pb.style.backgroundColor = baseBg;
+      }
+    }
+
+    function selectPageBreak(pb) {
+      const nodes = divEditor.querySelectorAll(".weditor-page-break");
+      nodes.forEach(node => setPageBreakActive(node, node === pb));
+      if (pb) {
         selectedPageBreak = pb;
         window.getSelection()?.removeAllRanges();
       } else {
@@ -318,6 +376,23 @@ body.weditor-fullscreen-active{overflow:hidden}
         suppressNextPageBreakClear = false;
       }
     }
+
+    function bindPageBreakNode(pb){
+      if (!pb || pb.__weditorPageBreakBound) return;
+      pb.__weditorPageBreakBound = true;
+      if (!pb.classList.contains("weditor-page-break")) pb.classList.add("weditor-page-break");
+      pb.setAttribute("contenteditable","false");
+      pb.setAttribute("role","separator");
+      pb.setAttribute("aria-label","Page break");
+      Object.assign(pb.style, PAGE_BREAK_INLINE_STYLE);
+      pb.__weditorPageBreakBaseBg = PAGE_BREAK_BASE_BG;
+      if (!pb.textContent.trim()) pb.textContent = PAGE_BREAK_LABEL;
+      pb.addEventListener("click", handlePageBreakClick);
+    }
+
+    const bindUnboundPageBreaks = () => {
+      divEditor.querySelectorAll(".weditor-page-break").forEach(bindPageBreakNode);
+    };
     function removeSelectedPageBreak(options = {}) {
       if (!selectedPageBreak) return false;
       const pb = selectedPageBreak;
@@ -369,6 +444,8 @@ body.weditor-fullscreen-active{overflow:hidden}
     } else if (!divEditor.innerHTML.trim()){
       divEditor.innerHTML = "<p><br></p>";
     }
+    bindUnboundPageBreaks();
+    selectPageBreak(null);
 
     function alignImage(alignment) {
       const img = divEditor.querySelector('img.weditor-img-selected');
@@ -667,8 +744,13 @@ body.weditor-fullscreen-active{overflow:hidden}
     function getHTML(){ return showingSource ? divEditor.textContent : divEditor.innerHTML; }
     function setHTML(v, opts={}){
       const silent = !!opts.silent;
-      if (showingSource) divEditor.textContent = v;
-      else divEditor.innerHTML = v;
+      if (showingSource) {
+        divEditor.textContent = v;
+      } else {
+        divEditor.innerHTML = v;
+        bindUnboundPageBreaks();
+        selectPageBreak(null);
+      }
       if (!silent){
         divEditor.dispatchEvent(new Event("input",{bubbles:true}));
       } else {
@@ -745,6 +827,7 @@ body.weditor-fullscreen-active{overflow:hidden}
     divEditor.addEventListener("input", updateToggleStates);
     divEditor.addEventListener("input", updateTableToolsVisibility);
     divEditor.addEventListener("input", ()=>{
+      bindUnboundPageBreaks();
       if (!selectedPageBreak) return;
       if (suppressNextPageBreakClear) {
         suppressNextPageBreakClear = false;
@@ -1373,6 +1456,8 @@ body.weditor-fullscreen-active{overflow:hidden}
         showingSource = true;
       } else {
         divEditor.innerHTML = divEditor.textContent;
+        bindUnboundPageBreaks();
+        selectPageBreak(null);
         showingSource = false;
       }
       // Disable WYSIWYG-only controls when showing source (中文解释: 源码模式禁用下拉避免误操作)
@@ -2082,27 +2167,9 @@ const btnBgColor = addBtn("Bg","Highlight color", ()=>{
       // divEditor.querySelectorAll(".weditor-page-break").forEach(pb => pb.remove());
 
       const pageBreakNode = el("div", {
-        class: "weditor-page-break",
-        contenteditable: "false",
-        role: "separator",
-        "aria-label": "Page break",
-        style: {
-          pageBreakAfter: "always"
-        }
+        class: "weditor-page-break"
       });
-
-      pageBreakNode.addEventListener("click", (e) => {
-        e.preventDefault();
-        e.stopPropagation();
-        if (typeof divEditor.focus === "function") {
-          try {
-            divEditor.focus({ preventScroll: true });
-          } catch (_err) {
-            divEditor.focus();
-          }
-        }
-        selectPageBreak(pageBreakNode);
-      });
+      bindPageBreakNode(pageBreakNode);
  
       const sel = window.getSelection();
       let caretRange = null;
