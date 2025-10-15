@@ -755,6 +755,9 @@ body.weditor-fullscreen-active{overflow:hidden}
         divEditor.dispatchEvent(new Event("input",{bubbles:true}));
       } else {
         pair.value = getHTML();
+        if (!showingSource) {
+          convertToInlineStyles();
+        }
       }
     }
 
