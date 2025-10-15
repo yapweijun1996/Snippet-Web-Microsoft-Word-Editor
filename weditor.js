@@ -442,7 +442,8 @@ body.weditor-fullscreen-active{overflow:hidden}
     if (pair.value && pair.value.trim()){
       divEditor.innerHTML = pair.value;
     } else if (!divEditor.innerHTML.trim()){
-      divEditor.innerHTML = "<p><br></p>";
+      // divEditor.innerHTML = "<p><br></p>";
+      divEditor.innerHTML = "<div><br></div>";
     }
     bindUnboundPageBreaks();
     selectPageBreak(null);
