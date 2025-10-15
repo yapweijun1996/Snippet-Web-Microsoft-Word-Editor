@@ -5,21 +5,42 @@
   const STYLE_ID = "weditor-lite-style";
   const CSS_TEXT = `
 .weditor-wrap{border:1px solid #ccc;margin:8px 0;background:#fff;display:flex;flex-direction:column}
-.weditor-toolbar{z-index:10;display:flex;flex-wrap:wrap;gap:6px;padding:6px 8px;border-bottom:1px solid #e2e8f0;background:#f7f7f7;position:sticky;top:0;align-items:center;--weditor-btn-h:32px;--weditor-btn-py:6px;--weditor-btn-px:8px}
-.weditor-toolbar-group{display:flex;align-items:center;gap:6px;padding:6px 8px;border-radius:8px;background:#fff;border:1px solid #e2e8f0;box-shadow:0 1px 2px rgba(15,23,42,0.06)}
-.weditor-toolbar-group[data-hidden=\"true\"]{display:none}
-.weditor-toolbar-group-label{font-size:11px;font-weight:700;color:#475569;text-transform:uppercase;letter-spacing:.05em;margin-right:6px;padding-right:8px;border-right:1px solid #e2e8f0}
-.weditor-toolbar-group-inner{display:flex;flex-wrap:wrap;gap:4px}
-.weditor-toolbar-row{display:flex;flex-wrap:wrap;gap:6px;width:100%}
-.weditor-toolbar-row + .weditor-toolbar-row{margin-top:4px}
-.weditor-toolbar button{display:inline-flex;align-items:center;justify-content:center;min-height:var(--weditor-btn-h);padding:var(--weditor-btn-py) var(--weditor-btn-px);border:1px solid #cbd5f5;background:#fff;border-radius:4px;cursor:pointer;transition:background .15s,border-color .15s,box-shadow .15s}
-.weditor-toolbar button.weditor-btn--icon{font-size:16px}
-.weditor-toolbar button svg{display:block;width:1em;height:1em;stroke-width: 1px;}
-.weditor-toolbar select{min-height:var(--weditor-btn-h);padding:var(--weditor-btn-py) var(--weditor-btn-px);border:1px solid #cbd5f5;background:#fff;border-radius:4px;cursor:pointer}
-.weditor-toolbar select:hover:not(:disabled){background:#eef2ff;border-color:#94a3b8;box-shadow:0 1px 3px rgba(15,23,42,0.12)}
-.weditor-toolbar select:disabled{opacity:.5;cursor:not-allowed}
-.weditor-toolbar select:focus-visible{outline:2px solid #2563eb;outline-offset:1px}
-.weditor-toolbar select + button, .weditor-toolbar button + select{margin-left:2px}
+.weditor-toolbar{z-index:10;position:sticky;top:0;display:flex;flex-direction:column;gap:0;background:#f8fafc;border-bottom:1px solid #e2e8f0;--weditor-btn-h:34px;--weditor-btn-py:6px;--weditor-btn-px:12px}
+.weditor-toolbar-nav{display:flex;flex-wrap:wrap;gap:8px;align-items:center;padding:10px 12px;background:linear-gradient(135deg,#f8fafc,#eef2ff)}
+.weditor-nav-btn{display:inline-flex;align-items:center;justify-content:center;gap:6px;padding:8px 16px;border-radius:999px;border:1px solid transparent;background:#ffffff;color:#1e293b;font-size:13px;font-weight:600;letter-spacing:.01em;cursor:pointer;box-shadow:0 1px 2px rgba(15,23,42,0.08);transition:all .18s ease}
+.weditor-nav-btn:hover:not(:disabled){background:#e0e7ff;color:#1e293b;box-shadow:0 4px 10px rgba(79,70,229,0.16);transform:translateY(-1px)}
+.weditor-nav-btn:disabled{opacity:.45;cursor:not-allowed;box-shadow:none}
+.weditor-nav-btn[data-active="true"]{background:#2563eb;color:#fff;border-color:#1d4ed8;box-shadow:0 8px 18px rgba(37,99,235,0.32)}
+.weditor-nav-btn[data-indicator="true"]::after{content:"";width:8px;height:8px;border-radius:999px;background:#38bdf8;box-shadow:0 0 0 3px rgba(56,189,248,0.25);margin-left:6px}
+.weditor-nav-btn:focus-visible{outline:2px solid #1d4ed8;outline-offset:2px}
+.weditor-nav-btn--action{background:#f1f5f9;border-color:#d6e3ff;font-weight:500}
+.weditor-nav-btn--action:hover:not(:disabled){background:#e2e8f0;box-shadow:0 2px 6px rgba(15,23,42,0.18)}
+.weditor-toolbar-panels{display:flex;flex-direction:column;gap:12px;padding:0}
+.weditor-toolbar-panel{margin:0}
+.weditor-toolbar-panel[data-open="true"]{margin:0 12px 12px}
+.weditor-toolbar-panel{display:none;flex-direction:column;gap:12px;padding:16px;border-radius:12px;border:1px solid #dbeafe;background:#ffffff;box-shadow:0 12px 32px rgba(15,23,42,0.12)}
+.weditor-toolbar-panel[data-open="true"]{display:flex}
+.weditor-toolbar-panel[data-hidden="true"]{display:none}
+.weditor-table-panel{background:#f8fafc;border-color:#cbd5f5}
+.weditor-toolbar-panel-title{font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:#334155}
+.weditor-toolbar-group-inner{display:flex;flex-direction:column;gap:12px;width:100%}
+.weditor-panel-section{display:flex;flex-wrap:wrap;align-items:center;gap:8px}
+.weditor-panel-section-block{display:flex;flex-direction:column;gap:6px;width:100%}
+.weditor-panel-section-block + .weditor-panel-section-block{border-top:1px dashed #e2e8f0;padding-top:12px;margin-top:4px}
+.weditor-panel-label{font-size:11px;font-weight:600;letter-spacing:.05em;text-transform:uppercase;color:#475569}
+.weditor-panel-section + .weditor-panel-section{border-top:1px dashed #e2e8f0;padding-top:10px}
+.weditor-toolbar-panel button{display:inline-flex;align-items:center;justify-content:center;min-height:var(--weditor-btn-h);padding:var(--weditor-btn-py) var(--weditor-btn-px);border:1px solid #cbd5f5;background:#fff;border-radius:8px;cursor:pointer;font-size:13px;transition:background .15s,border-color .15s,box-shadow .15s,transform .15s}
+.weditor-toolbar-panel button.weditor-btn--icon{font-size:16px}
+.weditor-toolbar-panel button svg{display:block;width:1em;height:1em;stroke-width:1px}
+.weditor-toolbar-panel button:hover:not(:disabled){background:#eff6ff;border-color:#93c5fd;box-shadow:0 4px 10px rgba(59,130,246,0.24);transform:translateY(-1px)}
+.weditor-toolbar-panel button:disabled{opacity:.5;cursor:not-allowed;box-shadow:none}
+.weditor-toolbar-panel button:focus-visible{outline:2px solid #2563eb;outline-offset:2px}
+.weditor-toolbar-panel button[data-active="true"]{background:#e0e7ff;border-color:#94a3b8;box-shadow:0 0 0 2px rgba(148,163,184,0.35)}
+.weditor-toolbar-panel select{min-height:var(--weditor-btn-h);padding:var(--weditor-btn-py) var(--weditor-btn-px);border:1px solid #cbd5f5;background:#fff;border-radius:8px;cursor:pointer;font-size:13px;transition:background .15s,border-color .15s,box-shadow .15s}
+.weditor-toolbar-panel select:hover:not(:disabled){background:#eef2ff;border-color:#94a3b8;box-shadow:0 2px 8px rgba(15,23,42,0.12)}
+.weditor-toolbar-panel select:disabled{opacity:.5;cursor:not-allowed}
+.weditor-toolbar-panel select:focus-visible{outline:2px solid #2563eb;outline-offset:2px}
+.weditor-toolbar-panel select + button,.weditor-toolbar-panel button + select{margin-left:2px}
 .weditor-style-select{min-width:140px}
 .weditor-font-select{min-width:160px}
 .weditor-size-select{min-width:80px}
@@ -31,21 +52,17 @@
 .weditor-btn-bold{font-weight:700}
 .weditor-btn-italic{font-style:italic}
 .weditor-btn-underline{text-decoration:underline;text-underline-offset:2px}
-.weditor-table-subgroup{display:flex;flex-direction:column;gap:4px;padding:4px 6px;background:#f1f5f9;border-radius:6px}
+.weditor-table-subgroup{display:flex;flex-direction:column;gap:6px;padding:6px 8px;background:#f1f5f9;border-radius:8px;border:1px solid #e2e8f0}
 .weditor-table-subgroup-label{font-size:10px;font-weight:600;color:#475569;text-transform:uppercase;letter-spacing:.04em;display:flex;align-items:center;gap:4px}
 .weditor-table-subgroup-info{display:inline-flex;align-items:center;justify-content:center;min-width:16px;padding:0 6px;height:16px;border-radius:8px;background:#e2e8f0;color:#1e293b;font-size:10px;font-weight:600;cursor:help;user-select:none}
 .weditor-table-subgroup-buttons{display:flex;flex-wrap:wrap;gap:4px}
-.weditor-toolbar button.weditor-table-btn{display:flex;flex-direction:column;align-items:flex-start;gap:2px;min-width:118px;min-height:var(--weditor-btn-h);padding:var(--weditor-btn-py) var(--weditor-btn-px);font-size:12px;line-height:1.2}
-.weditor-toolbar button.weditor-table-btn .weditor-table-btn-primary{font-weight:600;color:#1e293b}
-.weditor-toolbar button.weditor-table-btn .weditor-table-btn-secondary{font-size:11px;color:#475569}
-.weditor-toolbar button:hover:not(:disabled){background:#eef2ff;border-color:#94a3b8;box-shadow:0 1px 3px rgba(15,23,42,0.12)}
-.weditor-toolbar button:disabled{opacity:.5;cursor:not-allowed}
-.weditor-toolbar button:focus-visible{outline:2px solid #2563eb;outline-offset:1px}
-.weditor-toolbar button[data-active="true"]{background:#e0e7ff;border-color:#94a3b8}
+.weditor-toolbar-panel button.weditor-table-btn{display:flex;flex-direction:column;align-items:flex-start;gap:2px;min-width:118px;min-height:var(--weditor-btn-h);padding:var(--weditor-btn-py) var(--weditor-btn-px);font-size:12px;line-height:1.2;text-align:left}
+.weditor-toolbar-panel button.weditor-table-btn .weditor-table-btn-primary{font-weight:600;color:#1e293b}
+.weditor-toolbar-panel button.weditor-table-btn .weditor-table-btn-secondary{font-size:11px;color:#475569}
 /* Primary/Secondary emphasis for key actions */
-.weditor-btn--primary{background:#2563eb;color:#fff;border-color:#1d4ed8}
-.weditor-btn--primary:hover:not(:disabled){background:#1d4ed8;border-color:#1e40af}
-.weditor-btn--secondary{background:#fff;color:#1e293b;border-color:#cbd5f5}
+.weditor-toolbar-panel .weditor-btn--primary{background:#2563eb;color:#fff;border-color:#1d4ed8}
+.weditor-toolbar-panel .weditor-btn--primary:hover:not(:disabled){background:#1d4ed8;border-color:#1e40af}
+.weditor-toolbar-panel .weditor-btn--secondary{background:#fff;color:#1e293b;border-color:#cbd5f5}
 /* Ensure table button inner labels invert correctly when primary */
 .weditor-btn--primary .weditor-table-btn-primary{color:#fff}
 .weditor-btn--primary .weditor-table-btn-secondary{color:#e2e8f0}
@@ -128,11 +145,12 @@ body.weditor-fullscreen-active{overflow:hidden}
 .weditor-border-option[data-disabled="true"]{opacity:.55;cursor:not-allowed}
 .weditor-area td.weditor-cell-selected,.weditor-area th.weditor-cell-selected{background-color:#bde0fe !important;outline:1px solid #007bff}
 @media (max-width:640px){
-  .weditor-toolbar{gap:4px;padding:4px 6px}
-  .weditor-toolbar-row{gap:4px}
-  .weditor-toolbar-group{padding:4px 6px;border-radius:6px}
-  .weditor-toolbar-group-label{display:none}
-  .weditor-toolbar button{padding:4px 6px;min-height:28px}
+  .weditor-toolbar-nav{gap:4px;padding:8px}
+  .weditor-nav-btn{padding:6px 12px;font-size:12px}
+  .weditor-toolbar-panel{padding:12px}
+  .weditor-panel-section{gap:6px}
+  .weditor-toolbar-panel button{min-height:30px;padding:6px 10px}
+  .weditor-toolbar-panel select{min-height:30px;padding:6px 10px}
 }
   `.trim() + `
 /* Image Resize Handles */
@@ -430,11 +448,100 @@ body.weditor-fullscreen-active{overflow:hidden}
     // UI skeleton
     const wrap = el("div",{class:"weditor-wrap"});
     const toolbar = el("div",{class:"weditor-toolbar"});
-    // Two-row toolbar containers
-    const rowPrimary = el("div",{class:"weditor-toolbar-row weditor-toolbar-row-primary", role:"toolbar", "aria-label":"Primary toolbar"});
-    const rowSecondary = el("div",{class:"weditor-toolbar-row weditor-toolbar-row-secondary", role:"toolbar", "aria-label":"Secondary toolbar"});
-    toolbar.appendChild(rowPrimary);
-    toolbar.appendChild(rowSecondary);
+    const navBar = el("div",{class:"weditor-toolbar-nav", role:"toolbar", "aria-label":"Editor toolbar actions"});
+    const panelContainer = el("div",{class:"weditor-toolbar-panels"});
+    toolbar.appendChild(navBar);
+    toolbar.appendChild(panelContainer);
+
+    const navButtons = new Map();
+    const panelMap = new Map();
+    let activePanelId = null;
+    let btnFs = null;
+    let btnFsExit = null;
+
+    function setNavActive(btn, active){
+      if (!btn) return;
+      if (active){
+        btn.setAttribute("data-active","true");
+        btn.setAttribute("aria-pressed","true");
+      } else {
+        btn.removeAttribute("data-active");
+        btn.setAttribute("aria-pressed","false");
+      }
+    }
+
+    function openPanel(panelId, opts = {}){
+      const panel = panelMap.get(panelId);
+      if (!panel) return;
+      if (activePanelId && activePanelId !== panelId){
+        closePanel(activePanelId);
+      }
+      panel.setAttribute("data-open","true");
+      panel.removeAttribute("data-hidden");
+      panel.setAttribute("aria-hidden","false");
+      const trigger = navButtons.get(panelId);
+      if (trigger){
+        setNavActive(trigger, true);
+        trigger.setAttribute("aria-expanded","true");
+      }
+      activePanelId = panelId;
+      if (!opts.skipFocus){
+        requestAnimationFrame(()=>{
+          const focusable = panel.querySelector("button,select,input,textarea");
+          if (focusable && typeof focusable.focus === "function"){
+            focusable.focus({ preventScroll: true });
+          }
+        });
+      }
+    }
+
+    function closePanel(panelId){
+      const panel = panelMap.get(panelId);
+      if (!panel) return;
+      panel.removeAttribute("data-open");
+      panel.setAttribute("data-hidden","true");
+      panel.setAttribute("aria-hidden","true");
+      const trigger = navButtons.get(panelId);
+      if (trigger){
+        setNavActive(trigger, false);
+        trigger.setAttribute("aria-expanded","false");
+      }
+      if (activePanelId === panelId){
+        activePanelId = null;
+      }
+    }
+
+    function togglePanel(panelId){
+      if (activePanelId === panelId){
+        closePanel(panelId);
+      } else {
+        openPanel(panelId);
+      }
+    }
+
+    function createNavButton(label, options = {}){
+      const { panelId = null, handler = null, classes = "", title = null } = options;
+      const attrs = {
+        type: "button",
+        class: ("weditor-nav-btn " + (classes || "")).trim(),
+        "aria-label": label,
+        "aria-pressed": "false",
+        title: title || label
+      };
+      if (panelId){
+        attrs["aria-expanded"] = "false";
+      }
+      const btn = el("button", attrs, [label]);
+      if (panelId){
+        btn.dataset.panelTarget = panelId;
+        btn.addEventListener("click", ()=>togglePanel(panelId));
+        navButtons.set(panelId, btn);
+      } else if (typeof handler === "function"){
+        btn.addEventListener("click", handler);
+      }
+      navBar.appendChild(btn);
+      return btn;
+    }
 
     // Editable area (reuse given div)
     divEditor.classList.add("weditor-area");
@@ -1437,20 +1544,53 @@ body.weditor-fullscreen-active{overflow:hidden}
     debouncedConvertToInlineStyles();
  
     // Toolbar helpers
+    function normalizePanelId(label, fallback){
+      const base = (label || fallback || "panel").toString().toLowerCase().replace(/[^a-z0-9]+/g,"-").replace(/(^-|-$)/g,"");
+      let id = base || ("panel-" + Math.random().toString(36).slice(2,7));
+      let dedupe = 1;
+      while (panelMap.has(id)){
+        dedupe += 1;
+        id = `${base || "panel"}-${dedupe}`;
+      }
+      return id;
+    }
+
     function createToolbarGroup(label, opts = {}) {
-      const group = el("div", { class: "weditor-toolbar-group", role: "group" });
-      if (label) {
-        group.appendChild(el("span", { class: "weditor-toolbar-group-label" }, [label]));
-        try { group.setAttribute("aria-label", label); } catch(_) {}
+      const id = opts.id || normalizePanelId(label, opts.navLabel);
+      const navLabel = opts.navLabel || label;
+      const panelClasses = ["weditor-toolbar-panel"];
+      if (opts.panelClass) panelClasses.push(opts.panelClass);
+      const group = el("div", {
+        class: panelClasses.join(" "),
+        role: "group",
+        "aria-label": label || navLabel || "Tools",
+        "data-panel": id,
+        "data-hidden": "true",
+        "aria-hidden": "true"
+      });
+      if (label && opts.showHeading !== false){
+        group.appendChild(el("div",{class:"weditor-toolbar-panel-title"},[label]));
       }
       const inner = el("div", { class: "weditor-toolbar-group-inner" });
       group.appendChild(inner);
-      if (opts.initiallyHidden) {
-        group.setAttribute("data-hidden", "true");
+      panelContainer.appendChild(group);
+      panelMap.set(id, group);
+      let trigger = null;
+      if (opts.createNav !== false){
+        trigger = createNavButton(navLabel || label || "Panel", { panelId: id, classes: opts.navClass || "" });
       }
-      const targetRow = (opts && opts.row === "secondary") ? rowSecondary : rowPrimary;
-      targetRow.appendChild(group);
-      return { group, inner };
+      return { id, group, inner, trigger };
+    }
+
+    function createPanelSection(parent, label){
+      const block = el("div", { class: "weditor-panel-section-block" });
+      if (label) {
+        block.appendChild(el("div", { class: "weditor-panel-label" }, [label]));
+      }
+      const section = el("div", { class: "weditor-panel-section" });
+      block.appendChild(section);
+      parent.appendChild(block);
+      return section;
     }
 
     function addBtn(content, title, fn, target = toolbar, extraClass = ""){
@@ -1468,12 +1608,29 @@ body.weditor-fullscreen-active{overflow:hidden}
       return b;
     }
 
-    // Undo / Redo / HTML (redo-safe)
-    const groupHistory = createToolbarGroup("History",{row:"primary"});
-    btnUndo = addBtn("Undo","Undo (Ctrl/Cmd+Z)", ()=>history.undo(), groupHistory.inner);
-    btnRedo = addBtn("Redo","Redo (Ctrl+Y or Shift+Ctrl/Cmd+Z)", ()=>history.redo(), groupHistory.inner);
+    // Undo / Redo quick actions on nav
+    btnUndo = createNavButton("Undo", { handler: ()=>history.undo(), classes: "weditor-nav-btn--action" });
+    btnRedo = createNavButton("Redo", { handler: ()=>history.redo(), classes: "weditor-nav-btn--action" });
+    btnFs = createNavButton("Fullscreen", { handler: ()=>toggleFullScreen(), classes: "weditor-nav-btn--action", title: "Toggle fullscreen" });
 
-    const groupView = createToolbarGroup("View",{row:"primary"});
+    const groupFormatting = createToolbarGroup("Text", { id: "text", navLabel: "Text", showHeading: false });
+    const groupInsert = createToolbarGroup("Insert", { id: "insert", navLabel: "Insert", showHeading: false });
+    const groupLayout = createToolbarGroup("Layout", { id: "layout", navLabel: "Layout", showHeading: false });
+    const groupTableTools = createToolbarGroup("Table Tools", { id: "table", navLabel: "Table", panelClass: "weditor-table-panel" });
+
+
+    const textSelectorsSection = el("div", { class: "weditor-panel-section" });
+    const textInlineSection = el("div", { class: "weditor-panel-section" });
+    groupFormatting.inner.appendChild(textSelectorsSection);
+    groupFormatting.inner.appendChild(textInlineSection);
+
+    const layoutStructureSection = el("div", { class: "weditor-panel-section" });
+    const layoutAlignmentSection = el("div", { class: "weditor-panel-section" });
+    const layoutUtilitiesSection = el("div", { class: "weditor-panel-section" });
+    groupLayout.inner.appendChild(layoutStructureSection);
+    groupLayout.inner.appendChild(layoutAlignmentSection);
+    groupLayout.inner.appendChild(layoutUtilitiesSection);
+
     addBtn("HTML","Toggle HTML view", ()=>{
       const before = getHTML();
       if (before !== history.current()){
@@ -1501,12 +1658,10 @@ body.weditor-fullscreen-active{overflow:hidden}
       cancelSnapshotTimer();
       pair.value = getExportHTML();
       updateUndoRedoButtons();
-    }, groupView.inner);
+    }, layoutUtilitiesSection);
 
     // Fullscreen
     let isFullScreen = false;
-    let btnFs = null;
-    let btnFsExit = null;
     function handleEscKey(e) {
       if (isFullScreen && e.key === "Escape") {
         e.preventDefault();
@@ -1517,8 +1672,11 @@ body.weditor-fullscreen-active{overflow:hidden}
       isFullScreen = !isFullScreen;
       wrap.classList.toggle("weditor-fullscreen", isFullScreen);
       document.body.classList.toggle("weditor-fullscreen-active", isFullScreen);
-      btnFs.innerHTML = isFullScreen ? "X" : ICON_FULLSCREEN;
-      btnFs.title = isFullScreen ? "Exit Fullscreen" : "Fullscreen";
+      if (btnFs) {
+        btnFs.textContent = isFullScreen ? "Exit Fullscreen" : "Fullscreen";
+        btnFs.title = isFullScreen ? "Exit Fullscreen" : "Fullscreen";
+        btnFs.setAttribute("aria-pressed", isFullScreen ? "true" : "false");
+      }
       if (isFullScreen) {
         document.addEventListener("keydown", handleEscKey);
         divEditor.focus();
@@ -1528,8 +1686,6 @@ body.weditor-fullscreen-active{overflow:hidden}
     }
 
     // Unified Formatting group (merge Text/Headings/Lists/Align)
-    const groupFormatting = createToolbarGroup("Formatting");
-
     let sizeSelect = el("select", { title: "Font size", "aria-label": "Font size", class: "weditor-size-select" });
     FONT_SIZE_PRESETS.forEach(s=>{
       sizeSelect.appendChild(el("option", { value: s.value }, [s.label]));
@@ -1546,7 +1702,7 @@ body.weditor-fullscreen-active{overflow:hidden}
         exec("fontSize", value);
       }
     });
-    groupFormatting.inner.appendChild(sizeSelect);
+    textSelectorsSection.appendChild(sizeSelect);
 
     // Font family selector (minimal, execCommand 'fontName') (中文解释: 字体族选择器)
     const FONT_FAMILY_PRESETS = [
@@ -1579,7 +1735,7 @@ body.weditor-fullscreen-active{overflow:hidden}
         try { updateToggleStates && updateToggleStates(); } catch(_){}
       }
     });
-    groupFormatting.inner.appendChild(fontSelect);
+    textSelectorsSection.appendChild(fontSelect);
 
     // Helpers for reflecting current font family (中文解释: 解析当前选区字体并匹配预设)
     function normalizeFontNameValue(v){
@@ -1677,7 +1833,7 @@ body.weditor-fullscreen-active{overflow:hidden}
         },0);
       }
     });
-    groupFormatting.inner.appendChild(styleSelect);
+    textSelectorsSection.appendChild(styleSelect);
 
     // Line height selector (行高选择器)
     const LINE_HEIGHT_PRESETS = [
@@ -1709,7 +1865,7 @@ body.weditor-fullscreen-active{overflow:hidden}
       const value = lineHeightSelect.value;
       applyLineHeight(value);
     });
-    groupFormatting.inner.appendChild(lineHeightSelect);
+    layoutStructureSection.appendChild(lineHeightSelect);
     
     // Line height icon button + popup (non-destructive; keep select) (中文解释: 渐进式，保留原下拉)
     const ICON_LINE_HEIGHT = `<svg xmlns="http://www.w3.org/2000/svg" width="1em" height="1em"
@@ -1839,7 +1995,7 @@ body.weditor-fullscreen-active{overflow:hidden}
       return { open: openPopup, close: closePopup };
     })();
 
-    const btnLhIcon = addBtn(ICON_LINE_HEIGHT, "Line height", () => lineHeightMenu.open(btnLhIcon), groupFormatting.inner, "weditor-btn--icon");
+    const btnLhIcon = addBtn(ICON_LINE_HEIGHT, "Line height", () => lineHeightMenu.open(btnLhIcon), layoutStructureSection, "weditor-btn--icon");
 
     // ---------- New Image Insert Popup System ----------
     const imageInsertMenu = (() => {
@@ -2018,7 +2174,7 @@ body.weditor-fullscreen-active{overflow:hidden}
     const btnTextColor = addBtn("A","Text color", ()=>{
       try { saveEditorSelection && saveEditorSelection(); } catch(_) {}
       inputTextColor.click();
-    }, groupFormatting.inner);
+    }, textInlineSection);
     inputTextColor.addEventListener("input", ()=>{
       try { if (!restoreEditorSelection || !restoreEditorSelection()) divEditor.focus(); } catch(_) {}
       const value = inputTextColor.value;
@@ -2028,29 +2184,29 @@ body.weditor-fullscreen-active{overflow:hidden}
       }
     });
 
-// Step 2b: Background/Highlight color picker (minimal, with selection restore)
-// (中文解释: 背景高亮颜色；选择颜色前后保持光标/选区)
-const inputBgColor = el("input", { type: "color", style: { display: "none" } });
-wrap.appendChild(inputBgColor);
-const btnBgColor = addBtn("Bg","Highlight color", ()=>{
-  try { saveEditorSelection && saveEditorSelection(); } catch(_) {}
-  inputBgColor.click();
-}, groupFormatting.inner);
-  inputBgColor.addEventListener("input", ()=>{
-    try { if (!restoreEditorSelection || !restoreEditorSelection()) divEditor.focus(); } catch(_) {}
-    const value = inputBgColor.value;
-    const applied = applyBlockStyleToSelection("background-color", value, { multiOnly: true });
-    if (applied) return;
-    try { 
-      exec("hiliteColor", value); 
-    } catch(_){ 
-      // Fallback for older engines (中文解释: 旧浏览器后备)
-      exec("backColor", value); 
-    }
-  });
-    const btnBold = addBtn("B","Bold (Ctrl/Cmd+B)", ()=>exec("bold"), groupFormatting.inner);
-    const btnItalic = addBtn("I","Italic (Ctrl/Cmd+I)", ()=>exec("italic"), groupFormatting.inner);
-    const btnUnderline = addBtn("U","Underline (Ctrl/Cmd+U)", ()=>exec("underline"), groupFormatting.inner);
+    // Step 2b: Background/Highlight color picker (minimal, with selection restore)
+    // (中文解释: 背景高亮颜色；选择颜色前后保持光标/选区)
+    const inputBgColor = el("input", { type: "color", style: { display: "none" } });
+    wrap.appendChild(inputBgColor);
+    const btnBgColor = addBtn("Bg","Highlight color", ()=>{
+      try { saveEditorSelection && saveEditorSelection(); } catch(_) {}
+      inputBgColor.click();
+    }, textInlineSection);
+    inputBgColor.addEventListener("input", ()=>{
+      try { if (!restoreEditorSelection || !restoreEditorSelection()) divEditor.focus(); } catch(_) {}
+      const value = inputBgColor.value;
+      const applied = applyBlockStyleToSelection("background-color", value, { multiOnly: true });
+      if (applied) return;
+      try {
+        exec("hiliteColor", value);
+      } catch(_){
+        // Fallback for older engines (中文解释: 旧浏览器后备)
+        exec("backColor", value);
+      }
+    });
+    const btnBold = addBtn("B","Bold (Ctrl/Cmd+B)", ()=>exec("bold"), textInlineSection);
+    const btnItalic = addBtn("I","Italic (Ctrl/Cmd+I)", ()=>exec("italic"), textInlineSection);
+    const btnUnderline = addBtn("U","Underline (Ctrl/Cmd+U)", ()=>exec("underline"), textInlineSection);
     btnBold.classList.add("weditor-btn-bold");
     btnItalic.classList.add("weditor-btn-italic");
     btnUnderline.classList.add("weditor-btn-underline");
@@ -2061,14 +2217,13 @@ const btnBgColor = addBtn("Bg","Highlight color", ()=>{
     const btnH3 = null;
     const btnP  = null;
     
-    const btnUL = addBtn("*","Bulleted list", ()=>exec("insertUnorderedList"), groupFormatting.inner);
-    const btnOL = addBtn("1.","Numbered list", ()=>exec("insertOrderedList"), groupFormatting.inner);
+    const btnUL = addBtn("*","Bulleted list", ()=>exec("insertUnorderedList"), layoutAlignmentSection);
+    const btnOL = addBtn("1.","Numbered list", ()=>exec("insertOrderedList"), layoutAlignmentSection);
     
     // Balanced SVG Icons for alignment (24x24, 4u padding, non-scaling stroke)
     const ICON_ALIGN_L = `<svg xmlns="http://www.w3.org/2000/svg" width="1em" height="1em" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><line x1="4" y1="6" x2="20" y2="6" vector-effect="non-scaling-stroke"></line><line x1="4" x2="20" vector-effect="non-scaling-stroke" y1="16" y2="16"></line><line x1="4" x2="14" vector-effect="non-scaling-stroke" y2="11" y1="11"></line><line x1="4" x2="14" vector-effect="non-scaling-stroke" y1="21" y2="21"></line></svg>`;
     const ICON_ALIGN_C = `<svg xmlns="http://www.w3.org/2000/svg" width="1em" height="1em" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><line x1="4" y1="6" x2="20" y2="6" vector-effect="non-scaling-stroke"></line><line x1="4" x2="20" vector-effect="non-scaling-stroke" y2="16" y1="16"></line><line x1="7" x2="17" vector-effect="non-scaling-stroke" y1="11" y2="11"></line><line x1="7" x2="17" vector-effect="non-scaling-stroke" y2="21" y1="21"></line></svg>`;
     const ICON_ALIGN_R = `<svg xmlns="http://www.w3.org/2000/svg" width="1em" height="1em" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><line x1="4" y1="6" x2="20" y2="6" vector-effect="non-scaling-stroke"></line><line x1="4" x2="20" vector-effect="non-scaling-stroke" y2="16" y1="16"></line><line x1="10" x2="20" vector-effect="non-scaling-stroke" y1="11" y2="11"></line><line x1="10" x2="20" vector-effect="non-scaling-stroke" y2="21" y1="21"></line></svg>`;
-    const ICON_FULLSCREEN = `<svg xmlns="http://www.w3.org/2000/svg" width="1em" height="1em" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M8 3H5a2 2 0 0 0-2 2v3m18 0V5a2 2 0 0 0-2-2h-3m0 18h3a2 2 0 0 0 2-2v-3M3 16v3a2 2 0 0 0 2 2h3"/></svg>`;
  
     const btnAlignL = addBtn(ICON_ALIGN_L,"Align left", ()=>{
       if (!applyTextAlignment("left")) {
@@ -2076,24 +2231,28 @@ const btnBgColor = addBtn("Bg","Highlight color", ()=>{
       } else {
         try { updateToggleStates && updateToggleStates(); } catch(_){}
       }
-    }, groupFormatting.inner, "weditor-btn--icon");
+    }, layoutAlignmentSection, "weditor-btn--icon");
     const btnAlignC = addBtn(ICON_ALIGN_C,"Center", ()=>{
       if (!applyTextAlignment("center")) {
         exec("justifyCenter");
       } else {
         try { updateToggleStates && updateToggleStates(); } catch(_){}
       }
-    }, groupFormatting.inner, "weditor-btn--icon");
+    }, layoutAlignmentSection, "weditor-btn--icon");
     const btnAlignR = addBtn(ICON_ALIGN_R,"Align right", ()=>{
       if (!applyTextAlignment("right")) {
         exec("justifyRight");
       } else {
         try { updateToggleStates && updateToggleStates(); } catch(_){}
       }
-    }, groupFormatting.inner, "weditor-btn--icon");
+    }, layoutAlignmentSection, "weditor-btn--icon");
 
-    const groupInsert = createToolbarGroup("Insert",{row:"primary"});
-    const btnLink = addBtn("Link","Insert link (Ctrl/Cmd+K)", ()=>{
+    const insertLinkSection = createPanelSection(groupInsert.inner, "Links");
+    const insertMediaSection = createPanelSection(groupInsert.inner, "Media");
+    const insertPageSection = createPanelSection(groupInsert.inner, "Document");
+    const insertTableSection = createPanelSection(groupInsert.inner, "Tables");
+
+    const btnLink = addBtn("Insert Link","Insert link (Ctrl/Cmd+K)", ()=>{
       // 1) If caret is already inside a link, treat as "Edit link"
       try {
         const sel0 = window.getSelection && window.getSelection();
@@ -2134,10 +2293,10 @@ const btnBgColor = addBtn("Bg","Highlight color", ()=>{
           a2.setAttribute("rel","noopener noreferrer");
         }
       }
-    }, groupInsert.inner);
+    }, insertLinkSection);
     // Step 1: Add Unlink button (remove link only, keep other formatting)
     // (中文解释: 仅移除超链接，不清除其他文字样式)
-    const btnUnlink = addBtn("Unlink","Remove link (Ctrl/Cmd+Shift+K)", ()=>{
+    const btnUnlink = addBtn("Remove Link","Remove link (Ctrl/Cmd+Shift+K)", ()=>{
       // Try native unlink first
       exec("unlink");
       // Fallback: if still inside an <a>, unwrap it
@@ -2154,10 +2313,10 @@ const btnBgColor = addBtn("Bg","Highlight color", ()=>{
           }
         }
       } catch(_){}
-    }, groupInsert.inner);
+    }, insertLinkSection);
     // Step 2: Add EditLink button (edit only the current anchor's href)
     // (中文解释: 编辑当前光标所在链接的地址，保留其它文本样式)
-    const btnEditLink = addBtn("EditLink","Edit link", ()=>{
+    const btnEditLink = addBtn("Edit Link","Edit link", ()=>{
       try{
         const sel = window.getSelection && window.getSelection();
         const n = sel && sel.anchorNode ? (sel.anchorNode.nodeType===1 ? sel.anchorNode : sel.anchorNode.parentElement) : null;
@@ -2175,12 +2334,12 @@ const btnBgColor = addBtn("Bg","Highlight color", ()=>{
         a.setAttribute("rel","noopener noreferrer");
         divEditor.dispatchEvent(new Event("input",{bubbles:true}));
       }catch(_){}
-    }, groupInsert.inner);
+    }, insertLinkSection);
 
-    const btnImg = addBtn("Img", "Insert image", (e) => {
+    const btnInsertImage = addBtn("Insert Image", "Insert image", (e) => {
       imageInsertMenu.open(e.currentTarget);
-    }, groupInsert.inner);
-    addBtn("HR","Horizontal rule", ()=>exec("insertHorizontalRule"), groupInsert.inner);
+    }, insertMediaSection);
+    addBtn("Divider","Insert divider", ()=>exec("insertHorizontalRule"), insertMediaSection);
     addBtn("Page Break", "Insert page break", () => {
       if (typeof divEditor.focus === "function") {
         try {
@@ -2264,11 +2423,9 @@ const btnBgColor = addBtn("Bg","Highlight color", ()=>{
       }
       
       divEditor.dispatchEvent(new Event("input", { bubbles: true }));
-    }, groupInsert.inner);
-    // Secondary row - More (Clear, Fullscreen)
-    const groupMore = createToolbarGroup("More",{row:"secondary"});
-    addBtn("Clear","Clear Formatting", ()=>exec("removeFormat"), groupMore.inner);
-    btnFs = addBtn(ICON_FULLSCREEN,"Fullscreen", toggleFullScreen, groupMore.inner, "weditor-btn--icon");
+    }, insertPageSection);
+    // Layout extras
+    addBtn("Clear","Clear formatting", ()=>exec("removeFormat"), layoutUtilitiesSection);
     // Create top-right Exit Fullscreen button (only visible in fullscreen via CSS)
     btnFsExit = el("button", {
       type: "button",
@@ -2278,43 +2435,25 @@ const btnBgColor = addBtn("Bg","Highlight color", ()=>{
     }, ["X"]);
     btnFsExit.addEventListener("click", ()=>{ if (isFullScreen) toggleFullScreen(); });
     wrap.appendChild(btnFsExit);
-
-    const groupTableTools = createToolbarGroup("Table",{row:"secondary"});
     
-    // Collapsed toggle for Table tools when caret not inside a table
     let tablePanelManualOpen = false;
-    let tablePanelManualClosed = false; // remember if user explicitly collapsed (中文解释: 用户手动关闭后抑制自动展开)
-    let tablePanelOutsideHandler = null;
-    // Give the Table tools panel a stable id for a11y
-    const tablePanelId = "weditor-table-panel-" + Math.random().toString(36).slice(2,9);
-    groupTableTools.group.id = tablePanelId;
-    
-    const btnTableCollapsed = addBtn("Table ▾","Table tools", ()=>{
-      toggleTablePanel(btnTableCollapsed);
-    }, rowSecondary);
-    // Secondary visual style + ARIA wiring
-    btnTableCollapsed.classList.add("weditor-btn--secondary");
-    btnTableCollapsed.setAttribute("aria-controls", tablePanelId);
-    btnTableCollapsed.setAttribute("aria-expanded", "false");
-    
-    function toggleTablePanel(anchor){
-      // Determine actual current open state from DOM (中文解释: 基于真实可见状态判断)
-      const isOpen = !groupTableTools.group.hasAttribute("data-hidden");
-      if (isOpen){
-        // Close
-        tablePanelManualOpen = false;
-        tablePanelManualClosed = true; // 用户明确关闭，抑制自动展开
-        groupTableTools.group.setAttribute("data-hidden","true");
-        anchor.textContent = "Table ▾";
-        anchor.setAttribute("aria-expanded","false");
-      } else {
-        // Open
-        tablePanelManualOpen = true;   // 用户明确打开，优先级最高
-        tablePanelManualClosed = false;
-        groupTableTools.group.removeAttribute("data-hidden");
-        anchor.textContent = "Table ▴";
-        anchor.setAttribute("aria-expanded","true");
-      }
+    let tablePanelManualClosed = false;
+    let tablePanelPendingReveal = false;
+    const tablePanelDomId = "weditor-table-panel-" + Math.random().toString(36).slice(2,9);
+    groupTableTools.group.id = tablePanelDomId;
+    if (groupTableTools.trigger){
+      groupTableTools.trigger.setAttribute("aria-controls", tablePanelDomId);
+      groupTableTools.trigger.addEventListener("click", (ev)=>{
+        const triggerBtn = ev.currentTarget;
+        const currentlyActive = triggerBtn.getAttribute("data-active") === "true";
+        const willOpen = !currentlyActive;
+        tablePanelManualOpen = willOpen;
+        tablePanelManualClosed = !willOpen;
+        if (!willOpen) {
+          tablePanelPendingReveal = false;
+        }
+        groupTableTools.trigger.removeAttribute("data-indicator");
+      }, true);
     }
     function createTableSubgroup(labelText, infoText) {
       const wrapper = el("div", { class: "weditor-table-subgroup" });
@@ -2348,56 +2487,61 @@ const btnBgColor = addBtn("Bg","Highlight color", ()=>{
     }
 
     function updateTableToolsVisibility() {
-      // Auto-open when content contains a table unless user manually collapsed (中文解释: 用户手动关闭后不再自动展开)
       try {
-        // Manual open always wins
-        if (tablePanelManualOpen) {
-          groupTableTools.group.removeAttribute("data-hidden");
-          btnTableCollapsed.setAttribute("aria-expanded","true");
-          btnTableCollapsed.textContent = "Table ▴";
-          return;
-        }
-        // Respect manual close (suppresses auto-open)
-        if (tablePanelManualClosed) {
-          groupTableTools.group.setAttribute("data-hidden","true");
-          btnTableCollapsed.setAttribute("aria-expanded","false");
-          btnTableCollapsed.textContent = "Table ▾";
-          return;
-        }
+        const trigger = groupTableTools.trigger;
+        const panelId = groupTableTools.id;
         const hasAnyTable = !!divEditor.querySelector("table");
-        // When no tables remain, clear suppression so future tables can auto-open
+
         if (!hasAnyTable) {
-          tablePanelManualClosed = false;
-        }
-        let show = false;
-        if (hasAnyTable) {
-          // Auto-open if any table exists
-          show = true;
-        } else {
-          // Fallback: caret-in-table (practically false if no table)
-          const sel = window.getSelection();
-          if (sel && sel.rangeCount) {
-            const anchor = sel.anchorNode;
-            const focus = sel.focusNode;
-            const insideEditor = isNodeInside(anchor, divEditor) || isNodeInside(focus, divEditor);
-            if (insideEditor) {
-              const ctx = getTableContext();
-              show = !!(ctx && ctx.table);
-            }
+          tablePanelPendingReveal = false;
+          if (!tablePanelManualOpen) {
+            tablePanelManualClosed = false;
           }
         }
-        if (show) {
-          groupTableTools.group.removeAttribute("data-hidden");
-          btnTableCollapsed.setAttribute("aria-expanded","true");
-          btnTableCollapsed.textContent = "Table ▴";
-        } else {
-          groupTableTools.group.setAttribute("data-hidden", "true");
-          btnTableCollapsed.setAttribute("aria-expanded","false");
-          btnTableCollapsed.textContent = "Table ▾";
+
+        if (tablePanelManualOpen) {
+          openPanel(panelId, { skipFocus: true });
+          trigger && trigger.removeAttribute("data-indicator");
+          return;
+        }
+
+        if (tablePanelManualClosed) {
+          closePanel(panelId);
+          trigger && trigger.removeAttribute("data-indicator");
+          return;
+        }
+
+        const ctx = getTableContext();
+        const caretInsideTable = !!(ctx && ctx.table);
+
+        if (tablePanelPendingReveal && hasAnyTable) {
+          tablePanelPendingReveal = false;
+          openPanel(panelId);
+          trigger && trigger.removeAttribute("data-indicator");
+          return;
+        }
+
+        if (caretInsideTable) {
+          openPanel(panelId, { skipFocus: true });
+          trigger && trigger.removeAttribute("data-indicator");
+          return;
+        }
+
+        if (hasAnyTable) {
+          trigger && trigger.setAttribute("data-indicator","true");
+        } else if (trigger) {
+          trigger.removeAttribute("data-indicator");
+        }
+
+        if (activePanelId === panelId) {
+          closePanel(panelId);
+          tablePanelManualOpen = false;
         }
       } catch (err) {
-        groupTableTools.group.setAttribute("data-hidden", "true");
-        btnTableCollapsed.setAttribute("aria-expanded","false");
+        closePanel(groupTableTools.id);
+        if (groupTableTools.trigger) {
+          groupTableTools.trigger.removeAttribute("data-indicator");
+        }
       }
     }
 
@@ -3483,8 +3627,10 @@ const btnBgColor = addBtn("Bg","Highlight color", ()=>{
           } else {
             divEditor.focus();
           }
+          tablePanelPendingReveal = true;
           insertTableAtCaret(divEditor, rows, cols);
           saveEditorSelection();
+          updateTableToolsVisibility();
         };
 
         node.addEventListener("click", (evt) => {
@@ -4353,10 +4499,19 @@ const btnBgColor = addBtn("Bg","Highlight color", ()=>{
     }
 
     // ------ Table Buttons ------
-    const btnTbl = addBtn("Table","Insert table", (evt)=>{
+    const btnTbl = addBtn("Insert Table","Insert table", (evt)=>{
       evt.preventDefault();
       insertTablePopup.open(evt.currentTarget || btnTbl);
-    }, groupInsert.inner);
+    }, insertTableSection);
+    addBtn("Table Tools","Open table tools panel", ()=>{
+      tablePanelManualOpen = true;
+      tablePanelManualClosed = false;
+      tablePanelPendingReveal = false;
+      if (groupTableTools.trigger){
+        groupTableTools.trigger.removeAttribute("data-indicator");
+      }
+      openPanel(groupTableTools.id);
+    }, insertTableSection);
     // Use normal styling (no .weditor-btn--primary) to keep dark text per design
     const tableRows = createTableSubgroup("Rows");
     addTableAction("Insert Row Below", null, "Insert row below (⌥↓)", ()=>insertRow(true), tableRows);
