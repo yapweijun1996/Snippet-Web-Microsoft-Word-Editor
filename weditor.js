@@ -304,6 +304,7 @@ body.weditor-fullscreen-active{overflow:hidden}
   // ---------- Build one editor (div.weditor + next textarea.weditor_textarea) ----------
   function buildEditor(divEditor){
     let selectedPageBreak = null;
+    let showingSource = false;
     function selectPageBreak(pb) {
       $$(".weditor-page-break-selected", divEditor).forEach(p => p.classList.remove("weditor-page-break-selected"));
       if (pb) {
@@ -376,6 +377,7 @@ body.weditor-fullscreen-active{overflow:hidden}
 
     // Exec helper（保证选区在编辑器内）
     function exec(cmd, val=null){
+      if (showingSource) return;
       const selectedImg = divEditor.querySelector('img.weditor-img-selected');
 
       if (selectedImg && (cmd === 'justifyLeft' || cmd === 'justifyCenter' || cmd === 'justifyRight')) {
@@ -395,37 +397,39 @@ body.weditor-fullscreen-active{overflow:hidden}
       try { updateToggleStates && updateToggleStates(); } catch(e){}
     }
 
-    // 获取当前选区内的所有段落P（用于 No Spacing 批量应用）(中文解释: 多段落时同时生效)
-    function getSelectedParagraphsInEditor(){
+    const BLOCK_STYLE_SELECTOR = "p,h1,h2,h3,h4,h5,h6,li,blockquote,td,th";
+
+    // 获取当前选区内的所有块级节点（默认仅段落用于 No Spacing）(中文解释: 可根据选择器扩展命中范围)
+    function getSelectedParagraphsInEditor(selector = "p"){
       const sel = window.getSelection();
       if (!sel || !sel.rangeCount) {
-        const p0 = divEditor.querySelector("p");
-        return p0 ? [p0] : [];
+        const first = divEditor.querySelector(selector);
+        return first ? [first] : [];
       }
       const range = sel.getRangeAt(0);
       if (!isNodeInside(range.commonAncestorContainer, divEditor)) return [];
-      const ps = $$("p", divEditor);
+      const blocks = $$(selector, divEditor);
       const result = [];
-      ps.forEach(p=>{
+      blocks.forEach(block=>{
         let intersects = false;
         if (typeof range.intersectsNode === "function") {
-          try { intersects = range.intersectsNode(p); } catch(_) { intersects = false; }
+          try { intersects = range.intersectsNode(block); } catch(_) { intersects = false; }
         }
         if (!intersects){
           const pr = document.createRange();
-          pr.selectNodeContents(p);
+          pr.selectNodeContents(block);
           const endsBefore = range.compareBoundaryPoints(Range.END_TO_START, pr) < 0;
           const startsAfter = range.compareBoundaryPoints(Range.START_TO_END, pr) > 0;
           if (!endsBefore && !startsAfter) intersects = true;
           pr.detach?.();
         }
-        if (intersects) result.push(p);
+        if (intersects) result.push(block);
       });
       if (!result.length) {
         const anchor = sel.anchorNode;
         let n = anchor ? (anchor.nodeType===1 ? anchor : anchor.parentElement) : null;
-        const p = n && n.closest ? n.closest("p") : null;
-        if (p && isNodeInside(p, divEditor)) result.push(p);
+        const fallback = n && n.closest ? n.closest(selector) : null;
+        if (fallback && isNodeInside(fallback, divEditor)) result.push(fallback);
       }
       return result;
     }
@@ -473,6 +477,7 @@ body.weditor-fullscreen-active{overflow:hidden}
     }
     function applyFontSizePx(fontSize){
       if (!fontSize) return false;
+      if (showingSource) return false;
       const sel = window.getSelection();
       if (!sel || !sel.rangeCount) return false;
       const range = sel.getRangeAt(0);
@@ -482,11 +487,11 @@ body.weditor-fullscreen-active{overflow:hidden}
         divEditor.dispatchEvent(new Event("input", { bubbles: true }));
         return true;
       }
-      const paragraphs = getSelectedParagraphsInEditor();
-      if (paragraphs.length) {
-        paragraphs.forEach(p => {
-          if (isNodeInside(p, divEditor)) {
-            p.style.fontSize = fontSize;
+      const blocks = getSelectedParagraphsInEditor(BLOCK_STYLE_SELECTOR);
+      if (blocks.length) {
+        blocks.forEach(node => {
+          if (isNodeInside(node, divEditor)) {
+            node.style.fontSize = fontSize;
           }
         });
         divEditor.dispatchEvent(new Event("input", { bubbles: true }));
@@ -496,28 +501,19 @@ body.weditor-fullscreen-active{overflow:hidden}
     }
 
     function applyLineHeight(value) {
-      const paragraphs = getSelectedParagraphsInEditor();
-      if (paragraphs.length > 0) {
-        paragraphs.forEach(p => {
-          if (isNodeInside(p, divEditor)) {
-            p.style.lineHeight = value;
-          }
-        });
-      } else {
-        // Fallback for non-paragraph content if needed, for now we focus on paragraphs
-        exec("formatBlock", "<p>");
-        setTimeout(() => {
-          const list = getSelectedParagraphsInEditor();
-          list.forEach(p => {
-            if (isNodeInside(p, divEditor)) p.style.lineHeight = value;
-          });
-        }, 0);
-      }
+      if (!value) return;
+      if (showingSource) return;
+      const blocks = getSelectedParagraphsInEditor(BLOCK_STYLE_SELECTOR);
+      if (!blocks.length) return;
+      blocks.forEach(node => {
+        if (isNodeInside(node, divEditor)) {
+          node.style.lineHeight = value;
+        }
+      });
       divEditor.dispatchEvent(new Event("input", { bubbles: true }));
     }
 
     // ---------- History manager (with redo-safe undo) ----------
-    let showingSource = false;
     function getHTML(){ return showingSource ? divEditor.textContent : divEditor.innerHTML; }
     function setHTML(v, opts={}){
       const silent = !!opts.silent;
