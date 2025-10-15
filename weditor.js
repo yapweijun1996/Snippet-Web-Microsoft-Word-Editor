@@ -2495,8 +2495,11 @@ body.weditor-fullscreen-active{overflow:hidden}
         if (!hasAnyTable) {
           tablePanelPendingReveal = false;
           if (!tablePanelManualOpen) {
-            tablePanelManualClosed = false;
+            closePanel(panelId);
+            trigger && trigger.removeAttribute("data-indicator");
           }
+          tablePanelManualClosed = false;
+          return;
         }
 
         if (tablePanelManualOpen) {
@@ -2527,15 +2530,9 @@ body.weditor-fullscreen-active{overflow:hidden}
           return;
         }
 
-        if (hasAnyTable) {
-          trigger && trigger.setAttribute("data-indicator","true");
-        } else if (trigger) {
-          trigger.removeAttribute("data-indicator");
-        }
-
-        if (activePanelId === panelId) {
+        trigger && trigger.setAttribute("data-indicator","true");
+        if (!tablePanelManualOpen && !caretInsideTable && activePanelId === panelId) {
           closePanel(panelId);
-          tablePanelManualOpen = false;
         }
       } catch (err) {
         closePanel(groupTableTools.id);
