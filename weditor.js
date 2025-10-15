@@ -742,6 +742,31 @@ body.weditor-fullscreen-active{overflow:hidden}
 
     // ---------- History manager (with redo-safe undo) ----------
     function getHTML(){ return showingSource ? divEditor.textContent : divEditor.innerHTML; }
+
+    function sanitizePageBreaksForExport(root){
+      if (!root || typeof root.querySelectorAll !== "function") return;
+      root.querySelectorAll(".weditor-page-break").forEach(pb=>{
+        if (!pb) return;
+        pb.classList.remove("weditor-page-break-selected");
+        pb.removeAttribute("aria-label");
+        pb.removeAttribute("role");
+        pb.removeAttribute("contenteditable");
+        pb.textContent = "";
+        if (pb.style) {
+          pb.removeAttribute("style");
+          pb.style.display = "block";
+          pb.style.pageBreakAfter = "always";
+          try { pb.style.setProperty("break-after", "page"); } catch(_){}
+        }
+      });
+    }
+
+    function getExportHTML(){
+      if (showingSource) return divEditor.textContent;
+      const clone = divEditor.cloneNode(true);
+      sanitizePageBreaksForExport(clone);
+      return clone.innerHTML;
+    }
     function setHTML(v, opts={}){
       const silent = !!opts.silent;
       if (showingSource) {
@@ -754,7 +779,7 @@ body.weditor-fullscreen-active{overflow:hidden}
       if (!silent){
         divEditor.dispatchEvent(new Event("input",{bubbles:true}));
       } else {
-        pair.value = getHTML();
+        pair.value = getExportHTML();
         if (!showingSource) {
           convertToInlineStyles();
         }
@@ -822,7 +847,7 @@ body.weditor-fullscreen-active{overflow:hidden}
     let syncTimer=null;
     function syncToTextarea(){
       clearTimeout(syncTimer);
-      syncTimer = setTimeout(()=>{ pair.value = getHTML(); }, 120);
+      syncTimer = setTimeout(()=>{ pair.value = getExportHTML(); }, 120);
     }
 
     divEditor.addEventListener("input", scheduleSnapshot);
@@ -1455,7 +1480,8 @@ body.weditor-fullscreen-active{overflow:hidden}
         lastSaved = before;
       }
       if (!showingSource){
-        divEditor.textContent = divEditor.innerHTML;
+        const exportHTML = getExportHTML();
+        divEditor.textContent = exportHTML;
         showingSource = true;
       } else {
         divEditor.innerHTML = divEditor.textContent;
@@ -1472,7 +1498,7 @@ body.weditor-fullscreen-active{overflow:hidden}
         lastSaved = after;
       }
       cancelSnapshotTimer();
-      pair.value = after;
+      pair.value = getExportHTML();
       updateUndoRedoButtons();
     }, groupView.inner);
 
