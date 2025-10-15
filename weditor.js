@@ -4442,7 +4442,7 @@ const btnBgColor = addBtn("Bg","Highlight color", ()=>{
 
     function onResizeMove(e) {
       if (!resizeState) return;
-      const { img, direction, startX, startY, startWidth, startHeight, aspectRatio } = resizeState;
+      const { img, direction, startX, startY, startWidth, startHeight } = resizeState;
       let newWidth = startWidth;
       let newHeight = startHeight;
       const deltaX = e.clientX - startX;
@@ -4454,12 +4454,27 @@ const btnBgColor = addBtn("Bg","Highlight color", ()=>{
       if (direction.includes("n")) newHeight = Math.max(MIN_SIZE, startHeight - deltaY);
 
       if (direction.length === 2) { // Corner handles
-        const isDiagonal = direction === "se" || direction === "nw";
-        const ratio = isDiagonal ? (startWidth + deltaX) / startWidth : (startHeight + (direction.includes("s") ? deltaY : -deltaY)) / startHeight;
-        newWidth = Math.max(MIN_SIZE, startWidth * ratio);
-        newHeight = Math.max(MIN_SIZE, startHeight * ratio);
+        const safeStartWidth = startWidth > 0 ? startWidth : MIN_SIZE;
+        const safeStartHeight = startHeight > 0 ? startHeight : MIN_SIZE;
+        const widthRatio = safeStartWidth ? newWidth / safeStartWidth : 1;
+        const heightRatio = safeStartHeight ? newHeight / safeStartHeight : 1;
+        const widthDeltaRatio = Math.abs(widthRatio - 1);
+        const heightDeltaRatio = Math.abs(heightRatio - 1);
+        let ratio;
+        if (widthDeltaRatio === 0 && heightDeltaRatio === 0) {
+          ratio = 1;
+        } else if (widthDeltaRatio >= heightDeltaRatio) {
+          ratio = widthRatio;
+        } else {
+          ratio = heightRatio;
+        }
+        const minWidthRatio = safeStartWidth ? MIN_SIZE / safeStartWidth : 0;
+        const minHeightRatio = safeStartHeight ? MIN_SIZE / safeStartHeight : 0;
+        ratio = Math.max(ratio, minWidthRatio, minHeightRatio);
+        newWidth = Math.max(MIN_SIZE, safeStartWidth * ratio);
+        newHeight = Math.max(MIN_SIZE, safeStartHeight * ratio);
       }
-      
+
       img.style.width = Math.round(newWidth) + "px";
       img.style.height = Math.round(newHeight) + "px";
       positionHandles(img);
