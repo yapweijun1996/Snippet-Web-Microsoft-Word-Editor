@@ -15,9 +15,10 @@
 .weditor-nav-btn:focus-visible{outline:2px solid #1d4ed8;outline-offset:2px}
 .weditor-nav-btn--action{background:#f1f5f9;border-color:#d6e3ff;font-weight:500}
 .weditor-nav-btn--action:hover:not(:disabled){background:#e2e8f0;box-shadow:0 2px 6px rgba(15,23,42,0.18)}
-.weditor-toolbar-panels{display:flex;flex-direction:column;gap:12px;padding:0}
+.weditor-nav-btn--end{margin-left:auto}
+.weditor-toolbar-panels{display:flex;flex-direction:column;gap:12px;padding:0;margin:0}
+.weditor-toolbar-panels[data-panel-open="true"]{margin:0 12px 12px}
 .weditor-toolbar-panel{margin:0}
-.weditor-toolbar-panel[data-open="true"]{margin:0 12px 12px}
 .weditor-toolbar-panel{display:none;flex-direction:column;gap:12px;padding:16px;border-radius:12px;border:1px solid #dbeafe;background:#ffffff;box-shadow:0 12px 32px rgba(15,23,42,0.12)}
 .weditor-toolbar-panel[data-open="true"]{display:flex}
 .weditor-toolbar-panel[data-hidden="true"]{display:none}
@@ -458,6 +459,10 @@ body.weditor-fullscreen-active{overflow:hidden}
     let activePanelId = null;
     let btnFs = null;
     let btnFsExit = null;
+    const TABLE_PANEL_ID = "table";
+    let tablePanelManualOpen = false;
+    let tablePanelManualClosed = false;
+    let tablePanelPendingReveal = false;
 
     function setNavActive(btn, active){
       if (!btn) return;
@@ -479,6 +484,7 @@ body.weditor-fullscreen-active{overflow:hidden}
       panel.setAttribute("data-open","true");
       panel.removeAttribute("data-hidden");
       panel.setAttribute("aria-hidden","false");
+      panelContainer.setAttribute("data-panel-open","true");
       const trigger = navButtons.get(panelId);
       if (trigger){
         setNavActive(trigger, true);
@@ -501,6 +507,9 @@ body.weditor-fullscreen-active{overflow:hidden}
       panel.removeAttribute("data-open");
       panel.setAttribute("data-hidden","true");
       panel.setAttribute("aria-hidden","true");
+      if (panelId === TABLE_PANEL_ID) {
+        tablePanelManualOpen = false;
+      }
       const trigger = navButtons.get(panelId);
       if (trigger){
         setNavActive(trigger, false);
@@ -508,6 +517,9 @@ body.weditor-fullscreen-active{overflow:hidden}
       }
       if (activePanelId === panelId){
         activePanelId = null;
+      }
+      if (!panelContainer.querySelector('.weditor-toolbar-panel[data-open="true"]')) {
+        panelContainer.removeAttribute("data-panel-open");
       }
     }
 
@@ -1611,12 +1623,12 @@ body.weditor-fullscreen-active{overflow:hidden}
     // Undo / Redo quick actions on nav
     btnUndo = createNavButton("Undo", { handler: ()=>history.undo(), classes: "weditor-nav-btn--action" });
     btnRedo = createNavButton("Redo", { handler: ()=>history.redo(), classes: "weditor-nav-btn--action" });
-    btnFs = createNavButton("Fullscreen", { handler: ()=>toggleFullScreen(), classes: "weditor-nav-btn--action", title: "Toggle fullscreen" });
+    btnFs = createNavButton("Fullscreen", { handler: ()=>toggleFullScreen(), classes: "weditor-nav-btn--action weditor-nav-btn--end", title: "Toggle fullscreen" });
 
     const groupFormatting = createToolbarGroup("Text", { id: "text", navLabel: "Text", showHeading: false });
     const groupInsert = createToolbarGroup("Insert", { id: "insert", navLabel: "Insert", showHeading: false });
     const groupLayout = createToolbarGroup("Layout", { id: "layout", navLabel: "Layout", showHeading: false });
-    const groupTableTools = createToolbarGroup("Table Tools", { id: "table", navLabel: "Table", panelClass: "weditor-table-panel" });
+    const groupTableTools = createToolbarGroup("Table Tools", { id: TABLE_PANEL_ID, navLabel: "Table", panelClass: "weditor-table-panel" });
 
 
     const textSelectorsSection = el("div", { class: "weditor-panel-section" });
@@ -2435,10 +2447,6 @@ body.weditor-fullscreen-active{overflow:hidden}
     }, ["X"]);
     btnFsExit.addEventListener("click", ()=>{ if (isFullScreen) toggleFullScreen(); });
     wrap.appendChild(btnFsExit);
-    
-    let tablePanelManualOpen = false;
-    let tablePanelManualClosed = false;
-    let tablePanelPendingReveal = false;
     const tablePanelDomId = "weditor-table-panel-" + Math.random().toString(36).slice(2,9);
     groupTableTools.group.id = tablePanelDomId;
     if (groupTableTools.trigger){
