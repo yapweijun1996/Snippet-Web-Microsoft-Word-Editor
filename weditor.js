@@ -378,6 +378,7 @@ body.weditor-fullscreen-active{overflow:hidden}
     // Exec helper（保证选区在编辑器内）
     function exec(cmd, val=null){
       if (showingSource) return;
+      if (handleCommandForSelectedCells(cmd, val)) return;
       const selectedImg = divEditor.querySelector('img.weditor-img-selected');
 
       if (selectedImg && (cmd === 'justifyLeft' || cmd === 'justifyCenter' || cmd === 'justifyRight')) {
@@ -476,33 +477,71 @@ body.weditor-fullscreen-active{overflow:hidden}
       }
     }
     function applyFontSizePx(fontSize){
-      if (!fontSize) return false;
-      if (showingSource) return false;
-      const sel = window.getSelection();
-      if (!sel || !sel.rangeCount) return false;
-      const range = sel.getRangeAt(0);
-      if (!isNodeInside(range.commonAncestorContainer, divEditor)) return false;
-      if (range.collapsed) return false;
-      if (tryWrapRangeWithFontSize(range, fontSize)) {
-        divEditor.dispatchEvent(new Event("input", { bubbles: true }));
-        return true;
-      }
-      const blocks = getSelectedParagraphsInEditor(BLOCK_STYLE_SELECTOR);
-      if (blocks.length) {
-        blocks.forEach(node => {
-          if (isNodeInside(node, divEditor)) {
-            node.style.fontSize = fontSize;
-          }
+      if (!fontSize || showingSource) return false;
+
+      const applyOnce = () => {
+        const sel = window.getSelection();
+        if (!sel || !sel.rangeCount) return false;
+        const range = sel.getRangeAt(0);
+        if (!isNodeInside(range.commonAncestorContainer, divEditor)) return false;
+        if (range.collapsed) return false;
+        if (tryWrapRangeWithFontSize(range, fontSize)) {
+          return true;
+        }
+        const blocks = getSelectedParagraphsInEditor(BLOCK_STYLE_SELECTOR);
+        if (blocks.length) {
+          blocks.forEach(node => {
+            if (isNodeInside(node, divEditor)) {
+              node.style.fontSize = fontSize;
+            }
+          });
+          return true;
+        }
+        return false;
+      };
+
+      let changed = false;
+      if (cellSelectionState.selectedCells.length) {
+        forEachSelectedCellRange(() => {
+          if (applyOnce()) changed = true;
         });
-        divEditor.dispatchEvent(new Event("input", { bubbles: true }));
-        return true;
+        if (changed) {
+          divEditor.dispatchEvent(new Event("input", { bubbles: true }));
+          return true;
+        }
+        return false;
       }
-      return false;
+
+      const result = applyOnce();
+      if (result) {
+        divEditor.dispatchEvent(new Event("input", { bubbles: true }));
+      }
+      return result;
     }
 
     function applyLineHeight(value) {
       if (!value) return;
       if (showingSource) return;
+      if (cellSelectionState.selectedCells.length) {
+        let changed = false;
+        cellSelectionState.selectedCells.forEach(cell => {
+          if (!cell || !cell.isConnected) return;
+          const nodes = $$(BLOCK_STYLE_SELECTOR, cell);
+          if (nodes.length) {
+            nodes.forEach(node => {
+              if (isNodeInside(node, divEditor)) {
+                node.style.lineHeight = value;
+                changed = true;
+              }
+            });
+          } else {
+            cell.style.lineHeight = value;
+            changed = true;
+          }
+        });
+        if (changed) divEditor.dispatchEvent(new Event("input",{bubbles:true}));
+        return;
+      }
       const blocks = getSelectedParagraphsInEditor(BLOCK_STYLE_SELECTOR);
       if (!blocks.length) return;
       blocks.forEach(node => {
@@ -934,29 +973,10 @@ body.weditor-fullscreen-active{overflow:hidden}
     }
 
     const DEFAULT_STYLE_VALUES = new Map([
-      ["margin-top", "0px"],
-      ["margin-right", "0px"],
-      ["margin-bottom", "0px"],
-      ["margin-left", "0px"],
-      ["padding-top", "0px"],
-      ["padding-right", "0px"],
-      ["padding-bottom", "0px"],
-      ["padding-left", "0px"],
-      ["border-top-width", "0px"],
-      ["border-right-width", "0px"],
-      ["border-bottom-width", "0px"],
-      ["border-left-width", "0px"],
-      ["border-top-style", "none"],
-      ["border-right-style", "none"],
-      ["border-bottom-style", "none"],
-      ["border-left-style", "none"],
-      ["border-top-color", "rgb(0, 0, 0)"],
-      ["border-right-color", "rgb(0, 0, 0)"],
-      ["border-bottom-color", "rgb(0, 0, 0)"],
-      ["border-left-color", "rgb(0, 0, 0)"],
       ["font-weight", "400"],
       ["font-style", "normal"],
-      ["text-decoration-line", "none"]
+      ["text-decoration-line", "none"],
+      ["text-align", "start"]
     ]);
 
     function hasBorderShorthand(styleMap) {
@@ -1032,15 +1052,12 @@ body.weditor-fullscreen-active{overflow:hidden}
       return false;
     }
 
-    const IMPORTANT_STYLES = [
+    const INLINE_TEXT_PROPS = [
       'font-size', 'font-family', 'font-weight', 'font-style', 'text-decoration-line',
-      'color', 'background-color', 'line-height', 'text-align',
-      'margin-top', 'margin-right', 'margin-bottom', 'margin-left',
-      'padding-top', 'padding-right', 'padding-bottom', 'padding-left',
-      'border-top-width', 'border-right-width', 'border-bottom-width', 'border-left-width',
-      'border-top-style', 'border-right-style', 'border-bottom-style', 'border-left-style',
-      'border-top-color', 'border-right-color', 'border-bottom-color', 'border-left-color'
+      'color', 'background-color', 'line-height', 'text-align'
     ];
+    const INLINE_TEXT_PROP_SET = new Set(INLINE_TEXT_PROPS);
+    const IMPORTANT_STYLES = INLINE_TEXT_PROPS;
 
     let isConvertingInlineStyles = false;
     let inlineStyleRerunNeeded = false;
@@ -1140,7 +1157,10 @@ body.weditor-fullscreen-active{overflow:hidden}
           if (styleMap.size) {
             const serialized = serializeStyleMap(styleMap);
             el.setAttribute('style', serialized);
-            styleMap.forEach((val, prop) => recordInlineStyle(el, prop, val));
+            styleMap.forEach((val, prop) => {
+              if (!INLINE_TEXT_PROP_SET.has(prop)) return;
+              recordInlineStyle(el, prop, val);
+            });
           } else {
             el.removeAttribute('style');
             if (inlineStyleMode !== INLINE_STYLE_MODE.INLINE_ONLY) {
@@ -3783,85 +3803,122 @@ inputBgColor.addEventListener("input", ()=>{
     // ------ New Cell Selection Logic ------
     const CELL_SELECTION_HIGHLIGHT = "rgb(189, 224, 254)";
     let cellSelectionState = {
-      isSelecting: false,
-      startCell: null,
-      endCell: null,
+      anchorCell: null,
       selectedCells: []
     };
 
-    function clearCellSelection() {
-      if (cellSelectionState.selectedCells.length > 0) {
-        cellSelectionState.selectedCells.forEach(cell => {
-          cell.classList.remove("weditor-cell-selected");
-          if (cell.dataset && cell.dataset.weditorSelectionHighlight === "1") {
-            if (cell.style && cell.style.getPropertyValue("background-color")) {
-              const current = cell.style.getPropertyValue("background-color").trim().toLowerCase();
-              if (current === CELL_SELECTION_HIGHLIGHT || current === "#bde0fe") {
-                cell.style.removeProperty("background-color");
-                if (!cell.getAttribute("style")) cell.removeAttribute("style");
-              }
-            }
-            delete cell.dataset.weditorSelectionHighlight;
-          }
-        });
+    function markCellSelected(cell) {
+      if (!cell || !cell.classList) return;
+      if (!cell.classList.contains("weditor-cell-selected")) {
+        cell.classList.add("weditor-cell-selected");
       }
-      cellSelectionState = { isSelecting: false, startCell: null, endCell: null, selectedCells: [] };
+      if (cell.dataset) cell.dataset.weditorSelectionHighlight = "1";
+    }
+
+    function unmarkCellSelected(cell) {
+      if (!cell || !cell.classList) return;
+      cell.classList.remove("weditor-cell-selected");
+      if (cell.dataset && cell.dataset.weditorSelectionHighlight === "1") {
+        if (cell.style && cell.style.getPropertyValue) {
+          const current = (cell.style.getPropertyValue("background-color") || "").trim().toLowerCase();
+          if (current === CELL_SELECTION_HIGHLIGHT || current === "#bde0fe") {
+            cell.style.removeProperty("background-color");
+            if (!cell.getAttribute("style")) cell.removeAttribute("style");
+          }
+        }
+        delete cell.dataset.weditorSelectionHighlight;
+      }
+    }
+
+    function clearCellSelection(opts = {}) {
+      const { resetAnchor = true } = opts;
+      if (cellSelectionState.selectedCells.length > 0) {
+        cellSelectionState.selectedCells.forEach(unmarkCellSelected);
+      }
+      cellSelectionState.selectedCells = [];
+      if (resetAnchor) cellSelectionState.anchorCell = null;
       tableDebug("Cell selection cleared");
     }
 
-    function onCellMouseDown(e) {
-      // Do not engage if it's not a primary button click or if resizing is active
-      if (e.button !== 0 || colResizeState || rowResizeState || tableResizeState) {
-        return;
+    function getSelectionSnapshot() {
+      const sel = window.getSelection && window.getSelection();
+      if (!sel || !sel.rangeCount) return [];
+      const ranges = [];
+      for (let i = 0; i < sel.rangeCount; i++) {
+        try {
+          ranges.push(sel.getRangeAt(i).cloneRange());
+        } catch (_) {}
       }
-
-      const targetCell = e.target.closest("td,th");
-      if (!targetCell || !isNodeInside(targetCell, divEditor)) {
-        // If clicking outside a cell, clear any existing selection
-        if (!e.target.closest("table")) {
-          clearCellSelection();
-        }
-        return;
-      }
-      
-      // On mousedown, we only *prepare* to select. We don't prevent default yet.
-      // We clear previous selection and set a potential start cell.
-      clearCellSelection();
-      cellSelectionState.startCell = targetCell;
-      
-      document.addEventListener("mousemove", onCellMouseMove);
-      document.addEventListener("mouseup", onCellMouseUp);
-      tableDebug("Cell selection prepared", { startCell: targetCell });
+      return ranges;
     }
 
-    function onCellMouseMove(e) {
-      if (!cellSelectionState.startCell) return;
-
-      // If we are not yet in selection mode, check if the mouse has moved enough
-      // to be considered a drag, not a click.
-      if (!cellSelectionState.isSelecting) {
-        // This is the first mousemove after a mousedown. Now we engage selection mode.
-        cellSelectionState.isSelecting = true;
-        // Prevent text selection now that we're sure it's a drag
-        e.preventDefault();
-        // Clear native selection
-        window.getSelection()?.removeAllRanges();
-        tableDebug("Cell selection engaged by dragging");
+    function restoreSelectionSnapshot(ranges) {
+      const sel = window.getSelection && window.getSelection();
+      if (!sel) return;
+      sel.removeAllRanges();
+      if (ranges && ranges.length) {
+        ranges.forEach(range => {
+          try { sel.addRange(range); } catch (_) {}
+        });
       }
+    }
 
-      const targetCell = e.target.closest("td,th");
-      if (!targetCell || !isNodeInside(targetCell, divEditor) || targetCell === cellSelectionState.endCell) {
-        return;
+    function forEachSelectedCellRange(applyFn) {
+      const cells = cellSelectionState.selectedCells;
+      if (!cells.length) return false;
+      const sel = window.getSelection && window.getSelection();
+      const snapshot = getSelectionSnapshot();
+      let changed = false;
+      cells.forEach((cell, index) => {
+        if (!cell.isConnected) return;
+        try {
+          const range = document.createRange();
+          range.selectNodeContents(cell);
+          if (sel) {
+            sel.removeAllRanges();
+            sel.addRange(range);
+          }
+          const res = applyFn(range, cell, index);
+          if (res !== false) changed = true;
+        } catch (err) {
+          tableDebug("forEachSelectedCellRange error", err);
+        }
+      });
+      restoreSelectionSnapshot(snapshot);
+      return changed;
+    }
+
+    function applyCellSelection(newCells, anchorCell) {
+      const unique = [];
+      const seen = new Set();
+      newCells.forEach(cell => {
+        if (cell && cell.isConnected && !seen.has(cell)) {
+          seen.add(cell);
+          unique.push(cell);
+        }
+      });
+
+      const prev = new Set(cellSelectionState.selectedCells);
+      cellSelectionState.selectedCells.forEach(cell => {
+        if (!seen.has(cell)) unmarkCellSelected(cell);
+      });
+      unique.forEach(markCellSelected);
+      cellSelectionState.selectedCells = unique;
+      if (anchorCell && anchorCell.isConnected) {
+        cellSelectionState.anchorCell = anchorCell;
       }
-      cellSelectionState.endCell = targetCell;
-      
-      const table = cellSelectionState.startCell.closest("table");
-      if (!table) return;
+      tableDebug("Cell selection updated", { count: unique.length });
+    }
+
+    function selectCellsRange(anchorCell, targetCell) {
+      if (!anchorCell || !targetCell) return;
+      if (!anchorCell.isConnected || !targetCell.isConnected) return;
+      const table = anchorCell.closest("table");
+      if (!table || table !== targetCell.closest("table")) return;
 
       const tableMap = buildTableMap(table);
-      const startCoords = getCellCoords(tableMap, cellSelectionState.startCell);
-      const endCoords = getCellCoords(tableMap, cellSelectionState.endCell);
-
+      const startCoords = getCellCoords(tableMap, anchorCell);
+      const endCoords = getCellCoords(tableMap, targetCell);
       if (!startCoords || !endCoords) return;
 
       const minRow = Math.min(startCoords.r, endCoords.r);
@@ -3878,38 +3935,84 @@ inputBgColor.addEventListener("input", ()=>{
           }
         }
       }
-
-      cellSelectionState.selectedCells.forEach(cell => {
-        if (!newSelectedCells.includes(cell)) {
-          cell.classList.remove("weditor-cell-selected");
-        }
-      });
-      newSelectedCells.forEach(cell => {
-        if (!cell.classList.contains("weditor-cell-selected")) {
-          cell.classList.add("weditor-cell-selected");
-          if (cell.dataset) cell.dataset.weditorSelectionHighlight = "1";
-        }
-      });
-      cellSelectionState.selectedCells = newSelectedCells;
+      applyCellSelection(newSelectedCells, anchorCell);
     }
 
-    function onCellMouseUp(e) {
-      if (!cellSelectionState.startCell) return;
-
-      if (!cellSelectionState.isSelecting) {
-        // This was a simple click, not a drag. Clear the potential selection.
-        clearCellSelection();
+    function toggleCellSelection(cell) {
+      if (!cell || !cell.isConnected) return;
+      const idx = cellSelectionState.selectedCells.indexOf(cell);
+      if (idx >= 0) {
+        unmarkCellSelected(cellSelectionState.selectedCells[idx]);
+        cellSelectionState.selectedCells.splice(idx, 1);
       } else {
-        tableDebug("Cell selection finalized", { start: cellSelectionState.startCell, end: cellSelectionState.endCell, count: cellSelectionState.selectedCells.length });
+        cellSelectionState.selectedCells.push(cell);
+        markCellSelected(cell);
       }
-      
-      cellSelectionState.isSelecting = false;
-      cellSelectionState.startCell = null;
-      document.removeEventListener("mousemove", onCellMouseMove);
-      document.removeEventListener("mouseup", onCellMouseUp);
+      if (!cellSelectionState.selectedCells.length) {
+        cellSelectionState.anchorCell = null;
+      }
+      tableDebug("Cell toggle", { count: cellSelectionState.selectedCells.length });
     }
 
-    divEditor.addEventListener("mousedown", onCellMouseDown);
+    function onCellPointerDown(e) {
+      if (e.button !== 0 || colResizeState || rowResizeState || tableResizeState) return;
+
+      const targetCell = e.target.closest("td,th");
+      if (!targetCell || !isNodeInside(targetCell, divEditor)) {
+        if (!e.target.closest("table")) {
+          clearCellSelection();
+        }
+        return;
+      }
+
+      if (e.shiftKey) {
+        e.preventDefault();
+        divEditor.focus();
+        const anchor = cellSelectionState.anchorCell && cellSelectionState.anchorCell.isConnected
+          ? cellSelectionState.anchorCell
+          : targetCell;
+        selectCellsRange(anchor, targetCell);
+        return;
+      }
+
+      if (e.metaKey || e.ctrlKey) {
+        e.preventDefault();
+        divEditor.focus();
+        toggleCellSelection(targetCell);
+        if (!cellSelectionState.anchorCell) cellSelectionState.anchorCell = targetCell;
+        return;
+      }
+
+      // Normal click: clear previous highlight but keep anchor for potential Shift+Click.
+      if (cellSelectionState.selectedCells.length) {
+        clearCellSelection({ resetAnchor: false });
+      }
+      cellSelectionState.anchorCell = targetCell;
+    }
+
+    divEditor.addEventListener("mousedown", onCellPointerDown);
+
+    function handleCommandForSelectedCells(cmd, val) {
+      const cells = cellSelectionState.selectedCells;
+      if (!cells.length) return false;
+
+      const SUPPORTED_COMMANDS = new Set([
+        "bold", "italic", "underline", "strikeThrough",
+        "foreColor", "hiliteColor", "backColor",
+        "justifyLeft", "justifyCenter", "justifyRight", "justifyFull",
+        "removeFormat", "fontName", "fontSize", "formatBlock"
+      ]);
+      if (!SUPPORTED_COMMANDS.has(cmd)) return false;
+
+      const changed = forEachSelectedCellRange(() => {
+        document.execCommand(cmd, false, val);
+      });
+      if (changed) {
+        divEditor.dispatchEvent(new Event("input",{bubbles:true}));
+        try { updateToggleStates && updateToggleStates(); } catch(_){}
+      }
+      return changed;
+    }
 
     // ------ Table Buttons ------
     const btnTbl = addBtn("Table","Insert table", (evt)=>{
