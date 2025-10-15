@@ -32,7 +32,8 @@
 .weditor-btn-italic{font-style:italic}
 .weditor-btn-underline{text-decoration:underline;text-underline-offset:2px}
 .weditor-table-subgroup{display:flex;flex-direction:column;gap:4px;padding:4px 6px;background:#f1f5f9;border-radius:6px}
-.weditor-table-subgroup-label{font-size:10px;font-weight:600;color:#475569;text-transform:uppercase;letter-spacing:.04em}
+.weditor-table-subgroup-label{font-size:10px;font-weight:600;color:#475569;text-transform:uppercase;letter-spacing:.04em;display:flex;align-items:center;gap:4px}
+.weditor-table-subgroup-info{display:inline-flex;align-items:center;justify-content:center;min-width:16px;padding:0 6px;height:16px;border-radius:8px;background:#e2e8f0;color:#1e293b;font-size:10px;font-weight:600;cursor:help;user-select:none}
 .weditor-table-subgroup-buttons{display:flex;flex-wrap:wrap;gap:4px}
 .weditor-toolbar button.weditor-table-btn{display:flex;flex-direction:column;align-items:flex-start;gap:2px;min-width:118px;min-height:var(--weditor-btn-h);padding:var(--weditor-btn-py) var(--weditor-btn-px);font-size:12px;line-height:1.2}
 .weditor-toolbar button.weditor-table-btn .weditor-table-btn-primary{font-weight:600;color:#1e293b}
@@ -2005,10 +2006,19 @@ inputBgColor.addEventListener("input", ()=>{
         anchor.setAttribute("aria-expanded","true");
       }
     }
-    function createTableSubgroup(labelText) {
+    function createTableSubgroup(labelText, infoText) {
       const wrapper = el("div", { class: "weditor-table-subgroup" });
       if (labelText) {
-        wrapper.appendChild(el("span", { class: "weditor-table-subgroup-label" }, [labelText]));
+        const labelKids = [labelText];
+        if (infoText) {
+          labelKids.push(el("span", {
+            class: "weditor-table-subgroup-info",
+            title: infoText,
+            role: "note",
+            "aria-label": infoText
+          }, ["?"]));
+        }
+        wrapper.appendChild(el("span", { class: "weditor-table-subgroup-label" }, labelKids));
       }
       const container = el("div", { class: "weditor-table-subgroup-buttons" });
       wrapper.appendChild(container);
@@ -4035,7 +4045,7 @@ inputBgColor.addEventListener("input", ()=>{
     addTableAction("Auto Fit", null, "Auto-fit column width (⇧⌥F)", ()=>autofitColumns(), tableWidth);
     addTableAction("Set Width (This Col)", null, "Set current column width (⌥W)", ()=>setCurrentColumnWidth(), tableWidth);
 
-    const tableCells = createTableSubgroup("Cells");
+    const tableCells = createTableSubgroup("Cells", "Shift+Click 选择多个单元格，Cmd/Ctrl+Click 切换选择");
     const btnMergeCells = addTableAction("Merge Cells →", null, "Merge selected cells in the current row (⌥M)", ()=>mergeSelectedCellsHorizontally(), tableCells);
     btnMergeCells.classList.add("weditor-btn--primary");
     addTableAction("Merge Cells ↓", null, "Merge selected cells in the current column (⇧⌥M)", ()=>mergeSelectedCellsVertically(), tableCells);
