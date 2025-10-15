@@ -399,7 +399,7 @@ body.weditor-fullscreen-active{overflow:hidden}
       try { updateToggleStates && updateToggleStates(); } catch(e){}
     }
 
-    const BLOCK_STYLE_SELECTOR = "p,h1,h2,h3,h4,h5,h6,li,blockquote,td,th";
+    const BLOCK_STYLE_SELECTOR = "p,h1,h2,h3,h4,h5,h6,li,blockquote,td,th,div,section,article,header,footer";
 
     // 获取当前选区内的所有块级节点（默认仅段落用于 No Spacing）(中文解释: 可根据选择器扩展命中范围)
     function getSelectedParagraphsInEditor(selector = "p"){
@@ -437,6 +437,8 @@ body.weditor-fullscreen-active{overflow:hidden}
     }
 
     const BLOCK_ELEMENT_SELECTOR = "p,div,table,thead,tbody,tfoot,tr,td,th,ul,ol,li,section,article,header,footer,blockquote,h1,h2,h3,h4,h5,h6";
+    const FORMATTABLE_BLOCK_SELECTOR = "p,h1,h2,h3,h4,h5,h6,div,section,article,header,footer,blockquote,li,td,th";
+    const FORMATTABLE_BLOCK_TAGS = new Set(["P","H1","H2","H3","H4","H5","H6","DIV","SECTION","ARTICLE","HEADER","FOOTER","BLOCKQUOTE","LI","TD","TH"]);
     function normalizeSelectionToNode(node){
       if (!node) return;
       const sel = window.getSelection();
@@ -448,6 +450,74 @@ body.weditor-fullscreen-active{overflow:hidden}
         sel.addRange(range);
       } catch(_){}
     }
+
+    function normalizeFormattingTarget(node) {
+      if (!node) return null;
+      let cur = node.nodeType === 1 ? node : node.parentElement;
+      while (cur && cur !== divEditor) {
+        if (FORMATTABLE_BLOCK_TAGS.has(cur.tagName)) return cur;
+        cur = cur.parentElement;
+      }
+      return null;
+    }
+
+    function getSelectedFormattingBlocks() {
+      const blocks = getSelectedParagraphsInEditor(FORMATTABLE_BLOCK_SELECTOR);
+      const seen = new Set();
+      const result = [];
+      blocks.forEach(node=>{
+        const target = normalizeFormattingTarget(node);
+        if (!target || !isNodeInside(target, divEditor)) return;
+        if (seen.has(target)) return;
+        seen.add(target);
+        result.push(target);
+      });
+      if (!result.length) {
+        const sel = window.getSelection && window.getSelection();
+        const anchor = sel && sel.anchorNode ? normalizeFormattingTarget(sel.anchorNode) : null;
+        if (anchor && !seen.has(anchor) && isNodeInside(anchor, divEditor)) {
+          result.push(anchor);
+        }
+      }
+      return result;
+    }
+
+    function applyBlockStyleToSelection(prop, value, opts = {}) {
+      if (!prop) return false;
+      const blocks = getSelectedFormattingBlocks();
+      if (!blocks.length) return null;
+      if (opts && opts.multiOnly && blocks.length < (opts.minimumBlocks || 2)) return null;
+      const normalized = value === null || value === undefined ? "" : String(value);
+      let mutated = false;
+      blocks.forEach(block=>{
+        if (!block || !isNodeInside(block, divEditor)) return;
+        const current = block.style.getPropertyValue(prop);
+        if (!normalized) {
+          if (!current) return;
+          block.style.removeProperty(prop);
+          markSuppressedInlineProp(block, prop);
+          if (!block.getAttribute("style")) block.removeAttribute("style");
+          mutated = true;
+        } else {
+          if (current === normalized) return;
+          block.style.setProperty(prop, normalized);
+          recordInlineStyle(block, prop, normalized);
+          mutated = true;
+        }
+        if (opts && typeof opts.afterEach === "function") {
+          try { opts.afterEach(block, normalized); } catch(_){}
+        }
+      });
+      if (!mutated) return null;
+      if (opts && typeof opts.afterAll === "function") {
+        try { opts.afterAll(blocks, normalized); } catch(_){}
+      }
+      if (!(opts && opts.silent)) {
+        divEditor.dispatchEvent(new Event("input",{bubbles:true}));
+      }
+      return blocks;
+    }
+
     function tryWrapRangeWithFontSize(range, fontSize){
       const span = document.createElement("span");
       span.style.fontSize = fontSize;
@@ -482,42 +552,52 @@ body.weditor-fullscreen-active{overflow:hidden}
 
       const applyOnce = () => {
         const sel = window.getSelection();
-        if (!sel || !sel.rangeCount) return false;
+        if (!sel || !sel.rangeCount) return "none";
         const range = sel.getRangeAt(0);
-        if (!isNodeInside(range.commonAncestorContainer, divEditor)) return false;
-        if (range.collapsed) return false;
+        if (!isNodeInside(range.commonAncestorContainer, divEditor)) return "none";
+        if (range.collapsed) return "none";
         if (tryWrapRangeWithFontSize(range, fontSize)) {
-          return true;
+          return "inline";
         }
-        const blocks = getSelectedParagraphsInEditor(BLOCK_STYLE_SELECTOR);
-        if (blocks.length) {
-          blocks.forEach(node => {
-            if (isNodeInside(node, divEditor)) {
-              node.style.fontSize = fontSize;
-            }
-          });
-          return true;
-        }
-        return false;
+        const blocksApplied = applyBlockStyleToSelection("font-size", fontSize, {
+          multiOnly: true,
+          silent: true
+        });
+        return blocksApplied ? "blocks" : "none";
       };
 
-      let changed = false;
+      let applied = false;
       if (cellSelectionState.selectedCells.length) {
         forEachSelectedCellRange(() => {
-          if (applyOnce()) changed = true;
+          const mode = applyOnce();
+          if (mode !== "none") applied = true;
         });
-        if (changed) {
+        if (applied) {
           divEditor.dispatchEvent(new Event("input", { bubbles: true }));
-          return true;
         }
-        return false;
+        return applied;
       }
 
-      const result = applyOnce();
-      if (result) {
+      const mode = applyOnce();
+      if (mode !== "none") {
         divEditor.dispatchEvent(new Event("input", { bubbles: true }));
+        return true;
       }
-      return result;
+      return false;
+    }
+
+    function applyTextAlignment(alignment) {
+      if (!alignment || showingSource) return false;
+      const normalized = alignment === "left" || alignment === "start" ? "" : alignment;
+      const blocks = applyBlockStyleToSelection("text-align", normalized, {
+        minimumBlocks: 1,
+        afterEach(block){
+          if (block && typeof block.removeAttribute === "function") {
+            block.removeAttribute("align");
+          }
+        }
+      });
+      return Array.isArray(blocks) && blocks.length > 0;
     }
 
     function applyLineHeight(value) {
@@ -1115,6 +1195,21 @@ body.weditor-fullscreen-active{overflow:hidden}
           const computed = window.getComputedStyle(el);
           const existingStyleText = el.getAttribute('style') || '';
           const styleMap = parseStyleAttribute(existingStyleText);
+          if (el.hasAttribute && el.hasAttribute("dir")) {
+            const dirAttr = (el.getAttribute("dir") || "").toLowerCase();
+            if (!dirAttr || dirAttr === "ltr") {
+              el.removeAttribute("dir");
+            }
+          }
+          if (el.hasAttribute && el.hasAttribute("align")) {
+            const alignAttr = (el.getAttribute("align") || "").toLowerCase();
+            el.removeAttribute("align");
+            if (alignAttr && alignAttr !== "left" && alignAttr !== "start") {
+              if (!styleMap.has("text-align") && !el.style.getPropertyValue("text-align")) {
+                styleMap.set("text-align", alignAttr);
+              }
+            }
+          }
           Array.from(styleMap.keys()).forEach(prop => {
             if (isInlinePropSuppressed(el, prop)) {
               styleMap.delete(prop);
@@ -1189,6 +1284,7 @@ body.weditor-fullscreen-active{overflow:hidden}
     }
 
     divEditor.addEventListener("input", debouncedConvertToInlineStyles);
+    debouncedConvertToInlineStyles();
  
     // Toolbar helpers
     function createToolbarGroup(label, opts = {}) {
@@ -1322,7 +1418,13 @@ body.weditor-fullscreen-active{overflow:hidden}
     });
     fontSelect.addEventListener("change", ()=>{
       const v = fontSelect.value;
-      if (v) exec("fontName", v);
+      if (!v) return;
+      const applied = applyBlockStyleToSelection("font-family", v, { multiOnly: true });
+      if (!applied) {
+        exec("fontName", v);
+      } else {
+        try { updateToggleStates && updateToggleStates(); } catch(_){}
+      }
     });
     groupFormatting.inner.appendChild(fontSelect);
 
@@ -1766,7 +1868,11 @@ body.weditor-fullscreen-active{overflow:hidden}
     }, groupFormatting.inner);
     inputTextColor.addEventListener("input", ()=>{
       try { if (!restoreEditorSelection || !restoreEditorSelection()) divEditor.focus(); } catch(_) {}
-      exec("foreColor", inputTextColor.value);
+      const value = inputTextColor.value;
+      const applied = applyBlockStyleToSelection("color", value, { multiOnly: true });
+      if (!applied) {
+        exec("foreColor", value);
+      }
     });
 
 // Step 2b: Background/Highlight color picker (minimal, with selection restore)
@@ -1777,15 +1883,18 @@ const btnBgColor = addBtn("Bg","Highlight color", ()=>{
   try { saveEditorSelection && saveEditorSelection(); } catch(_) {}
   inputBgColor.click();
 }, groupFormatting.inner);
-inputBgColor.addEventListener("input", ()=>{
-  try { if (!restoreEditorSelection || !restoreEditorSelection()) divEditor.focus(); } catch(_) {}
-  try { 
-    exec("hiliteColor", inputBgColor.value); 
-  } catch(_){ 
-    // Fallback for older engines (中文解释: 旧浏览器后备)
-    exec("backColor", inputBgColor.value); 
-  }
-});
+  inputBgColor.addEventListener("input", ()=>{
+    try { if (!restoreEditorSelection || !restoreEditorSelection()) divEditor.focus(); } catch(_) {}
+    const value = inputBgColor.value;
+    const applied = applyBlockStyleToSelection("background-color", value, { multiOnly: true });
+    if (applied) return;
+    try { 
+      exec("hiliteColor", value); 
+    } catch(_){ 
+      // Fallback for older engines (中文解释: 旧浏览器后备)
+      exec("backColor", value); 
+    }
+  });
     const btnBold = addBtn("B","Bold (Ctrl/Cmd+B)", ()=>exec("bold"), groupFormatting.inner);
     const btnItalic = addBtn("I","Italic (Ctrl/Cmd+I)", ()=>exec("italic"), groupFormatting.inner);
     const btnUnderline = addBtn("U","Underline (Ctrl/Cmd+U)", ()=>exec("underline"), groupFormatting.inner);
@@ -1808,9 +1917,27 @@ inputBgColor.addEventListener("input", ()=>{
     const ICON_ALIGN_R = `<svg xmlns="http://www.w3.org/2000/svg" width="1em" height="1em" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><line x1="4" y1="6" x2="20" y2="6" vector-effect="non-scaling-stroke"></line><line x1="4" x2="20" vector-effect="non-scaling-stroke" y2="16" y1="16"></line><line x1="10" x2="20" vector-effect="non-scaling-stroke" y1="11" y2="11"></line><line x1="10" x2="20" vector-effect="non-scaling-stroke" y2="21" y1="21"></line></svg>`;
     const ICON_FULLSCREEN = `<svg xmlns="http://www.w3.org/2000/svg" width="1em" height="1em" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M8 3H5a2 2 0 0 0-2 2v3m18 0V5a2 2 0 0 0-2-2h-3m0 18h3a2 2 0 0 0 2-2v-3M3 16v3a2 2 0 0 0 2 2h3"/></svg>`;
  
-     const btnAlignL = addBtn(ICON_ALIGN_L,"Align left", ()=>exec("justifyLeft"), groupFormatting.inner, "weditor-btn--icon");
-     const btnAlignC = addBtn(ICON_ALIGN_C,"Center", ()=>exec("justifyCenter"), groupFormatting.inner, "weditor-btn--icon");
-    const btnAlignR = addBtn(ICON_ALIGN_R,"Align right", ()=>exec("justifyRight"), groupFormatting.inner, "weditor-btn--icon");
+    const btnAlignL = addBtn(ICON_ALIGN_L,"Align left", ()=>{
+      if (!applyTextAlignment("left")) {
+        exec("justifyLeft");
+      } else {
+        try { updateToggleStates && updateToggleStates(); } catch(_){}
+      }
+    }, groupFormatting.inner, "weditor-btn--icon");
+    const btnAlignC = addBtn(ICON_ALIGN_C,"Center", ()=>{
+      if (!applyTextAlignment("center")) {
+        exec("justifyCenter");
+      } else {
+        try { updateToggleStates && updateToggleStates(); } catch(_){}
+      }
+    }, groupFormatting.inner, "weditor-btn--icon");
+    const btnAlignR = addBtn(ICON_ALIGN_R,"Align right", ()=>{
+      if (!applyTextAlignment("right")) {
+        exec("justifyRight");
+      } else {
+        try { updateToggleStates && updateToggleStates(); } catch(_){}
+      }
+    }, groupFormatting.inner, "weditor-btn--icon");
 
     const groupInsert = createToolbarGroup("Insert",{row:"primary"});
     const btnLink = addBtn("Link","Insert link (Ctrl/Cmd+K)", ()=>{
