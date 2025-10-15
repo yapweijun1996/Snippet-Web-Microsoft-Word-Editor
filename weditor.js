@@ -2522,7 +2522,8 @@ const btnBgColor = addBtn("Bg","Highlight color", ()=>{
       }
       return { table, row, cell, rowIndex, colIndex };
     }
-    function normalizeTable(table) {
+    function normalizeTable(table, opts = {}) {
+      const { enforceEqualColWidths = true } = opts;
       if (!table) return;
       // Ensure TBODY exists
       if (!table.tBodies || table.tBodies.length === 0) {
@@ -2540,17 +2541,22 @@ const btnBgColor = addBtn("Bg","Highlight color", ()=>{
       let cg = table.querySelector("colgroup");
       if (!cg && colCount > 0) {
         cg = document.createElement("colgroup");
-        const pct = (100/colCount).toFixed(3) + "%";
+        const pct = enforceEqualColWidths ? (100/colCount).toFixed(3) + "%" : "";
         for (let i=0;i<colCount;i++){
           const c = document.createElement("col");
-          c.style.width = pct;
+          if (pct) c.style.width = pct;
           cg.appendChild(c);
         }
         table.insertBefore(cg, table.tBodies[0] || table.firstChild);
       } else if (cg) {
         const cols = Array.from(cg.children);
         if (cols.length < colCount) {
-          for (let i=cols.length;i<colCount;i++) cg.appendChild(document.createElement("col"));
+          const pct = enforceEqualColWidths ? (100/colCount).toFixed(3) + "%" : "";
+          for (let i=cols.length;i<colCount;i++) {
+            const col = document.createElement("col");
+            if (pct) col.style.width = pct;
+            cg.appendChild(col);
+          }
         } else if (cols.length > colCount) {
           for (let i=cols.length-1;i>=colCount;i--) cg.removeChild(cg.children[i]);
         }
@@ -3025,8 +3031,9 @@ const btnBgColor = addBtn("Bg","Highlight color", ()=>{
       const restyled = enforceStoredTableBorderState(table);
       if (!restyled) divEditor.dispatchEvent(new Event("input",{bubbles:true}));
     }
-    function distributeColumns() {
-      const ctx = getTableContext(); if (!ctx) return;
+    function distributeColumns(targetTable) {
+      const ctx = targetTable ? { table: targetTable } : getTableContext();
+      if (!ctx) return;
       const { table } = ctx;
       normalizeTable(table);
       const cg = table.querySelector("colgroup");
@@ -3657,7 +3664,7 @@ const btnBgColor = addBtn("Bg","Highlight color", ()=>{
     }
 
     function collectColWidthRatios(table, totalWidth) {
-      normalizeTable(table);
+      normalizeTable(table, { enforceEqualColWidths: false });
       const cg = table.querySelector("colgroup");
       if (!cg) return [];
       const cols = Array.from(cg.children);
@@ -3777,7 +3784,7 @@ const btnBgColor = addBtn("Bg","Highlight color", ()=>{
           if (e.button !== 0) {
             return;
           }
-          normalizeTable(table);
+          normalizeTable(table, { enforceEqualColWidths: false });
           e.preventDefault();
           e.stopPropagation();
 
@@ -3811,6 +3818,28 @@ const btnBgColor = addBtn("Bg","Highlight color", ()=>{
 
       if (tableResizeHover && isNodeInside(tableResizeHover.table, divEditor)) {
         startTableResize(e, tableResizeHover);
+      }
+    });
+
+    divEditor.addEventListener("dblclick", (e)=>{
+      const cell = resolveCellForPoint(e.target, e.clientX, e.clientY);
+      if (cell && isNodeInside(cell, divEditor)) {
+        const table = cell.closest("table");
+        if (table) {
+          const idx = getColIndexFromHit(cell, e.clientX);
+          if (idx >= 0) {
+            e.preventDefault();
+            e.stopPropagation();
+            distributeColumns(table);
+            return;
+          }
+        }
+      }
+      const edgeHit = getTableEdgeHover(e.clientX, e.clientY);
+      if (edgeHit && edgeHit.table && isNodeInside(edgeHit.table, divEditor)) {
+        e.preventDefault();
+        e.stopPropagation();
+        distributeColumns(edgeHit.table);
       }
     });
 
@@ -3848,7 +3877,7 @@ const btnBgColor = addBtn("Bg","Highlight color", ()=>{
     function startRowResize(e, hover) {
       const { row, table } = hover;
       if (!row || !table) return;
-      normalizeTable(table);
+      normalizeTable(table, { enforceEqualColWidths: false });
       e.preventDefault();
       e.stopPropagation();
       const rect = row.getBoundingClientRect();
@@ -3887,7 +3916,7 @@ const btnBgColor = addBtn("Bg","Highlight color", ()=>{
 
     function startTableResize(e, hover) {
       const { table } = hover;
-      normalizeTable(table);
+      normalizeTable(table, { enforceEqualColWidths: false });
       e.preventDefault();
       e.stopPropagation();
       const rect = table.getBoundingClientRect();
