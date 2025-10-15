@@ -1231,12 +1231,10 @@ body.weditor-fullscreen-active{overflow:hidden}
         }
         if ((trimmed === "rgba(0, 0, 0, 0)" || trimmed === "transparent") && !inlineValue) return true;
       }
-      if (prop === "font-family" && !inlineValue) return true;
       const tagName = el.tagName;
       if ((tagName === "B" || tagName === "STRONG") && prop === "font-weight" && (trimmed === "700" || trimmed === "bold")) return true;
       if ((tagName === "I" || tagName === "EM") && prop === "font-style" && trimmed === "italic") return true;
       if (tagName === "U" && prop === "text-decoration-line" && trimmed.indexOf("underline") !== -1) return true;
-      if (prop === "font-size" && !inlineValue && tagName !== "FONT") return true;
       if (prop === "line-height" && !inlineValue) {
         if (trimmed === "normal") return true;
         try {
@@ -1258,7 +1256,9 @@ body.weditor-fullscreen-active{overflow:hidden}
         if (parent && isNodeInside(parent, divEditor)) {
           try {
             const parentComputed = window.getComputedStyle(parent);
-            if (parentComputed && parentComputed.getPropertyValue(prop) === trimmed) {
+            const parentValue = parentComputed && parentComputed.getPropertyValue(prop);
+            const shouldForceForRoot = parent === divEditor && (prop === "font-family" || prop === "font-size");
+            if (!shouldForceForRoot && parentValue === trimmed) {
               return true;
             }
           } catch(_){}
