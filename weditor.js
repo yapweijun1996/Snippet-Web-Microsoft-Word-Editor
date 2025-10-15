@@ -305,6 +305,7 @@ body.weditor-fullscreen-active{overflow:hidden}
   // ---------- Build one editor (div.weditor + next textarea.weditor_textarea) ----------
   function buildEditor(divEditor){
     let selectedPageBreak = null;
+    let suppressNextPageBreakClear = false;
     let showingSource = false;
     function selectPageBreak(pb) {
       $$(".weditor-page-break-selected", divEditor).forEach(p => p.classList.remove("weditor-page-break-selected"));
@@ -314,7 +315,36 @@ body.weditor-fullscreen-active{overflow:hidden}
         window.getSelection()?.removeAllRanges();
       } else {
         selectedPageBreak = null;
+        suppressNextPageBreakClear = false;
       }
+    }
+    function removeSelectedPageBreak(options = {}) {
+      if (!selectedPageBreak) return false;
+      const pb = selectedPageBreak;
+      const prev = pb.previousElementSibling;
+      const next = pb.nextElementSibling;
+      pb.remove();
+      selectPageBreak(null);
+      if (options.restoreCaret !== false) {
+        const sel = window.getSelection();
+        if (prev && sel) {
+          const r = document.createRange();
+          r.selectNodeContents(prev);
+          r.collapse(false);
+          sel.removeAllRanges();
+          sel.addRange(r);
+        } else if (next && sel) {
+          const r = document.createRange();
+          r.selectNodeContents(next);
+          r.collapse(true);
+          sel.removeAllRanges();
+          sel.addRange(r);
+        } else if (sel) {
+          moveCaretToEnd(divEditor);
+        }
+      }
+      divEditor.dispatchEvent(new Event("input", { bubbles: true }));
+      return true;
     }
 
     // find paired textarea
@@ -714,6 +744,14 @@ body.weditor-fullscreen-active{overflow:hidden}
     divEditor.addEventListener("input", syncToTextarea);
     divEditor.addEventListener("input", updateToggleStates);
     divEditor.addEventListener("input", updateTableToolsVisibility);
+    divEditor.addEventListener("input", ()=>{
+      if (!selectedPageBreak) return;
+      if (suppressNextPageBreakClear) {
+        suppressNextPageBreakClear = false;
+        return;
+      }
+      selectPageBreak(null);
+    });
     divEditor.addEventListener("blur", syncToTextarea);
     divEditor.addEventListener("focus", updateTableToolsVisibility);
 
@@ -2029,55 +2067,103 @@ const btnBgColor = addBtn("Bg","Highlight color", ()=>{
     }, groupInsert.inner);
     addBtn("HR","Horizontal rule", ()=>exec("insertHorizontalRule"), groupInsert.inner);
     addBtn("Page Break", "Insert page break", () => {
+      if (typeof divEditor.focus === "function") {
+        try {
+          divEditor.focus({ preventScroll: true });
+        } catch (_err) {
+          divEditor.focus();
+        }
+      }
+      if (selectedPageBreak) {
+        removeSelectedPageBreak();
+        return;
+      }
       // Remove any existing page breaks to ensure only one exists
       // divEditor.querySelectorAll(".weditor-page-break").forEach(pb => pb.remove());
 
       const pageBreakNode = el("div", {
         class: "weditor-page-break",
         contenteditable: "false",
+        role: "separator",
+        "aria-label": "Page break",
         style: {
-          pageBreakBefore: "always"
+          pageBreakAfter: "always"
         }
       });
 
       pageBreakNode.addEventListener("click", (e) => {
         e.preventDefault();
         e.stopPropagation();
+        if (typeof divEditor.focus === "function") {
+          try {
+            divEditor.focus({ preventScroll: true });
+          } catch (_err) {
+            divEditor.focus();
+          }
+        }
         selectPageBreak(pageBreakNode);
       });
  
       const sel = window.getSelection();
+      let caretRange = null;
       if (sel && sel.rangeCount) {
         const range = sel.getRangeAt(0);
-        range.deleteContents();
+        const insertionRange = range.cloneRange();
+        insertionRange.collapse(false);
 
-        let nodeToInsertAfter = range.startContainer;
-        if (nodeToInsertAfter.nodeType !== Node.ELEMENT_NODE) {
+        let nodeToInsertAfter = insertionRange.startContainer;
+        if (nodeToInsertAfter === divEditor) {
+          const idx = Math.max(0, insertionRange.startOffset - 1);
+          let fallbackNode = divEditor.childNodes[idx] || divEditor.lastChild;
+          if (fallbackNode && fallbackNode.nodeType === Node.TEXT_NODE) {
+            fallbackNode = fallbackNode.parentNode;
+          }
+          nodeToInsertAfter = fallbackNode || divEditor.lastElementChild || divEditor;
+        }
+
+        if (nodeToInsertAfter && nodeToInsertAfter.nodeType !== Node.ELEMENT_NODE) {
           nodeToInsertAfter = nodeToInsertAfter.parentNode;
         }
         
         // Traverse up to find the top-level block element within the editor
-        while (nodeToInsertAfter.parentNode !== divEditor && nodeToInsertAfter.parentNode !== document.body) {
+        while (nodeToInsertAfter && nodeToInsertAfter.parentNode !== divEditor && nodeToInsertAfter.parentNode !== document.body) {
           nodeToInsertAfter = nodeToInsertAfter.parentNode;
         }
 
         // Insert after the found block element
-        if (nodeToInsertAfter.parentNode === divEditor) {
+        if (nodeToInsertAfter && nodeToInsertAfter.parentNode === divEditor) {
           nodeToInsertAfter.parentNode.insertBefore(pageBreakNode, nodeToInsertAfter.nextSibling);
         } else {
           divEditor.appendChild(pageBreakNode);
         }
 
         // Place caret after the inserted page break
-        const newRange = document.createRange();
-        newRange.setStartAfter(pageBreakNode);
-        newRange.collapse(true);
-        sel.removeAllRanges();
-        sel.addRange(newRange);
+        caretRange = document.createRange();
+        caretRange.setStartAfter(pageBreakNode);
+        caretRange.collapse(true);
 
       } else {
         divEditor.appendChild(pageBreakNode);
-        moveCaretToEnd(divEditor);
+        caretRange = document.createRange();
+        caretRange.setStartAfter(pageBreakNode);
+        caretRange.collapse(true);
+      }
+
+      selectPageBreak(pageBreakNode);
+      suppressNextPageBreakClear = true;
+
+      const freshSel = window.getSelection();
+      if (caretRange && freshSel) {
+        freshSel.removeAllRanges();
+        freshSel.addRange(caretRange);
+      }
+
+      if (typeof pageBreakNode.scrollIntoView === "function") {
+        try {
+          pageBreakNode.scrollIntoView({ block: "nearest", behavior: "smooth" });
+        } catch (_err) {
+          pageBreakNode.scrollIntoView();
+        }
       }
       
       divEditor.dispatchEvent(new Event("input", { bubbles: true }));
@@ -2371,18 +2457,7 @@ const btnBgColor = addBtn("Bg","Highlight color", ()=>{
       }
       if (selectedPageBreak && (e.key === "Backspace" || e.key === "Delete")) {
         e.preventDefault();
-        const prev = selectedPageBreak.previousElementSibling;
-        selectedPageBreak.remove();
-        selectPageBreak(null);
-        if (prev) {
-          const r = document.createRange();
-          r.selectNodeContents(prev);
-          r.collapse(false);
-          const sel = window.getSelection();
-          sel?.removeAllRanges();
-          sel?.addRange(r);
-        }
-        divEditor.dispatchEvent(new Event("input", { bubbles: true }));
+        removeSelectedPageBreak();
         return;
       }
       if (!mod) return;
