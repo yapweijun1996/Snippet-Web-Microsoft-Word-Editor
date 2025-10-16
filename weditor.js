@@ -66,7 +66,7 @@
 /* Ensure table button inner labels invert correctly when primary */
 .weditor-btn--primary .weditor-table-btn-primary{color:#fff}
 .weditor-btn--primary .weditor-table-btn-secondary{color:#e2e8f0}
-.weditor-area{all:initial;min-height:160px;padding:10px;outline:0;overflow-y:auto}
+.weditor-area{min-height:160px;padding:10px;outline:0;overflow-y:auto}
 .weditor-area p, .weditor-area h1, .weditor-area h2, .weditor-area h3, .weditor-area ul, .weditor-area ol, .weditor-area li, .weditor-area table, .weditor-area tr, .weditor-area td, .weditor-area th, .weditor-area span, .weditor-area div, .weditor-area font {
   all: revert; /* Revert to browser defaults, ignoring inherited styles from outside the editor */
 }
