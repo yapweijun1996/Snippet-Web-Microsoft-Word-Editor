@@ -6,8 +6,12 @@
   const CSS_TEXT = `
 .weditor-wrap{border:1px solid #ccc;margin:8px 0;background:#fff;display:flex;flex-direction:column}
 .weditor-stage{flex:1 1 auto;display:block;padding:0;background:transparent;overflow:visible;box-sizing:border-box}
-.weditor-page{position:relative;width:100%;min-height:160px;margin:0;background:#fff;border-radius:0;box-shadow:none;padding:var(--weditor-page-padding,15px);box-sizing:border-box;display:flex;flex-direction:column}
+.weditor-page{position:relative;width:100%;min-height:160px;margin:0;background:#fff;border-radius:0;box-shadow:none;padding:var(--weditor-page-padding,15px);box-sizing:border-box;display:flex;flex-direction:column;overflow-x:hidden}
 .weditor-page .weditor-area{flex:1 1 auto}
+.weditor-page table{width:100%;max-width:100%;table-layout:fixed;border-collapse:collapse}
+.weditor-page table td,.weditor-page table th{word-break:break-word;overflow-wrap:anywhere}
+.weditor-page img,.weditor-page svg,.weditor-page canvas,.weditor-page video,.weditor-page iframe,.weditor-page object{max-width:100%;height:auto}
+.weditor-page [style*="width"]{max-width:100%}
 .weditor-toolbar{z-index:10;position:sticky;top:0;display:flex;flex-direction:column;gap:0;background:#f8fafc;border-bottom:1px solid #e2e8f0;--weditor-btn-h:34px;--weditor-btn-py:6px;--weditor-btn-px:12px}
 .weditor-toolbar-nav{display:flex;flex-wrap:wrap;gap:8px;align-items:center;padding:10px 12px;background:linear-gradient(135deg,#f8fafc,#eef2ff)}
 .weditor-nav-btn{display:inline-flex;align-items:center;justify-content:center;gap:6px;padding:8px 16px;border-radius:999px;border:1px solid transparent;background:#ffffff;color:#1e293b;font-size:13px;font-weight:600;letter-spacing:.01em;cursor:pointer;box-shadow:0 1px 2px rgba(15,23,42,0.08);transition:all .18s ease}
@@ -469,6 +473,154 @@ body.weditor-fullscreen-active{overflow:hidden}
     const page = el("div",{class:"weditor-page"});
     toolbar.appendChild(navBar);
     toolbar.appendChild(panelContainer);
+
+    function computePageContentWidth(){
+      if (!page) return 0;
+      try {
+        const cs = window.getComputedStyle ? window.getComputedStyle(page) : null;
+        let width = cs && cs.width ? parseFloat(cs.width) : page.clientWidth;
+        if (!Number.isFinite(width) || width <= 0) width = page.clientWidth;
+        const paddingLeft = cs && cs.paddingLeft ? parseFloat(cs.paddingLeft) : 0;
+        const paddingRight = cs && cs.paddingRight ? parseFloat(cs.paddingRight) : 0;
+        const contentWidth = width - (Number.isFinite(paddingLeft) ? paddingLeft : 0) - (Number.isFinite(paddingRight) ? paddingRight : 0);
+        return Number.isFinite(contentWidth) && contentWidth > 0 ? contentWidth : (width || 0);
+      } catch(_){
+        return page.clientWidth || 0;
+      }
+    }
+
+    function parseLengthToPx(value){
+      if (value == null) return null;
+      let str = String(value).trim();
+      if (!str) return null;
+      if (/^\s*auto\s*$/i.test(str)) return null;
+      str = str.replace(/\s*!important\s*$/i, "").trim();
+      if (!str || /calc\s*\(/i.test(str)) return null;
+      if (/%/.test(str)) return null;
+      const match = str.match(/(-?\d+(?:\.\d+)?)(px|pt|cm|mm|in)?/i);
+      if (!match) return null;
+      let numeric = parseFloat(match[1]);
+      if (!Number.isFinite(numeric)) return null;
+      const unit = (match[2] || "px").toLowerCase();
+      if (unit === "pt") numeric = numeric * (96 / 72);
+      else if (unit === "cm") numeric = numeric * 37.7952755906;
+      else if (unit === "mm") numeric = numeric * 3.77952755906;
+      else if (unit === "in") numeric = numeric * 96;
+      return numeric;
+    }
+
+    function clampNodeWidths(node, maxPx, opts = {}){
+      if (!node) return false;
+      const behavior = opts.behavior || "clamp";
+      const checkOnly = behavior === "check";
+      const threshold = 0.5;
+      let exceed = false;
+
+      if (node.hasAttribute && node.hasAttribute("width")){
+        const pxAttr = parseLengthToPx(node.getAttribute("width"));
+        if (pxAttr != null && pxAttr > maxPx + threshold) {
+          exceed = true;
+          if (!checkOnly) node.removeAttribute("width");
+        }
+      }
+
+      if (node.style){
+        ["width","min-width","max-width"].forEach(prop=>{
+          const pxValue = parseLengthToPx(node.style.getPropertyValue(prop));
+          if (pxValue == null || pxValue <= maxPx + threshold) return;
+          exceed = true;
+          if (!checkOnly){
+            if (prop === "max-width") node.style.setProperty(prop, maxPx + "px");
+            else node.style.removeProperty(prop);
+          }
+        });
+      }
+
+      if (!checkOnly && exceed && node.style && typeof node.getBoundingClientRect === "function"){
+        const rect = node.getBoundingClientRect();
+        if (rect && rect.width > maxPx + threshold) {
+          try { node.style.maxWidth = maxPx + "px"; } catch(_){}
+        }
+      }
+
+      return exceed;
+    }
+
+    function tableWouldExceed(table, maxPx){
+      if (!table) return false;
+      if (clampNodeWidths(table, maxPx, { behavior: "check" })) return true;
+      if (typeof table.getBoundingClientRect === "function"){
+        const rect = table.getBoundingClientRect();
+      if (rect && rect.width > maxPx + 0.5) return true;
+    }
+    const cells = table.querySelectorAll("td,th");
+    for (let i=0;i<cells.length;i++){
+      if (clampNodeWidths(cells[i], maxPx, { behavior: "check" })) return true;
+    }
+    const cols = table.querySelectorAll("col");
+    for (let i=0;i<cols.length;i++){
+      if (clampNodeWidths(cols[i], maxPx, { behavior: "check" })) return true;
+    }
+    return false;
+  }
+
+    function normalizeTableDimensions(table, maxPx){
+      if (!table) return;
+      const shouldClamp = tableWouldExceed(table, maxPx);
+      if (shouldClamp) {
+        clampNodeWidths(table, maxPx);
+        try {
+          table.style.width = "100%";
+          table.style.maxWidth = maxPx + "px";
+          table.style.boxSizing = "border-box";
+        } catch(_){}
+      }
+      if (shouldClamp) {
+        table.querySelectorAll("col").forEach(col=>{
+          if (col.hasAttribute("width")) col.removeAttribute("width");
+          if (col.style){
+            ["width","min-width","max-width"].forEach(prop=>col.style.removeProperty(prop));
+          }
+        });
+        table.querySelectorAll("td,th").forEach(cell=>clampNodeWidths(cell, maxPx));
+      }
+      if (!shouldClamp) return;
+      if (typeof table.getBoundingClientRect === "function"){
+        const rect = table.getBoundingClientRect();
+        if (rect && rect.width > maxPx + 0.5) {
+          try { table.style.maxWidth = maxPx + "px"; } catch(_){}
+        }
+      }
+    }
+
+    function normalizeContentWidths(){
+      const maxWidth = computePageContentWidth();
+      if (!maxWidth || !Number.isFinite(maxWidth) || maxWidth <= 0) return;
+      const selector = "table,img,video,canvas,svg,iframe,object";
+      divEditor.querySelectorAll(selector).forEach(node=>{
+        if (!isNodeInside(node, divEditor)) return;
+        if (node.tagName === "TABLE") normalizeTableDimensions(node, maxWidth);
+        else clampNodeWidths(node, maxWidth);
+      });
+      divEditor.querySelectorAll("[style*=\"width\"],[style*=\"min-width\"],[style*=\"max-width\"]").forEach(node=>{
+        if (!isNodeInside(node, divEditor)) return;
+        const exceeds = clampNodeWidths(node, maxWidth, { behavior: "check" });
+        const rect = typeof node.getBoundingClientRect === "function" ? node.getBoundingClientRect() : null;
+        if (exceeds || (rect && rect.width > maxWidth + 0.5)){
+          clampNodeWidths(node, maxWidth);
+        }
+      });
+    }
+
+    function scheduleContentWidthNormalization(){
+      if (normalizeTimer) clearTimeout(normalizeTimer);
+      normalizeTimer = setTimeout(()=>{
+        normalizeTimer = null;
+        try { normalizeContentWidths(); } catch(_){}
+      }, 40);
+    }
+
+    let normalizeTimer = null;
 
     const navButtons = new Map();
     const panelMap = new Map();
@@ -1215,6 +1367,23 @@ body.weditor-fullscreen-active{overflow:hidden}
     });
     divEditor.addEventListener("blur", syncToTextarea);
     divEditor.addEventListener("focus", updateTableToolsVisibility);
+    divEditor.addEventListener("input", (evt)=>{
+      const type = evt && evt.inputType ? String(evt.inputType) : "";
+      if (!type) {
+        scheduleContentWidthNormalization();
+        return;
+      }
+      if (
+        type.indexOf("paste") !== -1 ||
+        type.indexOf("Drop") !== -1 ||
+        type === "historyUndo" ||
+        type === "historyRedo" ||
+        type === "insertFromCut"
+      ) {
+        scheduleContentWidthNormalization();
+      }
+    });
+    divEditor.addEventListener("paste", ()=>scheduleContentWidthNormalization());
 
     // ---------- Inline Style Conversion Logic ----------
     const FONT_SIZE_MAP = {
@@ -1885,6 +2054,7 @@ body.weditor-fullscreen-active{overflow:hidden}
         bindUnboundPageBreaks();
         selectPageBreak(null);
         showingSource = false;
+        scheduleContentWidthNormalization();
       }
       // Disable WYSIWYG-only controls when showing source (中文解释: 源码模式禁用下拉避免误操作)
       setTimeout(()=>{ try{ if (typeof setWYSIWYGEnabled === "function") setWYSIWYGEnabled(!showingSource); }catch(_){ } }, 0);
@@ -1922,6 +2092,7 @@ body.weditor-fullscreen-active{overflow:hidden}
       } else {
         document.removeEventListener("keydown", handleEscKey);
       }
+      requestAnimationFrame(()=>scheduleContentWidthNormalization());
     }
 
     // Unified Formatting group (merge Text/Headings/Lists/Align)
@@ -3635,6 +3806,8 @@ body.weditor-fullscreen-active{overflow:hidden}
       if (nextSibling) parent.insertBefore(wrap, nextSibling);
       else parent.appendChild(wrap);
     }
+    scheduleContentWidthNormalization();
+    window.addEventListener("resize", scheduleContentWidthNormalization);
 
     // Setup image resize functionality for this editor instance
     imageSelectionAndResize.setup(divEditor, wrap);
@@ -3649,6 +3822,7 @@ body.weditor-fullscreen-active{overflow:hidden}
       updateUndoRedoButtons();
       // Keep table tools in sync with content presence (中文解释: 内容含表格时自动展开)
       updateTableToolsVisibility();
+      scheduleContentWidthNormalization();
     }
     pair.addEventListener("change", () => setEditorHTMLFromTextarea(pair.value));
     pair.addEventListener("input", () => setEditorHTMLFromTextarea(pair.value));
@@ -4924,7 +5098,7 @@ body.weditor-fullscreen-active{overflow:hidden}
     // ------ Column / Table Resize via Drag ------
     let colResizeState = null; // { table, colIndex, startX, startWidthPx }
     let rowResizeState = null; // { row, table, startY, startHeight }
-    let tableResizeState = null; // { table, startX, startWidth, ratios, minWidth }
+    let tableResizeState = null; // { table, startX, startWidth, ratios, minWidth, maxContentWidth }
     let tableResizeHover = null; // { table, rect, delta }
     let rowResizeHover = null; // { row, table }
     const EDGE = 6;
@@ -4933,6 +5107,20 @@ body.weditor-fullscreen-active{overflow:hidden}
     const MIN_COL_WIDTH = 5;
     const MIN_ROW_HEIGHT = 5;
     const MIN_TABLE_WIDTH = 160;
+    let editorCursorMode = "default";
+    function setEditorCursor(mode) {
+      if (editorCursorMode === mode) return;
+      editorCursorMode = mode;
+      let cursorValue = "";
+      if (mode === "col") cursorValue = "col-resize";
+      else if (mode === "table") cursorValue = "ew-resize";
+      else if (mode === "row") cursorValue = "ns-resize";
+      if (cursorValue) {
+        divEditor.style.cursor = cursorValue;
+      } else {
+        divEditor.style.removeProperty("cursor");
+      }
+    }
 
     function getColIndexFromHit(cell, clientX) {
       const rect = cell.getBoundingClientRect();
@@ -5038,40 +5226,40 @@ body.weditor-fullscreen-active{overflow:hidden}
 
     divEditor.addEventListener("mousemove", (e)=>{
       if (tableResizeState) {
-        divEditor.style.cursor = "ew-resize";
+        setEditorCursor("table");
         return;
       }
       if (rowResizeState) {
-        divEditor.style.cursor = "ns-resize";
+        setEditorCursor("row");
         return;
       }
       tableResizeHover = null;
       rowResizeHover = null;
-      let cursor = "";
+      let cursorMode = "default";
       const edgeHit = getTableEdgeHover(e.clientX, e.clientY);
       const cell = resolveCellForPoint(e.target, e.clientX, e.clientY);
       if (cell && isNodeInside(cell, divEditor)) {
         const idx = getColIndexFromHit(cell, e.clientX);
         if (idx >= 0 && (!edgeHit || edgeHit.delta < 0)) {
-          cursor = "col-resize";
+          cursorMode = "col";
         }
       }
-      if (!cursor && cell && isNodeInside(cell, divEditor)) {
+      if (cursorMode === "default" && cell && isNodeInside(cell, divEditor)) {
         const row = cell.parentElement;
         if (row) {
           const rowRect = row.getBoundingClientRect();
           const deltaY = e.clientY - rowRect.bottom;
           if (deltaY >= -ROW_EDGE && deltaY <= ROW_EDGE) {
-            cursor = "ns-resize";
+            cursorMode = "row";
             rowResizeHover = { row, table: row.closest("table") };
           }
         }
       }
-      if (!cursor && edgeHit && edgeHit.delta >= -1) {
-        cursor = "ew-resize";
+      if (cursorMode === "default" && edgeHit && edgeHit.delta >= -1) {
+        cursorMode = "table";
         tableResizeHover = edgeHit;
       }
-      divEditor.style.cursor = cursor;
+      setEditorCursor(cursorMode);
     });
 
     divEditor.addEventListener("mousedown", (e)=>{
@@ -5107,6 +5295,7 @@ body.weditor-fullscreen-active{overflow:hidden}
             prepared: false
           };
 
+          setEditorCursor("col");
           document.addEventListener("mousemove", onColResizeMove);
           document.addEventListener("mouseup", onColResizeUp);
           return;
@@ -5167,12 +5356,14 @@ body.weditor-fullscreen-active{overflow:hidden}
       if (total > 0) {
         table.style.width = Math.max(total, MIN_TABLE_WIDTH) + "px";
       }
+      setEditorCursor("col");
     }
     function onColResizeUp(){
       if (!colResizeState) return;
       document.removeEventListener("mousemove", onColResizeMove);
       document.removeEventListener("mouseup", onColResizeUp);
       colResizeState = null;
+      setEditorCursor("default");
       divEditor.dispatchEvent(new Event("input",{bubbles:true}));
     }
 
@@ -5182,6 +5373,7 @@ body.weditor-fullscreen-active{overflow:hidden}
       normalizeTable(table, { enforceEqualColWidths: false });
       e.preventDefault();
       e.stopPropagation();
+      setEditorCursor("row");
       const rect = row.getBoundingClientRect();
       const startHeight = rect && rect.height ? rect.height : row.offsetHeight;
       rowResizeState = {
@@ -5203,7 +5395,7 @@ body.weditor-fullscreen-active{overflow:hidden}
       Array.from(row.children).forEach(cell=>{
         cell.style.height = newHeight + "px";
       });
-      divEditor.style.cursor = "ns-resize";
+      setEditorCursor("row");
     }
 
     function onRowResizeUp() {
@@ -5212,7 +5404,7 @@ body.weditor-fullscreen-active{overflow:hidden}
       document.removeEventListener("mouseup", onRowResizeUp);
       rowResizeState = null;
       rowResizeHover = null;
-      divEditor.style.cursor = "";
+      setEditorCursor("default");
       divEditor.dispatchEvent(new Event("input",{bubbles:true}));
     }
 
@@ -5226,24 +5418,35 @@ body.weditor-fullscreen-active{overflow:hidden}
       const ratios = collectColWidthRatios(table, startWidth || 1);
       const colCount = ratios.length || (table.rows[0] ? table.rows[0].cells.length : 0) || 1;
       const minWidth = Math.max(MIN_TABLE_WIDTH, colCount * MIN_COL_WIDTH);
+      const computedMaxWidth = computePageContentWidth();
+      const maxContentWidth = Number.isFinite(computedMaxWidth) && computedMaxWidth > 0 ? computedMaxWidth : null;
       tableResizeState = {
         table,
         startX: e.clientX,
         startWidth: startWidth || minWidth,
         ratios: ratios.length ? ratios : Array.from({length: colCount}, ()=>1 / colCount),
-        minWidth: minWidth
+        minWidth: minWidth,
+        maxContentWidth
       };
+      setEditorCursor("table");
       document.addEventListener("mousemove", onTableResizeMove);
       document.addEventListener("mouseup", onTableResizeUp);
     }
 
     function onTableResizeMove(e){
       if (!tableResizeState) return;
-      const { table, startX, startWidth, ratios, minWidth } = tableResizeState;
+      const { table, startX, startWidth, ratios, minWidth, maxContentWidth } = tableResizeState;
       const delta = e.clientX - startX;
       let newWidth = Math.round(startWidth + delta);
       if (!Number.isFinite(newWidth)) return;
       newWidth = Math.max(minWidth, newWidth);
+      if (Number.isFinite(maxContentWidth) && maxContentWidth > 0) {
+        // Prevent exceeding the editable page width; avoids post-resize normalization snapping back.
+        const clampMax = Math.max(minWidth, Math.round(maxContentWidth - 2));
+        if (newWidth > clampMax) {
+          newWidth = clampMax;
+        }
+      }
       const cg = table.querySelector("colgroup");
       if (cg && ratios.length) {
         const widths = distributeWidths(newWidth, ratios, MIN_COL_WIDTH);
@@ -5256,7 +5459,7 @@ body.weditor-fullscreen-active{overflow:hidden}
       } else {
         table.style.width = newWidth + "px";
       }
-      divEditor.style.cursor = "ew-resize";
+      setEditorCursor("table");
     }
     function onTableResizeUp(){
       if (!tableResizeState) return;
@@ -5264,7 +5467,7 @@ body.weditor-fullscreen-active{overflow:hidden}
       document.removeEventListener("mouseup", onTableResizeUp);
       tableResizeState = null;
       tableResizeHover = null;
-      divEditor.style.cursor = "";
+      setEditorCursor("default");
       divEditor.dispatchEvent(new Event("input",{bubbles:true}));
     }
 
