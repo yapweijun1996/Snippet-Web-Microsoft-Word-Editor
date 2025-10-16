@@ -5,6 +5,9 @@
   const STYLE_ID = "weditor-lite-style";
   const CSS_TEXT = `
 .weditor-wrap{border:1px solid #ccc;margin:8px 0;background:#fff;display:flex;flex-direction:column}
+.weditor-stage{flex:1 1 auto;display:block;padding:0;background:transparent;overflow:visible;box-sizing:border-box}
+.weditor-page{position:relative;width:100%;min-height:160px;margin:0;background:#fff;border-radius:0;box-shadow:none;padding:var(--weditor-page-padding,15px);box-sizing:border-box;display:flex;flex-direction:column}
+.weditor-page .weditor-area{flex:1 1 auto}
 .weditor-toolbar{z-index:10;position:sticky;top:0;display:flex;flex-direction:column;gap:0;background:#f8fafc;border-bottom:1px solid #e2e8f0;--weditor-btn-h:34px;--weditor-btn-py:6px;--weditor-btn-px:12px}
 .weditor-toolbar-nav{display:flex;flex-wrap:wrap;gap:8px;align-items:center;padding:10px 12px;background:linear-gradient(135deg,#f8fafc,#eef2ff)}
 .weditor-nav-btn{display:inline-flex;align-items:center;justify-content:center;gap:6px;padding:8px 16px;border-radius:999px;border:1px solid transparent;background:#ffffff;color:#1e293b;font-size:13px;font-weight:600;letter-spacing:.01em;cursor:pointer;box-shadow:0 1px 2px rgba(15,23,42,0.08);transition:all .18s ease}
@@ -68,7 +71,7 @@
 /* Ensure table button inner labels invert correctly when primary */
 .weditor-btn--primary .weditor-table-btn-primary{color:#fff}
 .weditor-btn--primary .weditor-table-btn-secondary{color:#e2e8f0}
-.weditor-area{min-height:160px;padding:10px;outline:0;overflow-y:auto}
+.weditor-area{min-height:160px;padding:0;outline:0;overflow:visible;background:transparent;box-sizing:border-box}
 .weditor-area p, .weditor-area h1, .weditor-area h2, .weditor-area h3, .weditor-area ul, .weditor-area ol, .weditor-area li, .weditor-area table, .weditor-area tr, .weditor-area td, .weditor-area th, .weditor-area span, .weditor-area div, .weditor-area font {
   all: revert; /* Revert to browser defaults, ignoring inherited styles from outside the editor */
 }
@@ -79,6 +82,8 @@
 .weditor_textarea{display:none}
 body.weditor-fullscreen-active{overflow:hidden}
 .weditor-wrap.weditor-fullscreen{position:fixed;top:0;left:0;width:100%;height:100%;z-index:9999;margin:0;border:0}
+.weditor-wrap.weditor-fullscreen .weditor-stage{display:flex;justify-content:center;align-items:flex-start;padding:24px;background:#ddd;overflow:auto;gap:24px}
+.weditor-wrap.weditor-fullscreen .weditor-page{width:750px;min-height:1050px;margin:auto;background:#fff;border-radius:4px;box-shadow:0 16px 40px rgba(15,23,42,0.18)}
 .weditor-wrap.weditor-fullscreen .weditor-area{flex:1;min-height:0}
 /* Exit Fullscreen button (top-right in fullscreen) */
 .weditor-fs-exit{position:absolute;top:10px;right:8px;min-width:36px;min-height:36px;padding:6px 10px;display:none;align-items:center;justify-content:center;border:1px solid #dc2626;background:#ef4444;color:#fff;border-radius:4px;cursor:pointer;box-shadow:0 1px 3px rgba(15,23,42,0.12);z-index:10000}
@@ -170,7 +175,13 @@ body.weditor-fullscreen-active{overflow:hidden}
 /* Page Break visualization */
 .weditor-page-break{display:block;height:24px;margin:12px 0;background-color:#f1f5f9;background-image:url("data:image/svg+xml,%3csvg width='100%25' height='100%25' xmlns='http://www.w3.org/2000/svg'%3e%3crect width='100%25' height='100%25' fill='none' stroke='%23cbd5e1' stroke-width='2' stroke-dasharray='6%2c 8' stroke-dashoffset='0' stroke-linecap='square'/%3e%3c/svg%3e");background-position:center center;background-repeat:repeat;position:relative;color:#94a3b8;font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:0.08em;text-align:center;line-height:24px;user-select:none;cursor:default}
 @media print{
+ .weditor-stage{padding:0;background:#fff;overflow:visible}
+ .weditor-page{width:auto;min-height:auto;margin:0;box-shadow:none;border-radius:0;padding:0}
  .weditor-page-break{height:0!important;margin:0!important;border:0!important;visibility:hidden!important;page-break-after:always!important}
+}
+@page{
+  size:A4;
+  margin:20mm;
 }
 .weditor-page-break:hover{background-color:#eef2ff!important}
 .weditor-page-break-selected{outline:2px solid #2563eb;outline-offset:1px;background-color:#e0e7ff!important}
@@ -454,6 +465,8 @@ body.weditor-fullscreen-active{overflow:hidden}
     const toolbar = el("div",{class:"weditor-toolbar"});
     const navBar = el("div",{class:"weditor-toolbar-nav", role:"toolbar", "aria-label":"Editor toolbar actions"});
     const panelContainer = el("div",{class:"weditor-toolbar-panels"});
+    const stage = el("div",{class:"weditor-stage"});
+    const page = el("div",{class:"weditor-page"});
     toolbar.appendChild(navBar);
     toolbar.appendChild(panelContainer);
 
@@ -3613,8 +3626,10 @@ body.weditor-fullscreen-active{overflow:hidden}
     // Mount DOM
     const parent = divEditor.parentNode;
     const nextSibling = parent ? divEditor.nextSibling : null;
+    page.appendChild(divEditor);
+    stage.appendChild(page);
     wrap.appendChild(toolbar);
-    wrap.appendChild(divEditor);
+    wrap.appendChild(stage);
     if (parent) {
       // Keep placement stable even inside tables by re-inserting at the original slot.
       if (nextSibling) parent.insertBefore(wrap, nextSibling);
