@@ -4541,12 +4541,10 @@ body.weditor-fullscreen-active{overflow:hidden}
 
     const tableCells = createTableSubgroup("Cells", "Shift+Click 选择多个单元格，Cmd/Ctrl+Click 切换选择");
     const btnMergeCells = addTableAction("Merge Cells →", null, "Merge selected cells in the current row (⌥M)", ()=>mergeSelectedCellsHorizontally(), tableCells);
-    btnMergeCells.classList.add("weditor-btn--primary");
     addTableAction("Merge Cells ↓", null, "Merge selected cells in the current column (⇧⌥M)", ()=>mergeSelectedCellsVertically(), tableCells);
 
     const tableBorders = createTableSubgroup("Borders");
     const btnBorderStyle = addTableAction("Borders","Line & Color","Adjust table border width, style, and color (⌥B)", ()=>tableBorderPopup.open(btnBorderStyle), tableBorders);
-    btnBorderStyle.classList.add("weditor-btn--primary");
     addTableAction("Hide Borders","No Lines","Remove all borders from this table (⇧⌥H)", ()=>hideTableBorders(), tableBorders);
     addTableAction("Reset Borders","Default","Reset border styling to default (⇧⌥R)", ()=>resetTableBorders(), tableBorders);
   }
