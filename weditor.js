@@ -1064,6 +1064,59 @@ body.weditor-fullscreen-active{overflow:hidden}
     function applyTextAlignment(alignment) {
       if (!alignment || showingSource) return false;
       const normalized = alignment === "left" || alignment === "start" ? "" : alignment;
+      if (cellSelectionState.selectedCells.length) {
+        let changed = false;
+        const applyToBlock = (block) => {
+          if (!block || !block.isConnected || !block.style || !isNodeInside(block, divEditor)) return;
+          const current = block.style.getPropertyValue("text-align");
+          const hadAlignAttr = block.hasAttribute && block.hasAttribute("align");
+          if (!normalized) {
+            if (current) {
+              block.style.removeProperty("text-align");
+              markSuppressedInlineProp(block, "text-align");
+              if (!block.getAttribute("style")) block.removeAttribute("style");
+              changed = true;
+            }
+            if (hadAlignAttr) {
+              block.removeAttribute("align");
+              changed = true;
+            }
+          } else {
+            if (current !== normalized) {
+              block.style.setProperty("text-align", normalized);
+              recordInlineStyle(block, "text-align", normalized);
+              changed = true;
+            }
+            if (hadAlignAttr) {
+              block.removeAttribute("align");
+              changed = true;
+            }
+          }
+        };
+        let processedCells = false;
+        cellSelectionState.selectedCells.forEach(cell => {
+          if (!cell || !cell.isConnected || !isNodeInside(cell, divEditor)) return;
+          processedCells = true;
+          const targets = new Set([cell]);
+          const innerBlocks = $$(BLOCK_STYLE_SELECTOR, cell).filter(block => {
+            if (!block || block === cell) return false;
+            if (typeof block.closest === "function") {
+              const ownerCell = block.closest("td,th");
+              if (ownerCell && ownerCell !== cell) return false;
+            }
+            return isNodeInside(block, divEditor);
+          });
+          innerBlocks.forEach(block => targets.add(block));
+          targets.forEach(target => {
+            if (!target || !target.isConnected) return;
+            applyToBlock(target);
+          });
+        });
+        if (changed) {
+          divEditor.dispatchEvent(new Event("input",{bubbles:true}));
+        }
+        return processedCells;
+      }
       const blocks = applyBlockStyleToSelection("text-align", normalized, {
         minimumBlocks: 1,
         afterEach(block){
