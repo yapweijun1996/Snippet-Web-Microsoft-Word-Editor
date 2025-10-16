@@ -557,6 +557,7 @@ body.weditor-fullscreen-active{overflow:hidden}
     // Editable area (reuse given div)
     divEditor.classList.add("weditor-area");
     divEditor.setAttribute("contenteditable","true");
+    try { document.execCommand("styleWithCSS", false, true); } catch(_){}
     if (pair.value && pair.value.trim()){
       divEditor.innerHTML = pair.value;
     } else if (!divEditor.innerHTML.trim()){
@@ -619,10 +620,12 @@ body.weditor-fullscreen-active{overflow:hidden}
         divEditor.focus();
         moveCaretToEnd(divEditor);
       }
-      document.execCommand(cmd, false, val);
+      const ok = document.execCommand(cmd, false, val);
+      try { console.debug("[weditor:exec]", { cmd, val, ok }); } catch(_){}
       divEditor.dispatchEvent(new Event("input",{bubbles:true}));
       // Reflect toggle states immediately after command (中文解释: 交互后立刻更新状态)
       try { updateToggleStates && updateToggleStates(); } catch(e){}
+      return ok;
     }
 
     const BLOCK_STYLE_SELECTOR = "p,h1,h2,h3,h4,h5,h6,li,blockquote,td,th,div,section,article,header,footer";
@@ -744,12 +747,19 @@ body.weditor-fullscreen-active{overflow:hidden}
       return blocks;
     }
 
-    function tryWrapRangeWithFontSize(range, fontSize){
+    function tryWrapRangeWithInlineStyle(range, prop, value){
       const span = document.createElement("span");
-      span.style.fontSize = fontSize;
+      try { span.style.setProperty(prop, value); } catch(_){
+        if (prop === "font-size") {
+          span.style.fontSize = value;
+        } else if (prop === "color") {
+          span.style.color = value;
+        }
+      }
       try {
         range.surroundContents(span);
         normalizeSelectionToNode(span);
+        try { recordInlineStyle(span, prop, value); } catch(_){}
         return true;
       } catch(err) {
         let hasBlock = false;
@@ -767,11 +777,51 @@ body.weditor-fullscreen-active{overflow:hidden}
           span.appendChild(extracted);
           range.insertNode(span);
           normalizeSelectionToNode(span);
+          try { recordInlineStyle(span, prop, value); } catch(_){}
           return true;
         } catch(_) {
           return false;
         }
       }
+    }
+    function tryWrapRangeWithFontSize(range, fontSize){
+      return tryWrapRangeWithInlineStyle(range, "font-size", fontSize);
+    }
+
+    function getActiveSelectionRange(){
+      const sel = window.getSelection();
+      if (!sel || !sel.rangeCount) return null;
+      const range = sel.getRangeAt(0);
+      if (!range) return null;
+      if (!isNodeInside(range.commonAncestorContainer, divEditor)) return null;
+      return range;
+    }
+
+    function wrapRangeWithSpan(range, prop, value){
+      if (!range || range.collapsed) return false;
+      const span = document.createElement("span");
+      span.style.setProperty(prop, value);
+      try {
+        const extracted = range.extractContents();
+        span.appendChild(extracted);
+        range.insertNode(span);
+        normalizeSelectionToNode(span);
+        try { recordInlineStyle(span, prop, value); } catch(_){}
+        return true;
+      } catch(_){
+        return false;
+      }
+    }
+
+    function applyInlineStyleToSelection(prop, value){
+      if (!prop || value === undefined || value === null || showingSource) return false;
+      const range = getActiveSelectionRange();
+      if (!range) return false;
+      if (range.collapsed) return false;
+      const ok = tryWrapRangeWithInlineStyle(range, prop, value);
+      if (!ok) return false;
+      divEditor.dispatchEvent(new Event("input", { bubbles: true }));
+      return true;
     }
     function applyFontSizePx(fontSize){
       if (!fontSize || showingSource) return false;
@@ -2183,15 +2233,54 @@ body.weditor-fullscreen-active{overflow:hidden}
     const inputTextColor = el("input", { type: "color", style: { display: "none" } });
     wrap.appendChild(inputTextColor);
     const btnTextColor = addBtn("A","Text color", ()=>{
-      try { saveEditorSelection && saveEditorSelection(); } catch(_) {}
       inputTextColor.click();
     }, textInlineSection);
+    btnTextColor.addEventListener("mousedown", (evt)=>{
+      evt.preventDefault();
+      try { saveEditorSelection && saveEditorSelection(); } catch(_){}
+      try { console.debug("[weditor:color] mousedown saved selection"); } catch(_){}
+    });
     inputTextColor.addEventListener("input", ()=>{
-      try { if (!restoreEditorSelection || !restoreEditorSelection()) divEditor.focus(); } catch(_) {}
       const value = inputTextColor.value;
-      const applied = applyBlockStyleToSelection("color", value, { multiOnly: true });
-      if (!applied) {
-        exec("foreColor", value);
+      const applyColor = ()=>{
+        try { console.debug("[weditor:color] apply start", { value }); } catch(_){}
+        let restored = false;
+        try { restored = restoreEditorSelection ? restoreEditorSelection() : false; } catch(_){}
+        try { divEditor.focus({ preventScroll: true }); } catch(_){}
+        try { console.debug("[weditor:color] selection restored?", restored); } catch(_){}
+        if (!restored) {
+          try { moveCaretToEnd(divEditor); } catch(_){}
+          try { console.debug("[weditor:color] fallback move caret to end"); } catch(_){}
+        }
+        let handled = false;
+        const inlineApplied = applyInlineStyleToSelection("color", value);
+        try { console.debug("[weditor:color] inline style applied?", inlineApplied); } catch(_){}
+        if (inlineApplied) {
+          handled = true;
+        } else if (!handled) {
+          const range = getActiveSelectionRange();
+          if (range) {
+            handled = wrapRangeWithSpan(range, "color", value);
+            if (handled) {
+              divEditor.dispatchEvent(new Event("input", { bubbles: true }));
+            }
+            try { console.debug("[weditor:color] inline wrap fallback?", handled); } catch(_){}
+          }
+        }
+        let execOk = true;
+        if (!handled) {
+          execOk = exec("foreColor", value);
+          try { console.debug("[weditor:color] execCommand foreColor invoked", { execOk }); } catch(_){}
+        }
+        if (!handled && !execOk) {
+          try { console.debug("[weditor:color] execCommand foreColor failed"); } catch(_){}
+        }
+        try { updateToggleStates && updateToggleStates(); } catch(_){}
+      };
+      if (typeof window.requestAnimationFrame === "function") {
+        requestAnimationFrame(applyColor);
+      } else {
+        setTimeout(applyColor, 0);
       }
     });
 
@@ -2200,19 +2289,60 @@ body.weditor-fullscreen-active{overflow:hidden}
     const inputBgColor = el("input", { type: "color", style: { display: "none" } });
     wrap.appendChild(inputBgColor);
     const btnBgColor = addBtn("Bg","Highlight color", ()=>{
-      try { saveEditorSelection && saveEditorSelection(); } catch(_) {}
       inputBgColor.click();
     }, textInlineSection);
+    btnBgColor.addEventListener("mousedown", (evt)=>{
+      evt.preventDefault();
+      try { saveEditorSelection && saveEditorSelection(); } catch(_){}
+      try { console.debug("[weditor:bg] mousedown saved selection"); } catch(_){}
+    });
     inputBgColor.addEventListener("input", ()=>{
-      try { if (!restoreEditorSelection || !restoreEditorSelection()) divEditor.focus(); } catch(_) {}
       const value = inputBgColor.value;
-      const applied = applyBlockStyleToSelection("background-color", value, { multiOnly: true });
-      if (applied) return;
-      try {
-        exec("hiliteColor", value);
-      } catch(_){
-        // Fallback for older engines (中文解释: 旧浏览器后备)
-        exec("backColor", value);
+      const applyHighlight = ()=>{
+        try { console.debug("[weditor:bg] apply start", { value }); } catch(_){}
+        let restored = false;
+        try { restored = restoreEditorSelection ? restoreEditorSelection() : false; } catch(_){}
+        try { divEditor.focus({ preventScroll: true }); } catch(_){}
+        try { console.debug("[weditor:bg] selection restored?", restored); } catch(_){}
+        if (!restored) {
+          try { moveCaretToEnd(divEditor); } catch(_){}
+          try { console.debug("[weditor:bg] fallback move caret to end"); } catch(_){}
+        }
+        let handled = false;
+        const inlineApplied = applyInlineStyleToSelection("background-color", value);
+        try { console.debug("[weditor:bg] inline style applied?", inlineApplied); } catch(_){}
+        if (inlineApplied) {
+          handled = true;
+        } else if (!handled) {
+          const range = getActiveSelectionRange();
+          if (range) {
+            handled = wrapRangeWithSpan(range, "background-color", value);
+            if (handled) {
+              divEditor.dispatchEvent(new Event("input", { bubbles: true }));
+            }
+            try { console.debug("[weditor:bg] inline wrap fallback?", handled); } catch(_){}
+          }
+        }
+        let execOk = true;
+        if (!handled) {
+          try {
+            execOk = exec("hiliteColor", value);
+            try { console.debug("[weditor:bg] execCommand hiliteColor invoked", { execOk }); } catch(_){}
+          } catch(_){
+            // Fallback for older engines (中文解释: 旧浏览器后备)
+            execOk = exec("backColor", value);
+            try { console.debug("[weditor:bg] execCommand backColor fallback invoked", { execOk }); } catch(_){}
+          }
+        }
+        if (!handled && !execOk) {
+          try { console.debug("[weditor:bg] exec command failed"); } catch(_){}
+        }
+        try { updateToggleStates && updateToggleStates(); } catch(_){}
+      };
+      if (typeof window.requestAnimationFrame === "function") {
+        requestAnimationFrame(applyHighlight);
+      } else {
+        setTimeout(applyHighlight, 0);
       }
     });
     const btnBold = addBtn("B","Bold (Ctrl/Cmd+B)", ()=>exec("bold"), textInlineSection);
@@ -3562,14 +3692,35 @@ body.weditor-fullscreen-active{overflow:hidden}
 
       tableDebug("saveEditorSelection", { collapsed: range.collapsed, start: range.startContainer, end: range.endContainer });
       savedEditorRange = range.cloneRange();
+      try {
+        console.debug("[weditor:selection] saved", {
+          collapsed: range.collapsed,
+          startNode: range.startContainer && range.startContainer.nodeName,
+          startOffset: range.startOffset,
+          endNode: range.endContainer && range.endContainer.nodeName,
+          endOffset: range.endOffset
+        });
+      } catch(_){}
       updateTableToolsVisibility();
     }
     function restoreEditorSelection(){
       const sel = window.getSelection();
-      if (!savedEditorRange || !sel) return false;
+      if (!savedEditorRange || !sel) {
+        try { console.debug("[weditor:selection] restore skipped (no saved range)"); } catch(_){}
+        return false;
+      }
       sel.removeAllRanges();
       sel.addRange(savedEditorRange);
       tableDebug("restoreEditorSelection applied", { collapsed: savedEditorRange.collapsed, start: savedEditorRange.startContainer, end: savedEditorRange.endContainer });
+      try {
+        console.debug("[weditor:selection] restored", {
+          collapsed: savedEditorRange.collapsed,
+          startNode: savedEditorRange.startContainer && savedEditorRange.startContainer.nodeName,
+          startOffset: savedEditorRange.startOffset,
+          endNode: savedEditorRange.endContainer && savedEditorRange.endContainer.nodeName,
+          endOffset: savedEditorRange.endOffset
+        });
+      } catch(_){}
       return true;
     }
     divEditor.addEventListener("mouseup", saveEditorSelection);
