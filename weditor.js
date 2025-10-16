@@ -285,15 +285,17 @@ body.weditor-fullscreen-active{overflow:hidden}
       }
       return value.toLowerCase();
     }
+    if (value.toLowerCase() === "transparent") return "transparent";
     const rgbMatch = value.match(/^rgba?\(\s*(\d{1,3})\s*,\s*(\d{1,3})\s*,\s*(\d{1,3})(?:\s*,\s*(\d*\.?\d+))?\s*\)$/i);
     if (rgbMatch){
       const toHex = (num)=>Math.max(0, Math.min(255, parseInt(num || "0", 10))).toString(16).padStart(2,"0");
       const r = toHex(rgbMatch[1]);
       const g = toHex(rgbMatch[2]);
       const b = toHex(rgbMatch[3]);
+      const alpha = typeof rgbMatch[4] !== "undefined" ? parseFloat(rgbMatch[4] || "1") : 1;
+      if (!isNaN(alpha) && alpha <= 0) return "transparent";
       return "#" + r + g + b;
     }
-    if (value.toLowerCase() === "transparent") return fallback;
     return fallback;
   }
 
@@ -1927,31 +1929,6 @@ body.weditor-fullscreen-active{overflow:hidden}
       return "";
     }
 
-    function resolveSelectionTextColor(){
-      const sel = window.getSelection && window.getSelection();
-      if (sel && sel.anchorNode){
-        let n = sel.anchorNode.nodeType === 1 ? sel.anchorNode : sel.anchorNode.parentElement;
-        while (n && n !== divEditor){
-          if (n.style && n.style.color){
-            return normalizeColorToHex(n.style.color || DEFAULT_TEXT_COLOR);
-          }
-          n = n.parentElement;
-        }
-        const anchorEl = sel.anchorNode.nodeType === 1 ? sel.anchorNode : sel.anchorNode.parentElement;
-        if (anchorEl && anchorEl.nodeType === 1){
-          const cs = window.getComputedStyle ? window.getComputedStyle(anchorEl) : null;
-          if (cs && cs.color){
-            return normalizeColorToHex(cs.color || DEFAULT_TEXT_COLOR);
-          }
-        }
-      }
-      const execColor = document.queryCommandValue && document.queryCommandValue("foreColor");
-      if (execColor){
-        return normalizeColorToHex(execColor || DEFAULT_TEXT_COLOR);
-      }
-      return DEFAULT_TEXT_COLOR;
-    }
-
     // New: Paragraph style select (Normal/H1/H2/H3) — minimal UX, Word-like
     const styleSelect = el("select", {
       title: "Paragraph style",
@@ -2325,130 +2302,223 @@ body.weditor-fullscreen-active{overflow:hidden}
     // Initialize once based on current mode
     setWYSIWYGEnabled(!showingSource);
     const DEFAULT_TEXT_COLOR = "#000000";
+    const DEFAULT_HIGHLIGHT_COLOR = "#fff475";
     const TEXT_COLOR_THEME = [
       ["#000000", "#1f2937", "#4b5563", "#6b7280", "#d1d5db", "#ffffff"],
       ["#c62828", "#ef6c00", "#f9a825", "#2e7d32", "#1565c0", "#4527a0"],
       ["#ad1457", "#8e24aa", "#3949ab", "#039be5", "#009688", "#f4511e"]
     ];
-    const MAX_RECENT_TEXT_COLORS = 6;
-    const recentTextColors = [];
-    let currentTextColor = DEFAULT_TEXT_COLOR;
-    let textColorMenu = null;
-    let inputTextColorMore = null;
-    let btnTextColor = null;
+    const HIGHLIGHT_COLOR_THEME = [
+      ["#fff475", "#ffd966", "#ffe699", "#fff2cc", "#fffaf0", "#fef3c7"],
+      ["#f28b82", "#fbbc04", "#fff475", "#ccff90", "#a7ffeb", "#aecbfa"],
+      ["#d7aefb", "#fdcfe8", "#e6c9a8", "#fef6c3", "#cfd8dc", "#eceff1"]
+    ];
+    const MAX_RECENT_COLORS = 6;
+    let textColorController = null;
+    let highlightColorController = null;
 
-    function recordRecentTextColor(color){
-      if (!color) return;
-      const normalized = normalizeColorToHex(color || DEFAULT_TEXT_COLOR);
-      if (!normalized) return;
-      const existingIndex = recentTextColors.indexOf(normalized);
-      if (existingIndex !== -1) {
-        recentTextColors.splice(existingIndex, 1);
+    function resolveSelectionColor(prop, fallbackColor, commands){
+      const fallback = normalizeColorToHex(fallbackColor);
+      const sel = window.getSelection && window.getSelection();
+      if (sel && sel.anchorNode){
+        let n = sel.anchorNode.nodeType === 1 ? sel.anchorNode : sel.anchorNode.parentElement;
+        while (n && n !== divEditor){
+          if (n.style && typeof n.style.getPropertyValue === "function"){
+            const inlineValue = n.style.getPropertyValue(prop);
+            if (inlineValue){
+              return normalizeColorToHex(inlineValue);
+            }
+          }
+          n = n.parentElement;
+        }
+        const anchorEl = sel.anchorNode.nodeType === 1 ? sel.anchorNode : sel.anchorNode.parentElement;
+        if (anchorEl && anchorEl.nodeType === 1){
+          try {
+            const cs = window.getComputedStyle ? window.getComputedStyle(anchorEl) : null;
+            if (cs){
+              const computed = cs.getPropertyValue(prop);
+              if (computed){
+                return normalizeColorToHex(computed);
+              }
+            }
+          } catch(_){}
+        }
       }
-      recentTextColors.unshift(normalized);
-      if (recentTextColors.length > MAX_RECENT_TEXT_COLORS) {
-        recentTextColors.length = MAX_RECENT_TEXT_COLORS;
+      if (Array.isArray(commands)){
+        for (const cmd of commands){
+          if (!cmd) continue;
+          try {
+            const value = document.queryCommandValue && document.queryCommandValue(cmd);
+            if (value){
+              return normalizeColorToHex(value);
+            }
+          } catch(_){}
+        }
       }
-      if (
-        textColorMenu &&
-        typeof textColorMenu.isOpen === "function" &&
-        textColorMenu.isOpen() &&
-        typeof textColorMenu.refreshRecents === "function"
-      ) {
-        textColorMenu.refreshRecents();
-      }
+      return fallback;
     }
 
-    function setTextColorButtonSwatch(color){
-      if (!btnTextColor) return;
-      const normalized = normalizeColorToHex(color || DEFAULT_TEXT_COLOR);
-      currentTextColor = normalized;
-      btnTextColor.style.color = normalized;
-      btnTextColor.setAttribute("data-current-color", normalized);
+    function getReadableTextColor(color){
+      const normalized = normalizeColorToHex(color || "#000000");
+      if (normalized === "transparent") return "#0f172a";
+      if (!/^#[0-9a-f]{6}$/i.test(normalized)) return "#0f172a";
+      const r = parseInt(normalized.slice(1,3),16) / 255;
+      const g = parseInt(normalized.slice(3,5),16) / 255;
+      const b = parseInt(normalized.slice(5,7),16) / 255;
+      const luminance = 0.2126 * r + 0.7152 * g + 0.0722 * b;
+      return luminance > 0.6 ? "#0f172a" : "#f8fafc";
     }
 
-    function applyEditorTextColor(color, opts = {}){
-      const addToRecents = opts.addToRecents !== false;
-      const candidate = color || DEFAULT_TEXT_COLOR;
-      const normalized = normalizeColorToHex(candidate);
-      let restored = false;
-      try {
-        if (restoreEditorSelection) {
-          restored = restoreEditorSelection();
-        }
-      } catch(_){}
-      try {
-        divEditor.focus({ preventScroll: true });
-      } catch(_){}
-      if (!restored) {
-        try { moveCaretToEnd(divEditor); } catch(_){}
-      }
-      let applied = false;
-      const inlineNode = applyInlineStyleToSelection("color", normalized);
-      if (inlineNode) {
-        applied = true;
-      } else {
-        const range = getActiveSelectionRange();
-        if (range && !range.collapsed) {
-          const wrapped = wrapRangeWithSpan(range, "color", normalized);
-          if (wrapped) applied = true;
-        }
-      }
-      if (!applied) {
-        const execResult = exec("foreColor", normalized);
-        applied = execResult !== false;
-      }
-      if (applied) {
-        setTextColorButtonSwatch(normalized);
-        if (
-          textColorMenu &&
-          typeof textColorMenu.isOpen === "function" &&
-          textColorMenu.isOpen() &&
-          typeof textColorMenu.syncIndicators === "function"
-        ) {
-          textColorMenu.syncIndicators(normalized);
-        }
-        if (addToRecents) {
-          recordRecentTextColor(normalized);
-        }
-      }
-      return applied;
+    function applyTransparentPattern(node){
+      if (!node) return;
+      node.style.backgroundImage = "linear-gradient(45deg, #cbd5e1 25%, transparent 25%, transparent 50%, #cbd5e1 50%, #cbd5e1 75%, transparent 75%, transparent)";
+      node.style.backgroundSize = "8px 8px";
+      node.style.backgroundColor = "#f8fafc";
+    }
+    function clearTransparentPattern(node){
+      if (!node) return;
+      node.style.backgroundImage = "";
     }
 
-    textColorMenu = (() => {
+    function createColorController(options){
+      const {
+        prop,
+        defaultColor,
+        buttonContent,
+        buttonLabel,
+        ariaLabel,
+        targetSection,
+        themeMatrix = [],
+        fallbackCommands = [],
+        resolveCommands = [],
+        automatic = { label: "Automatic", color: defaultColor, addToRecents: false },
+        moreLabel = "More colors…",
+        buttonClass = "",
+        recentLimit = MAX_RECENT_COLORS,
+        buttonStyle,
+        swatchStyle,
+        currentSwatchStyle,
+        normalizeColorFn
+      } = options || {};
+      if (!targetSection) throw new Error("targetSection is required for color controller");
+
+      const normalizer = normalizeColorFn || ((value)=>normalizeColorToHex(value));
+      const recentColors = [];
+      let currentColor = normalizer(defaultColor);
       let node = null;
-      let outsideHandler = null;
-      let anchorForFocus = null;
       let recentContainer = null;
       let currentSwatch = null;
+      let anchorForFocus = null;
+      let outsideHandler = null;
 
-      function createColorSwatch(color, label, record = true){
-        const btn = el("button", {
+      const hiddenInput = el("input", { type: "color", style: { display: "none" } });
+      wrap.appendChild(hiddenInput);
+
+      const button = addBtn(buttonContent, buttonLabel, ()=>{
+        if (showingSource) return;
+        if (controller.isOpen()) {
+          controller.close();
+          return;
+        }
+        controller.open(button);
+      }, targetSection, buttonClass);
+      button.setAttribute("aria-haspopup", "true");
+      button.setAttribute("aria-expanded", "false");
+
+      button.addEventListener("mousedown", (evt)=>{
+        evt.preventDefault();
+        try { saveEditorSelection && saveEditorSelection(); } catch(_){}
+      });
+
+      function styleButton(color){
+        const normalized = normalizer(color || defaultColor);
+        if (typeof buttonStyle === "function"){
+          buttonStyle(button, normalized);
+          return;
+        }
+        button.style.color = normalized === "transparent" ? "#0f172a" : normalized;
+        button.style.background = "none";
+        button.style.borderColor = "";
+      }
+
+      function styleSwatch(node, color){
+        const normalized = normalizer(color || defaultColor);
+        node.style.width = "24px";
+        node.style.height = "24px";
+        node.style.border = "1px solid #cbd5e1";
+        node.style.borderRadius = "4px";
+        node.style.padding = "0";
+        node.style.cursor = "pointer";
+        if (typeof swatchStyle === "function"){
+          swatchStyle(node, normalized);
+          return;
+        }
+        if (normalized === "transparent"){
+          applyTransparentPattern(node);
+        } else {
+          clearTransparentPattern(node);
+          node.style.backgroundColor = normalized;
+        }
+      }
+
+      function styleCurrentSwatch(node, color){
+        const normalized = normalizer(color || defaultColor);
+        node.style.width = "100%";
+        node.style.height = "24px";
+        node.style.border = "1px solid #cbd5e1";
+        node.style.borderRadius = "4px";
+        if (typeof currentSwatchStyle === "function"){
+          currentSwatchStyle(node, normalized);
+          return;
+        }
+        if (normalized === "transparent"){
+          applyTransparentPattern(node);
+        } else {
+          clearTransparentPattern(node);
+          node.style.backgroundColor = normalized;
+        }
+      }
+
+      function syncButtonState(color){
+        const normalized = normalizer(color || defaultColor);
+        currentColor = normalized;
+        styleButton(normalized);
+        button.setAttribute("data-current-color", normalized);
+      }
+
+      function recordRecent(color){
+        const normalized = normalizer(color || defaultColor);
+        if (!normalized) return;
+        const existingIndex = recentColors.indexOf(normalized);
+        if (existingIndex !== -1) {
+          recentColors.splice(existingIndex, 1);
+        }
+        recentColors.unshift(normalized);
+        if (recentColors.length > recentLimit) {
+          recentColors.length = recentLimit;
+        }
+      }
+
+      function createSwatch(color, label, record=true){
+        const normalized = normalizer(color);
+        const swatch = el("button", {
           type: "button",
           class: "weditor-color-swatch",
-          "data-color": color,
+          "data-color": normalized,
           "data-record": record ? "true" : "false",
-          title: label || color,
-          "aria-label": label || color,
-          style: {
-            width: "24px",
-            height: "24px",
-            border: "1px solid #cbd5e1",
-            borderRadius: "4px",
-            padding: "0",
-            backgroundColor: color,
-            cursor: "pointer"
-          }
+          title: label || normalized,
+          "aria-label": label || normalized
         });
-        return btn;
+        styleSwatch(swatch, normalized);
+        return swatch;
       }
 
       function refreshRecents(){
-        if (!node || !recentContainer) return;
-        while (recentContainer.firstChild) {
+        if (!recentContainer) return;
+        while (recentContainer.firstChild){
           recentContainer.removeChild(recentContainer.firstChild);
         }
-        if (!recentTextColors.length) {
+        if (!recentColors.length){
           recentContainer.appendChild(el("div", {
             style: {
               gridColumn: "1 / -1",
@@ -2459,53 +2529,92 @@ body.weditor-fullscreen-active{overflow:hidden}
           }, ["No recent colors"]));
           return;
         }
-        recentTextColors.forEach(color=>{
-          recentContainer.appendChild(createColorSwatch(color, color, true));
+        recentColors.forEach(color=>{
+          recentContainer.appendChild(createSwatch(color, color, true));
         });
       }
 
       function syncIndicators(color){
-        const normalized = normalizeColorToHex(color || DEFAULT_TEXT_COLOR);
-        currentTextColor = normalized;
-        if (currentSwatch) {
-          currentSwatch.style.backgroundColor = normalized;
+        const normalized = normalizer(color || currentColor);
+        currentColor = normalized;
+        if (currentSwatch){
+          styleCurrentSwatch(currentSwatch, normalized);
         }
-        if (btnTextColor) {
-          btnTextColor.style.color = normalized;
-          btnTextColor.setAttribute("data-current-color", normalized);
-        }
+        syncButtonState(normalized);
         if (!node) return;
         const swatches = node.querySelectorAll(".weditor-color-swatch");
-        swatches.forEach(btn=>{
-          const btnColor = normalizeColorToHex(btn.getAttribute("data-color") || DEFAULT_TEXT_COLOR);
-          if (btnColor === normalized) {
-            btn.setAttribute("data-active", "true");
-            btn.style.outline = "2px solid #2563eb";
-            btn.style.outlineOffset = "1px";
+        swatches.forEach(swatch=>{
+          const swatchColor = normalizer(swatch.getAttribute("data-color") || normalized);
+          if (swatchColor === normalized){
+            swatch.setAttribute("data-active", "true");
+            swatch.style.outline = "2px solid #2563eb";
+            swatch.style.outlineOffset = "1px";
           } else {
-            btn.removeAttribute("data-active");
-            btn.style.outline = "none";
+            swatch.removeAttribute("data-active");
+            swatch.style.outline = "none";
           }
         });
+      }
+
+      function applyColor(rawColor, opts = {}){
+        const addToRecents = opts.addToRecents !== false;
+        const color = normalizer(rawColor || defaultColor);
+        let restored = false;
+        try {
+          if (restoreEditorSelection) restored = restoreEditorSelection();
+        } catch(_){}
+        try { divEditor.focus({ preventScroll: true }); } catch(_){}
+        if (!restored) {
+          try { moveCaretToEnd(divEditor); } catch(_){}
+        }
+        let applied = false;
+        const inlineNode = applyInlineStyleToSelection(prop, color);
+        if (inlineNode) {
+          applied = true;
+        } else {
+          const range = getActiveSelectionRange();
+          if (range && !range.collapsed) {
+            const wrapped = wrapRangeWithSpan(range, prop, color);
+            if (wrapped) applied = true;
+          }
+        }
+        if (!applied && fallbackCommands.length){
+          for (const cmd of fallbackCommands){
+            const result = exec(cmd, color);
+            if (result !== false){
+              applied = true;
+              break;
+            }
+          }
+        }
+        if (applied){
+          syncIndicators(color);
+          if (addToRecents) {
+            recordRecent(color);
+          }
+          try { updateToggleStates && updateToggleStates(); } catch(_){}
+          if (typeof options.onColorApplied === "function"){
+            try { options.onColorApplied(color); } catch(_){}
+          }
+        }
+        return applied;
       }
 
       function handleMenuClick(evt){
         const target = evt.target.closest("button");
         if (!target) return;
         evt.preventDefault();
-        const color = target.getAttribute("data-color");
-        if (color) {
-          const recordFlag = target.getAttribute("data-record") !== "false";
-          const applied = applyEditorTextColor(color, { addToRecents: recordFlag });
-          if (applied) close();
+        const action = target.getAttribute("data-action");
+        if (action === "more"){
+          const fallbackValue = currentColor === "transparent" ? normalizer(defaultColor) : currentColor;
+          hiddenInput.value = /^#[0-9a-f]{6}$/i.test(fallbackValue) ? fallbackValue : normalizer(defaultColor);
+          hiddenInput.click();
           return;
         }
-        const action = target.getAttribute("data-action");
-        if (action === "more") {
-          if (inputTextColorMore) {
-            inputTextColorMore.value = currentTextColor;
-            inputTextColorMore.click();
-          }
+        const color = target.getAttribute("data-color");
+        if (color){
+          const applied = applyColor(color, { addToRecents: target.getAttribute("data-record") !== "false" });
+          if (applied) controller.close();
         }
       }
 
@@ -2528,16 +2637,8 @@ body.weditor-fullscreen-active{overflow:hidden}
           class: "weditor-color-title",
           style: { fontSize: "12px", fontWeight: "600", color: "#475569" }
         }, ["Current color"]));
-        currentSwatch = el("div", {
-          class: "weditor-color-current",
-          style: {
-            width: "100%",
-            height: "24px",
-            border: "1px solid #cbd5e1",
-            borderRadius: "4px",
-            backgroundColor: currentTextColor
-          }
-        });
+        currentSwatch = el("div", { class: "weditor-color-current" });
+        styleCurrentSwatch(currentSwatch, currentColor);
         node.appendChild(currentSwatch);
 
         node.appendChild(el("div", {
@@ -2555,24 +2656,26 @@ body.weditor-fullscreen-active{overflow:hidden}
         });
         node.appendChild(recentContainer);
 
-        node.appendChild(el("div", {
-          class: "weditor-color-title",
-          style: { fontSize: "12px", fontWeight: "600", color: "#475569" }
-        }, ["Theme colors"]));
-        const themeGrid = el("div", {
-          class: "weditor-color-grid",
-          style: {
-            display: "grid",
-            gridTemplateColumns: "repeat(6, 24px)",
-            gap: "4px"
-          }
-        });
-        TEXT_COLOR_THEME.forEach(row=>{
-          row.forEach(color=>{
-            themeGrid.appendChild(createColorSwatch(color, color, true));
+        if (Array.isArray(themeMatrix) && themeMatrix.length){
+          node.appendChild(el("div", {
+            class: "weditor-color-title",
+            style: { fontSize: "12px", fontWeight: "600", color: "#475569" }
+          }, ["Theme colors"]));
+          const themeGrid = el("div", {
+            class: "weditor-color-grid",
+            style: {
+              display: "grid",
+              gridTemplateColumns: "repeat(6, 24px)",
+              gap: "4px"
+            }
           });
-        });
-        node.appendChild(themeGrid);
+          themeMatrix.forEach(row=>{
+            row.forEach(color=>{
+              themeGrid.appendChild(createSwatch(color, color, true));
+            });
+          });
+          node.appendChild(themeGrid);
+        }
 
         const actions = el("div", {
           class: "weditor-color-actions",
@@ -2584,8 +2687,8 @@ body.weditor-fullscreen-active{overflow:hidden}
           el("button", {
             type: "button",
             class: "weditor-color-action",
-            "data-color": DEFAULT_TEXT_COLOR,
-            "data-record": "false",
+            "data-color": normalizer(automatic.color),
+            "data-record": automatic.addToRecents ? "true" : "false",
             style: {
               flex: "1",
               padding: "6px 8px",
@@ -2595,7 +2698,7 @@ body.weditor-fullscreen-active{overflow:hidden}
               fontSize: "12px",
               cursor: "pointer"
             }
-          }, ["Automatic"]),
+          }, [automatic.label || "Automatic"]),
           el("button", {
             type: "button",
             class: "weditor-color-action",
@@ -2609,25 +2712,29 @@ body.weditor-fullscreen-active{overflow:hidden}
               fontSize: "12px",
               cursor: "pointer"
             }
-          }, ["More colors…"])
+          }, [moreLabel])
         ]);
         node.appendChild(actions);
         return node;
       }
 
+      hiddenInput.addEventListener("change", ()=>{
+        const value = hiddenInput.value;
+        if (!value) return;
+        const applied = applyColor(value, { addToRecents: true });
+        if (applied) controller.close();
+      });
+
       function open(anchor){
-        if (showingSource) return;
-        close();
-        try {
-          if (saveEditorSelection) saveEditorSelection();
-        } catch(_){}
+        controller.close();
+        try { saveEditorSelection && saveEditorSelection(); } catch(_){}
         const menu = ensureMenu();
         anchorForFocus = anchor;
         toolbar.appendChild(menu);
         menu.setAttribute("data-open", "true");
-        if (btnTextColor) btnTextColor.setAttribute("aria-expanded", "true");
+        button.setAttribute("aria-expanded", "true");
         refreshRecents();
-        syncIndicators(currentTextColor);
+        syncIndicators(currentColor);
         requestAnimationFrame(()=>{
           positionToolbarPopup(anchor, menu);
           const activeBtn = menu.querySelector(".weditor-color-swatch[data-active='true']");
@@ -2636,7 +2743,7 @@ body.weditor-fullscreen-active{overflow:hidden}
         });
         outsideHandler = (evt)=>{
           if (!menu.contains(evt.target) && (!anchor || !anchor.contains(evt.target))) {
-            close();
+            controller.close();
           }
         };
         document.addEventListener("mousedown", outsideHandler, true);
@@ -2645,13 +2752,13 @@ body.weditor-fullscreen-active{overflow:hidden}
       function close(){
         if (!node) return;
         node.removeAttribute("data-open");
-        if (btnTextColor) btnTextColor.setAttribute("aria-expanded", "false");
+        button.setAttribute("aria-expanded", "false");
         if (node.parentNode) node.parentNode.removeChild(node);
-        if (outsideHandler) {
+        if (outsideHandler){
           document.removeEventListener("mousedown", outsideHandler, true);
           outsideHandler = null;
         }
-        if (anchorForFocus && anchorForFocus.focus) {
+        if (anchorForFocus && anchorForFocus.focus){
           try { anchorForFocus.focus(); } catch(_){}
         }
         anchorForFocus = null;
@@ -2661,81 +2768,96 @@ body.weditor-fullscreen-active{overflow:hidden}
         return !!(node && node.getAttribute("data-open") === "true");
       }
 
-      return { open, close, refreshRecents, syncIndicators, isOpen };
-    })();
+      function updateFromSelection(){
+        const selectionColor = resolveSelectionColor(prop, currentColor, resolveCommands);
+        syncIndicators(selectionColor);
+      }
 
-    inputTextColorMore = el("input", { type: "color", style: { display: "none" } });
-    wrap.appendChild(inputTextColorMore);
-    inputTextColorMore.addEventListener("change", ()=>{
-      const value = inputTextColorMore.value;
-      if (!value) return;
-      const applied = applyEditorTextColor(value, { addToRecents: true });
-      if (applied && textColorMenu && typeof textColorMenu.close === "function") {
-        textColorMenu.close();
+      const controller = { button, open, close, isOpen, applyColor, updateFromSelection, syncIndicators, refreshRecents };
+      syncButtonState(currentColor);
+      return controller;
+    }
+
+    textColorController = createColorController({
+      prop: "color",
+      defaultColor: DEFAULT_TEXT_COLOR,
+      buttonContent: "A",
+      buttonLabel: "Text color",
+      ariaLabel: "Text color",
+      targetSection: textInlineSection,
+      themeMatrix: TEXT_COLOR_THEME,
+      fallbackCommands: ["foreColor"],
+      resolveCommands: ["foreColor"],
+      buttonClass: "weditor-btn-color",
+      buttonStyle(button, color){
+        button.style.background = "none";
+        button.style.borderColor = "";
+        button.style.color = color === "transparent" ? "#0f172a" : color;
+      },
+      currentSwatchStyle(node, color){
+        if (color === "transparent"){
+          applyTransparentPattern(node);
+        } else {
+          clearTransparentPattern(node);
+          node.style.backgroundColor = color;
+        }
       }
     });
-
-    btnTextColor = addBtn("A","Text color", ()=>{
-      if (textColorMenu) textColorMenu.open(btnTextColor);
-    }, textInlineSection, "weditor-btn-color");
-    btnTextColor.setAttribute("aria-haspopup", "true");
-    btnTextColor.setAttribute("aria-expanded", "false");
-    btnTextColor.addEventListener("mousedown", (evt)=>{
-      evt.preventDefault();
-      try { if (saveEditorSelection) saveEditorSelection(); } catch(_){}
+    highlightColorController = createColorController({
+      prop: "background-color",
+      defaultColor: DEFAULT_HIGHLIGHT_COLOR,
+      buttonContent: "Bg",
+      buttonLabel: "Highlight color",
+      ariaLabel: "Highlight color",
+      targetSection: textInlineSection,
+      themeMatrix: HIGHLIGHT_COLOR_THEME,
+      fallbackCommands: ["hiliteColor", "backColor"],
+      resolveCommands: ["hiliteColor", "backColor"],
+      automatic: { label: "No highlight", color: "transparent", addToRecents: true },
+      buttonStyle(button, color){
+        if (color === "transparent"){
+          applyTransparentPattern(button);
+          button.style.color = "#0f172a";
+        } else {
+          clearTransparentPattern(button);
+          button.style.backgroundColor = color;
+          button.style.color = getReadableTextColor(color);
+        }
+        button.style.borderColor = "rgba(148,163,184,0.6)";
+      },
+      swatchStyle(node, color){
+        if (color === "transparent"){
+          applyTransparentPattern(node);
+        } else {
+          clearTransparentPattern(node);
+          node.style.backgroundColor = color;
+        }
+      },
+      currentSwatchStyle(node, color){
+        if (color === "transparent"){
+          applyTransparentPattern(node);
+        } else {
+          clearTransparentPattern(node);
+          node.style.backgroundColor = color;
+        }
+      }
     });
-    setTextColorButtonSwatch(DEFAULT_TEXT_COLOR);
-
-    // Step 2b: Background/Highlight color picker (minimal, with selection restore)
-    // (中文解释: 背景高亮颜色；选择颜色前后保持光标/选区)
-    const inputBgColor = el("input", { type: "color", style: { display: "none" } });
-    wrap.appendChild(inputBgColor);
-    const btnBgColor = addBtn("Bg","Highlight color", ()=>{
-      inputBgColor.click();
-    }, textInlineSection);
-    btnBgColor.addEventListener("mousedown", (evt)=>{
-      evt.preventDefault();
-      try { saveEditorSelection && saveEditorSelection(); } catch(_){}
-    });
-    inputBgColor.addEventListener("input", ()=>{
-      const value = inputBgColor.value;
-      const applyHighlight = ()=>{
-        let restored = false;
-        try { restored = restoreEditorSelection ? restoreEditorSelection() : false; } catch(_){}
-        try { divEditor.focus({ preventScroll: true }); } catch(_){}
-        if (!restored) {
-          try { moveCaretToEnd(divEditor); } catch(_){}
+    if (textColorController && highlightColorController) {
+      const originalTextOpen = textColorController.open;
+      textColorController.open = (anchor)=>{
+        if (highlightColorController.isOpen && highlightColorController.isOpen()) {
+          highlightColorController.close();
         }
-        let handled = false;
-        const inlineApplied = applyInlineStyleToSelection("background-color", value);
-        if (inlineApplied) {
-          handled = true;
-        } else if (!handled) {
-          const range = getActiveSelectionRange();
-          if (range) {
-            handled = wrapRangeWithSpan(range, "background-color", value);
-            if (handled) {
-              divEditor.dispatchEvent(new Event("input", { bubbles: true }));
-            }
-          }
-        }
-        let execOk = true;
-        if (!handled) {
-          try {
-            execOk = exec("hiliteColor", value);
-          } catch(_){
-            // Fallback for older engines (中文解释: 旧浏览器后备)
-            execOk = exec("backColor", value);
-          }
-        }
-        try { updateToggleStates && updateToggleStates(); } catch(_){}
+        originalTextOpen(anchor);
       };
-      if (typeof window.requestAnimationFrame === "function") {
-        requestAnimationFrame(applyHighlight);
-      } else {
-        setTimeout(applyHighlight, 0);
-      }
-    });
+      const originalHighlightOpen = highlightColorController.open;
+      highlightColorController.open = (anchor)=>{
+        if (textColorController.isOpen && textColorController.isOpen()) {
+          textColorController.close();
+        }
+        originalHighlightOpen(anchor);
+      };
+    }
     const btnBold = addBtn("B","Bold (Ctrl/Cmd+B)", ()=>exec("bold"), textInlineSection);
     const btnItalic = addBtn("I","Italic (Ctrl/Cmd+I)", ()=>exec("italic"), textInlineSection);
     const btnUnderline = addBtn("U","Underline (Ctrl/Cmd+U)", ()=>exec("underline"), textInlineSection);
@@ -3114,19 +3236,13 @@ body.weditor-fullscreen-active{overflow:hidden}
           }
         } catch(_){}
         try {
-          if (btnTextColor) {
-            const resolvedColor = resolveSelectionTextColor && resolveSelectionTextColor();
-            if (resolvedColor) {
-              setTextColorButtonSwatch(resolvedColor);
-              if (
-                textColorMenu &&
-                typeof textColorMenu.isOpen === "function" &&
-                textColorMenu.isOpen() &&
-                typeof textColorMenu.syncIndicators === "function"
-              ) {
-                textColorMenu.syncIndicators(resolvedColor);
-              }
-            }
+          if (textColorController && typeof textColorController.updateFromSelection === "function") {
+            textColorController.updateFromSelection();
+          }
+        } catch(_){}
+        try {
+          if (highlightColorController && typeof highlightColorController.updateFromSelection === "function") {
+            highlightColorController.updateFromSelection();
           }
         } catch(_){}
         // reflect block format to styleSelect (p/h1/h2/h3)
