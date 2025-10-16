@@ -44,6 +44,8 @@
 .weditor-style-select{min-width:140px}
 .weditor-font-select{min-width:160px}
 .weditor-size-select{min-width:80px}
+.weditor-spacing-select{min-width:130px}
+.weditor-indent-display{font-size:12px;font-weight:600;color:#475569;letter-spacing:.02em}
 /* Optional: hide desktop line-height select when icon menu is present (中文解释: 桌面端隐藏原生行高下拉) */
 @media (min-width:768px){
   .weditor-lineheight-select{display:none}
@@ -941,6 +943,140 @@ body.weditor-fullscreen-active{overflow:hidden}
       divEditor.dispatchEvent(new Event("input", { bubbles: true }));
     }
 
+    function getAnchorBlock() {
+      const sel = window.getSelection && window.getSelection();
+      if (!sel || !sel.anchorNode) return null;
+      const node = sel.anchorNode.nodeType === 1 ? sel.anchorNode : sel.anchorNode.parentElement;
+      if (!node || node === divEditor) return null;
+      if (typeof node.closest !== "function") return null;
+      const block = node.closest(BLOCK_STYLE_SELECTOR);
+      if (block && isNodeInside(block, divEditor)) {
+        return block;
+      }
+      return null;
+    }
+
+    function collectTargetBlocks() {
+      const targets = [];
+      const seen = new Set();
+      const pushUnique = (node) => {
+        if (!node || seen.has(node)) return;
+        seen.add(node);
+        targets.push(node);
+      };
+      if (cellSelectionState.selectedCells.length) {
+        cellSelectionState.selectedCells.forEach(cell => {
+          if (!cell || !cell.isConnected) return;
+          if (!isNodeInside(cell, divEditor)) return;
+          const inner = $$(BLOCK_STYLE_SELECTOR, cell);
+          if (inner.length) {
+            inner.forEach(block => {
+              if (block && isNodeInside(block, divEditor)) pushUnique(block);
+            });
+          } else {
+            pushUnique(cell);
+          }
+        });
+        return targets;
+      }
+      const blocks = getSelectedParagraphsInEditor(BLOCK_STYLE_SELECTOR);
+      if (blocks.length) {
+        blocks.forEach(block => {
+          if (block && isNodeInside(block, divEditor)) pushUnique(block);
+        });
+      } else {
+        const anchor = getAnchorBlock();
+        if (anchor) pushUnique(anchor);
+      }
+      return targets;
+    }
+
+    function setParagraphSpacing(prop, rawValue) {
+      if (!prop || showingSource) return;
+      const value = rawValue != null ? String(rawValue).trim() : "";
+      const targets = collectTargetBlocks();
+      if (!targets.length) return;
+      let changed = false;
+      targets.forEach(node => {
+        if (!node || !node.style) return;
+        if (!value) {
+          const existing = node.style.getPropertyValue(prop);
+          if (!existing) return;
+          node.style.removeProperty(prop);
+          markSuppressedInlineProp(node, prop);
+          if (!node.getAttribute("style")) node.removeAttribute("style");
+          changed = true;
+        } else {
+          if (node.style.getPropertyValue(prop) === value) return;
+          node.style.setProperty(prop, value);
+          recordInlineStyle(node, prop, value);
+          changed = true;
+        }
+      });
+      if (changed) {
+        divEditor.dispatchEvent(new Event("input", { bubbles: true }));
+        try { updateToggleStates && updateToggleStates(); } catch(_){}
+      }
+    }
+
+    function adjustParagraphIndent(deltaPx, opts = {}) {
+      if (showingSource) return;
+      const targets = collectTargetBlocks();
+      if (!targets.length) return;
+      const isReset = opts && opts.reset === true;
+      let changed = false;
+      targets.forEach(node => {
+        if (!node || !node.style) return;
+        if (isReset) {
+          if (!node.style.getPropertyValue("margin-left")) return;
+          node.style.removeProperty("margin-left");
+          markSuppressedInlineProp(node, "margin-left");
+          if (!node.getAttribute("style")) node.removeAttribute("style");
+          changed = true;
+          return;
+        }
+        if (typeof deltaPx !== "number" || Number.isNaN(deltaPx)) return;
+        let current = node.style.getPropertyValue("margin-left");
+        let currentPx = parseFloat(current || "0");
+        if (!current || !current.toLowerCase().endsWith("px") || Number.isNaN(currentPx)) {
+          currentPx = 0;
+        }
+        let nextPx = currentPx + deltaPx;
+        if (nextPx < 0) nextPx = 0;
+        if (nextPx === 0) {
+          if (currentPx === 0 && (!current || current === "0px")) return;
+          node.style.removeProperty("margin-left");
+          markSuppressedInlineProp(node, "margin-left");
+          if (!node.getAttribute("style")) node.removeAttribute("style");
+          changed = true;
+        } else {
+          const nextValue = Math.round(nextPx) + "px";
+          if (node.style.getPropertyValue("margin-left") === nextValue) return;
+          node.style.setProperty("margin-left", nextValue);
+          recordInlineStyle(node, "margin-left", nextValue);
+          changed = true;
+        }
+      });
+      if (changed) {
+        divEditor.dispatchEvent(new Event("input", { bubbles: true }));
+        try { updateToggleStates && updateToggleStates(); } catch(_){}
+      }
+    }
+
+    function resolveInlineParagraphStyle(prop) {
+      const block = getAnchorBlock();
+      if (!block || !block.style) return "";
+      const value = block.style.getPropertyValue(prop);
+      return value ? value.trim() : "";
+    }
+
+    function resolveCurrentIndentPx() {
+      const value = resolveInlineParagraphStyle("margin-left");
+      if (!value) return 0;
+      const px = parseFloat(value);
+      return Number.isNaN(px) ? 0 : px;
+    }
+
     // ---------- History manager (with redo-safe undo) ----------
     function getHTML(){ return showingSource ? divEditor.textContent : divEditor.innerHTML; }
 
@@ -1717,12 +1853,9 @@ body.weditor-fullscreen-active{overflow:hidden}
     groupFormatting.inner.appendChild(textSelectorsSection);
     groupFormatting.inner.appendChild(textInlineSection);
 
-    const layoutStructureSection = el("div", { class: "weditor-panel-section" });
-    const layoutAlignmentSection = el("div", { class: "weditor-panel-section" });
-    const layoutUtilitiesSection = el("div", { class: "weditor-panel-section" });
-    groupLayout.inner.appendChild(layoutStructureSection);
-    groupLayout.inner.appendChild(layoutAlignmentSection);
-    groupLayout.inner.appendChild(layoutUtilitiesSection);
+    const layoutSpacingSection = createPanelSection(groupLayout.inner, "Spacing");
+    const layoutAlignmentSection = createPanelSection(groupLayout.inner, "Alignment & Lists");
+    const layoutUtilitiesSection = createPanelSection(groupLayout.inner, "Utilities");
 
     addBtn("HTML","Toggle HTML view", ()=>{
       const before = getHTML();
@@ -1968,6 +2101,17 @@ body.weditor-fullscreen-active{overflow:hidden}
     });
     textSelectorsSection.appendChild(styleSelect);
 
+    const PARAGRAPH_SPACING_PRESETS = [
+      { label: "Auto", value: "" },
+      { label: "0 pt", value: "0px" },
+      { label: "6 pt", value: "8px" },
+      { label: "12 pt", value: "16px" },
+      { label: "18 pt", value: "24px" },
+      { label: "24 pt", value: "32px" }
+    ];
+    const PARAGRAPH_SPACING_VALUE_SET = new Set(PARAGRAPH_SPACING_PRESETS.map(p => p.value));
+    const INDENT_INCREMENT_PX = 24;
+
     // Line height selector (行高选择器)
     const LINE_HEIGHT_PRESETS = [
       { label: "0.1", value: "0.1" },
@@ -1998,7 +2142,7 @@ body.weditor-fullscreen-active{overflow:hidden}
       const value = lineHeightSelect.value;
       applyLineHeight(value);
     });
-    layoutStructureSection.appendChild(lineHeightSelect);
+    layoutSpacingSection.appendChild(lineHeightSelect);
     
     // Line height icon button + popup (non-destructive; keep select) (中文解释: 渐进式，保留原下拉)
     const ICON_LINE_HEIGHT = `<svg xmlns="http://www.w3.org/2000/svg" width="1em" height="1em"
@@ -2128,7 +2272,41 @@ body.weditor-fullscreen-active{overflow:hidden}
       return { open: openPopup, close: closePopup };
     })();
 
-    const btnLhIcon = addBtn(ICON_LINE_HEIGHT, "Line height", () => lineHeightMenu.open(btnLhIcon), layoutStructureSection, "weditor-btn--icon");
+    const btnLhIcon = addBtn(ICON_LINE_HEIGHT, "Line height", () => lineHeightMenu.open(btnLhIcon), layoutSpacingSection, "weditor-btn--icon");
+
+    const spacingBeforeSelect = el("select", {
+      title: "Spacing before paragraph",
+      "aria-label": "Spacing before paragraph",
+      class: "weditor-spacing-select"
+    });
+    PARAGRAPH_SPACING_PRESETS.forEach(preset => {
+      const label = preset.label === "Auto" ? "Before: Auto" : `Before: ${preset.label}`;
+      spacingBeforeSelect.appendChild(el("option", { value: preset.value }, [label]));
+    });
+    spacingBeforeSelect.addEventListener("change", () => {
+      setParagraphSpacing("margin-top", spacingBeforeSelect.value);
+    });
+    layoutSpacingSection.appendChild(spacingBeforeSelect);
+
+    const spacingAfterSelect = el("select", {
+      title: "Spacing after paragraph",
+      "aria-label": "Spacing after paragraph",
+      class: "weditor-spacing-select"
+    });
+    PARAGRAPH_SPACING_PRESETS.forEach(preset => {
+      const label = preset.label === "Auto" ? "After: Auto" : `After: ${preset.label}`;
+      spacingAfterSelect.appendChild(el("option", { value: preset.value }, [label]));
+    });
+    spacingAfterSelect.addEventListener("change", () => {
+      setParagraphSpacing("margin-bottom", spacingAfterSelect.value);
+    });
+    layoutSpacingSection.appendChild(spacingAfterSelect);
+
+    const btnIndentDecrease = addBtn("Indent -", "Decrease paragraph indent", () => adjustParagraphIndent(-INDENT_INCREMENT_PX), layoutSpacingSection);
+    const btnIndentIncrease = addBtn("Indent +", "Increase paragraph indent", () => adjustParagraphIndent(INDENT_INCREMENT_PX), layoutSpacingSection);
+    const btnIndentReset = addBtn("Clear indent", "Reset paragraph indent", () => adjustParagraphIndent(0, { reset: true }), layoutSpacingSection);
+    const indentDisplay = el("span", { class: "weditor-indent-display" }, ["Indent: 0 px"]);
+    layoutSpacingSection.appendChild(indentDisplay);
 
     // ---------- New Image Insert Popup System ----------
     const imageInsertMenu = (() => {
@@ -2295,8 +2473,13 @@ body.weditor-fullscreen-active{overflow:hidden}
         styleSelect.disabled = !enabled;
         fontSelect.disabled  = !enabled;
         lineHeightSelect.disabled = !enabled;
+        spacingBeforeSelect.disabled = !enabled;
+        spacingAfterSelect.disabled = !enabled;
         // Guarded to avoid ReferenceError before declaration (中文解释: 使用 typeof 防止未声明错误)
         if (typeof btnLhIcon !== "undefined" && btnLhIcon) btnLhIcon.disabled = !enabled;
+        btnIndentDecrease.disabled = !enabled;
+        btnIndentIncrease.disabled = !enabled;
+        btnIndentReset.disabled = !enabled;
       }catch(_){}
     }
     // Initialize once based on current mode
@@ -3312,6 +3495,32 @@ body.weditor-fullscreen-active{overflow:hidden}
             }
           }
         } catch (_) {}
+
+        try {
+          if (spacingBeforeSelect) {
+            const beforeValue = resolveInlineParagraphStyle("margin-top");
+            const normalizedBefore = beforeValue && PARAGRAPH_SPACING_VALUE_SET.has(beforeValue) ? beforeValue : "";
+            if (spacingBeforeSelect.value !== normalizedBefore) {
+              spacingBeforeSelect.value = normalizedBefore;
+            }
+            spacingBeforeSelect.disabled = showingSource;
+          }
+          if (spacingAfterSelect) {
+            const afterValue = resolveInlineParagraphStyle("margin-bottom");
+            const normalizedAfter = afterValue && PARAGRAPH_SPACING_VALUE_SET.has(afterValue) ? afterValue : "";
+            if (spacingAfterSelect.value !== normalizedAfter) {
+              spacingAfterSelect.value = normalizedAfter;
+            }
+            spacingAfterSelect.disabled = showingSource;
+          }
+          if (indentDisplay) {
+            const indentPx = resolveCurrentIndentPx();
+            indentDisplay.textContent = "Indent: " + Math.round(indentPx) + " px";
+            if (btnIndentDecrease) btnIndentDecrease.disabled = showingSource || indentPx <= 0;
+            if (btnIndentIncrease) btnIndentIncrease.disabled = showingSource;
+            if (btnIndentReset) btnIndentReset.disabled = showingSource || indentPx <= 0;
+          }
+        } catch(_){}
 
         // Link-related toggle: active when caret is within an anchor
         try {
