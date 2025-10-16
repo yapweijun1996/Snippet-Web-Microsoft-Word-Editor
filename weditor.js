@@ -97,7 +97,7 @@ body.weditor-fullscreen-active{overflow:hidden}
 
 /* 轻量表格可视化增强（可删） */
 .weditor-area table{border-collapse:collapse;width:100%}
-.weditor-area td,.weditor-area th{border:1px solid #ccc;padding:6px;vertical-align:top}
+.weditor-area td,.weditor-area th{border:1px solid #ccc;padding:3px 4px;vertical-align:top}
 .weditor-area td:empty::after,.weditor-area th:empty::after{content:"\\00a0"}
 .weditor-table-popup{position:absolute;top:100%;left:4px;margin-top:6px;padding:10px;border:1px solid #ccc;background:#fff;box-shadow:0 4px 12px rgba(0,0,0,0.12);border-radius:4px;display:none;flex-direction:column;gap:8px;min-width:180px;z-index:1000}
 .weditor-table-popup[data-open="true"]{display:flex}
@@ -155,6 +155,20 @@ body.weditor-fullscreen-active{overflow:hidden}
 .weditor-border-option[data-active="true"]{background:#eef2ff;border-color:#94a3b8;font-weight:600}
 .weditor-border-option[data-disabled="true"]{opacity:.55;cursor:not-allowed}
 .weditor-area td.weditor-cell-selected,.weditor-area th.weditor-cell-selected{background-color:#bde0fe !important;outline:1px solid #007bff}
+.weditor-padding-popup{min-width:240px;display:flex;flex-direction:column;gap:10px;padding:12px}
+.weditor-padding-popup .weditor-menu-title{font-size:12px;font-weight:700;color:#334155;text-transform:uppercase;letter-spacing:.08em}
+.weditor-padding-presets{display:grid;grid-template-columns:repeat(auto-fit,minmax(90px,1fr));gap:6px}
+.weditor-padding-presets button{padding:6px 8px;border:1px solid #cbd5f5;border-radius:6px;background:#fff;cursor:pointer;font-size:12px;transition:background .15s,border-color .15s}
+.weditor-padding-presets button:hover{background:#eef2ff;border-color:#94a3b8}
+.weditor-padding-presets button[data-active="true"]{background:#e0e7ff;border-color:#64748b;box-shadow:0 0 0 1px rgba(100,116,139,0.3)}
+.weditor-padding-custom{display:flex;flex-direction:column;gap:6px}
+.weditor-padding-custom-controls{display:flex;gap:6px}
+.weditor-padding-custom input{flex:1;padding:6px 8px;border:1px solid #cbd5f5;border-radius:4px;font-size:12px}
+.weditor-padding-custom button{padding:6px 10px;border:1px solid #cbd5f5;border-radius:4px;background:#fff;cursor:pointer;font-size:12px;transition:background .15s,border-color .15s}
+.weditor-padding-custom button:hover{background:#eef2ff;border-color:#94a3b8}
+.weditor-padding-feedback{font-size:11px;color:#ef4444;min-height:14px}
+.weditor-padding-clear{align-self:flex-end;padding:6px 10px;border:1px solid #cbd5f5;border-radius:4px;background:#fff;font-size:12px;cursor:pointer;transition:background .15s,border-color .15s}
+.weditor-padding-clear:hover{background:#f8fafc;border-color:#94a3b8}
 @media (max-width:640px){
   .weditor-toolbar-nav{gap:4px;padding:8px}
   .weditor-nav-btn{padding:6px 12px;font-size:12px}
@@ -346,7 +360,7 @@ body.weditor-fullscreen-active{overflow:hidden}
     for (let r=0;r<rows;r++){
       const tr = el("tr");
       for (let c=0;c<cols;c++){
-        tr.appendChild(el("td",{style:{padding:"6px",verticalAlign:"top"}},["\u00A0"]));
+        tr.appendChild(el("td",{style:{padding:"3px 4px",verticalAlign:"top"}},["\u00A0"]));
       }
       tbody.appendChild(tr);
     }
@@ -4461,7 +4475,7 @@ body.weditor-fullscreen-active{overflow:hidden}
       const tr = document.createElement("tr");
       for (let i=0;i<cols;i++) {
         const td = document.createElement("td");
-        td.style.padding = "6px";
+        td.style.padding = "3px 4px";
         td.style.verticalAlign = "top";
         td.innerHTML = "&nbsp;";
         tr.appendChild(td);
@@ -4499,7 +4513,7 @@ body.weditor-fullscreen-active{overflow:hidden}
           vIndex += span;
         }
         const td = document.createElement("td");
-        td.style.padding = "6px";
+        td.style.padding = "3px 4px";
         td.style.verticalAlign = "top";
         td.innerHTML = "&nbsp;";
         tr.insertBefore(td, insertBefore);
@@ -5738,6 +5752,55 @@ body.weditor-fullscreen-active{overflow:hidden}
       return changed;
     }
 
+    function normalizePaddingValue(value) {
+      if (typeof value !== "string") return "";
+      return value.trim().replace(/\s+/g, " ");
+    }
+
+    function isValidPaddingValue(value) {
+      if (!value) return false;
+      const cleaned = normalizePaddingValue(value);
+      if (!cleaned) return false;
+      const tokens = cleaned.split(" ");
+      if (!tokens.length || tokens.length > 4) return false;
+      const tokenRe = /^0$|^\d*\.?\d+(px|em|rem|%)$/i;
+      return tokens.every(token=>tokenRe.test(token));
+    }
+
+    function setPaddingForSelectedCells(paddingValue, opts = {}) {
+      const cells = cellSelectionState.selectedCells.slice();
+      const silent = !!opts.silent;
+      const clear = !!opts.clear || paddingValue === null;
+      if (!cells.length) {
+        if (!silent) alert("Select one or more table cells first.");
+        return false;
+      }
+      const normalized = clear ? "" : normalizePaddingValue(String(paddingValue || ""));
+      if (!clear && !normalized) return false;
+      let changed = false;
+      cells.forEach(cell=>{
+        if (!cell || !cell.isConnected) return;
+        if (clear) {
+          if (cell.style && cell.style.padding) {
+            cell.style.removeProperty("padding");
+            if (!cell.getAttribute("style")) cell.removeAttribute("style");
+            changed = true;
+          }
+          return;
+        }
+        if (!cell.style) return;
+        if (cell.style.padding !== normalized) {
+          cell.style.padding = normalized;
+          changed = true;
+        }
+      });
+      if (changed) {
+        divEditor.dispatchEvent(new Event("input",{bubbles:true}));
+        try { updateToggleStates && updateToggleStates(); } catch(_){}
+      }
+      return changed;
+    }
+
     // ------ Table Buttons ------
     const btnTbl = addBtn("Insert Table","Insert table", (evt)=>{
       evt.preventDefault();
@@ -5768,9 +5831,211 @@ body.weditor-fullscreen-active{overflow:hidden}
     addTableAction("Auto Fit", null, "Auto-fit column width (⇧⌥F)", ()=>autofitColumns(), tableWidth);
     addTableAction("Set Width (This Col)", null, "Set current column width (⌥W)", ()=>setCurrentColumnWidth(), tableWidth);
 
+    const cellPaddingPopup = (()=>{
+      const PRESETS = [
+        { label: "Default", value: "3px 4px", description: "Apply 3px 4px padding" },
+        { label: "Compact", value: "4px 6px" },
+        { label: "Comfort", value: "8px 12px" },
+        { label: "Roomy", value: "12px 18px" }
+      ];
+      let node = null;
+      let outsideHandler = null;
+      let anchorForFocus = null;
+      let customInput = null;
+      let feedback = null;
+      const presetButtons = [];
+      let lastCustom = "8px 12px";
+
+      function showError(message){
+        if (!feedback) return;
+        feedback.textContent = message || "";
+      }
+
+      function setActivePreset(value, clear){
+        const normalized = normalizePaddingValue(value || "");
+        presetButtons.forEach(btn=>{
+          const isClear = btn.dataset.clear === "true";
+          const btnValue = normalizePaddingValue(btn.dataset.value || "");
+          const shouldActivate = clear ? isClear : (!isClear && normalized !== "" && btnValue === normalized);
+          if (shouldActivate) btn.setAttribute("data-active","true");
+          else btn.removeAttribute("data-active");
+        });
+        if (clear){
+          presetButtons.forEach(btn=>{
+            if (btn.dataset.clear === "true") btn.setAttribute("data-active","true");
+          });
+        }
+      }
+
+      function resolveCurrentPadding(){
+        const cells = cellSelectionState.selectedCells;
+        if (!cells.length) return "";
+        let baseline = null;
+        for (const cell of cells){
+          if (!cell || !cell.isConnected || !cell.style) continue;
+          const current = normalizePaddingValue(cell.style.padding || "");
+          if (baseline === null) {
+            baseline = current;
+          } else if (baseline !== current) {
+            return "";
+          }
+        }
+        return baseline || "";
+      }
+
+      function closePopup(){
+        if (!node) return;
+        node.removeAttribute("data-open");
+        if (node.parentNode) node.parentNode.removeChild(node);
+        if (outsideHandler){
+          document.removeEventListener("mousedown", outsideHandler, true);
+          outsideHandler = null;
+        }
+        showError("");
+        if (anchorForFocus && typeof anchorForFocus.focus === "function"){
+          try { anchorForFocus.focus(); } catch(_){}
+        }
+        anchorForFocus = null;
+      }
+
+      function applyPreset(preset){
+        if (!cellSelectionState.selectedCells.length){
+          showError("Select one or more table cells first.");
+          return;
+        }
+        if (preset.clear){
+          setPaddingForSelectedCells("", { clear: true, silent: true });
+        } else {
+          setPaddingForSelectedCells(preset.value, { silent: true });
+          lastCustom = preset.value;
+        }
+        closePopup();
+      }
+
+      function applyCustom(){
+        if (!customInput) return;
+        const raw = customInput.value || "";
+        const normalized = normalizePaddingValue(raw);
+        if (!cellSelectionState.selectedCells.length){
+          showError("Select one or more table cells first.");
+          return;
+        }
+        if (!normalized){
+          showError("Enter a padding value.");
+          return;
+        }
+        if (!isValidPaddingValue(normalized)){
+          showError("Use values like 12px or 8px 12px.");
+          return;
+        }
+        showError("");
+        setPaddingForSelectedCells(normalized, { silent: true });
+        lastCustom = normalized;
+        closePopup();
+      }
+
+      function ensurePopup(){
+        if (node) return node;
+        node = el("div", {
+          class: "weditor-menu-popup weditor-padding-popup",
+          role: "dialog",
+          "aria-label": "Cell padding"
+        });
+        node.appendChild(el("div",{class:"weditor-menu-title"},["Cell padding"]));
+        const presetWrap = el("div",{class:"weditor-padding-presets"});
+        PRESETS.forEach(preset=>{
+          const btn = el("button",{
+            type:"button",
+            "data-value": preset.value,
+            "data-clear": preset.clear ? "true" : "false",
+            title: preset.description || preset.label
+          },[preset.label]);
+          btn.addEventListener("click",()=>applyPreset(preset));
+          presetButtons.push(btn);
+          presetWrap.appendChild(btn);
+        });
+        node.appendChild(presetWrap);
+        const customWrap = el("div",{class:"weditor-padding-custom"});
+        customWrap.appendChild(el("label",{class:"weditor-padding-label"},["Custom padding"]));
+        const controls = el("div",{class:"weditor-padding-custom-controls"});
+        customInput = el("input",{
+          type:"text",
+          placeholder:"e.g. 12px 18px",
+          "aria-label":"Custom padding value"
+        });
+        customInput.addEventListener("keydown",(evt)=>{
+          if (evt.key === "Enter"){
+            evt.preventDefault();
+            applyCustom();
+          }
+        });
+        const applyBtn = el("button",{type:"button"},["Apply"]);
+        applyBtn.addEventListener("click", ()=>applyCustom());
+        controls.appendChild(customInput);
+        controls.appendChild(applyBtn);
+        customWrap.appendChild(controls);
+        node.appendChild(customWrap);
+        feedback = el("div",{class:"weditor-padding-feedback","aria-live":"polite"});
+        node.appendChild(feedback);
+        const clearBtn = el("button",{type:"button",class:"weditor-padding-clear"},["Clear padding"]);
+        clearBtn.addEventListener("click",()=>{
+          if (!cellSelectionState.selectedCells.length){
+            showError("Select one or more table cells first.");
+            return;
+          }
+          showError("");
+          setPaddingForSelectedCells("", { clear: true, silent: true });
+          closePopup();
+        });
+        node.appendChild(clearBtn);
+        return node;
+      }
+
+      function openPopup(anchor){
+        if (!cellSelectionState.selectedCells.length){
+          alert("Select one or more table cells first.");
+          return;
+        }
+        closePopup();
+        saveEditorSelection();
+        const popup = ensurePopup();
+        anchorForFocus = anchor;
+        toolbar.appendChild(popup);
+        popup.setAttribute("data-open","true");
+        const current = resolveCurrentPadding();
+        if (current){
+          customInput.value = current;
+          setActivePreset(current, false);
+        } else {
+          customInput.value = lastCustom;
+          setActivePreset(PRESETS[0].value, false);
+        }
+        showError("");
+        requestAnimationFrame(()=>{
+          positionToolbarPopup(anchor, popup);
+          try {
+            customInput.focus();
+            customInput.select();
+          } catch(_){}
+        });
+        outsideHandler = (evt)=>{
+          if (!popup.contains(evt.target) && (!anchor || !anchor.contains(evt.target))) {
+            closePopup();
+          }
+        };
+        document.addEventListener("mousedown", outsideHandler, true);
+      }
+
+      return { open: openPopup, close: closePopup };
+    })();
+
     const tableCells = createTableSubgroup("Cells", "Shift+Click 选择多个单元格，Cmd/Ctrl+Click 切换选择");
     const btnMergeCells = addTableAction("Merge Cells →", null, "Merge selected cells in the current row (⌥M)", ()=>mergeSelectedCellsHorizontally(), tableCells);
     addTableAction("Merge Cells ↓", null, "Merge selected cells in the current column (⇧⌥M)", ()=>mergeSelectedCellsVertically(), tableCells);
+    let btnCellPadding = null;
+    btnCellPadding = addTableAction("Cell Padding","Adjust","Adjust padding for selected cells", ()=>{
+      cellPaddingPopup.open(btnCellPadding);
+    }, tableCells);
 
     const tableBorders = createTableSubgroup("Borders");
     const btnBorderStyle = addTableAction("Borders","Line & Color","Adjust table border width, style, and color (⌥B)", ()=>tableBorderPopup.open(btnBorderStyle), tableBorders);
