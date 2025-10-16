@@ -621,7 +621,6 @@ body.weditor-fullscreen-active{overflow:hidden}
         moveCaretToEnd(divEditor);
       }
       const ok = document.execCommand(cmd, false, val);
-      try { console.debug("[weditor:exec]", { cmd, val, ok }); } catch(_){}
       divEditor.dispatchEvent(new Event("input",{bubbles:true}));
       // Reflect toggle states immediately after command (中文解释: 交互后立刻更新状态)
       try { updateToggleStates && updateToggleStates(); } catch(e){}
@@ -760,7 +759,16 @@ body.weditor-fullscreen-active{overflow:hidden}
         range.surroundContents(span);
         normalizeSelectionToNode(span);
         try { recordInlineStyle(span, prop, value); } catch(_){}
-        return true;
+        if (prop === "font-family" || prop === "font-size") {
+          try {
+            const spanRange = document.createRange();
+            spanRange.selectNodeContents(span);
+            removeInlinePropFromDescendants(span, prop, value);
+            removeInlinePropFromRange(spanRange, prop, value);
+            spanRange.detach?.();
+          } catch(_){}
+        }
+        return span;
       } catch(err) {
         let hasBlock = false;
         try {
@@ -771,23 +779,28 @@ body.weditor-fullscreen-active{overflow:hidden}
         } catch(_) {
           hasBlock = true;
         }
-        if (hasBlock) return false;
+        if (hasBlock) return null;
         try {
           const extracted = range.extractContents();
           span.appendChild(extracted);
           range.insertNode(span);
           normalizeSelectionToNode(span);
           try { recordInlineStyle(span, prop, value); } catch(_){}
-          return true;
-        } catch(_) {
-          return false;
+        if (prop === "font-family" || prop === "font-size") {
+          try {
+            const spanRange = document.createRange();
+            spanRange.selectNodeContents(span);
+            removeInlinePropFromDescendants(span, prop, value);
+            removeInlinePropFromRange(spanRange, prop, value);
+            spanRange.detach?.();
+          } catch(_){}
         }
+        return span;
+      } catch(_) {
+        return null;
       }
     }
-    function tryWrapRangeWithFontSize(range, fontSize){
-      return tryWrapRangeWithInlineStyle(range, "font-size", fontSize);
     }
-
     function getActiveSelectionRange(){
       const sel = window.getSelection();
       if (!sel || !sel.rangeCount) return null;
@@ -798,7 +811,7 @@ body.weditor-fullscreen-active{overflow:hidden}
     }
 
     function wrapRangeWithSpan(range, prop, value){
-      if (!range || range.collapsed) return false;
+      if (!range || range.collapsed) return null;
       const span = document.createElement("span");
       span.style.setProperty(prop, value);
       try {
@@ -807,10 +820,66 @@ body.weditor-fullscreen-active{overflow:hidden}
         range.insertNode(span);
         normalizeSelectionToNode(span);
         try { recordInlineStyle(span, prop, value); } catch(_){}
-        return true;
+        if (prop === "font-family" || prop === "font-size") {
+          try {
+            const spanRange = document.createRange();
+            spanRange.selectNodeContents(span);
+            removeInlinePropFromDescendants(span, prop, value);
+            removeInlinePropFromRange(spanRange, prop, value);
+            spanRange.detach?.();
+          } catch(_){}
+        }
+        return span;
       } catch(_){
-        return false;
+        return null;
       }
+    }
+
+    function setSelectionFontProperty(prop, value){
+      if (!prop || value === undefined || value === null || showingSource) return false;
+      let applied = false;
+
+      const applyToRange = (range, fallbackNode=null) => {
+        if (!range || range.collapsed) return false;
+        const span = wrapRangeWithSpan(range, prop, value);
+        if (span) {
+          applied = true;
+          return true;
+        }
+        if (fallbackNode && fallbackNode.nodeType === 1) {
+          fallbackNode.style.setProperty(prop, value);
+          removeInlinePropFromDescendants(fallbackNode, prop, value);
+          applied = true;
+          return true;
+        }
+        return false;
+      };
+
+      if (cellSelectionState.selectedCells.length) {
+        const changed = forEachSelectedCellRange((range, cell) => applyToRange(range, cell));
+        if (changed) applied = true;
+      } else {
+        const range = getActiveSelectionRange();
+        if (range) {
+          const wrapped = applyToRange(range, null);
+          if (!wrapped) {
+            const blocks = applyBlockStyleToSelection(prop, value, {
+              multiOnly: true,
+              afterEach(block){
+                removeInlinePropFromDescendants(block, prop, value);
+              }
+            });
+            if (Array.isArray(blocks) && blocks.length) {
+              applied = true;
+            }
+          }
+        }
+      }
+
+      if (applied) {
+        divEditor.dispatchEvent(new Event("input", { bubbles: true }));
+      }
+      return applied;
     }
 
     function applyInlineStyleToSelection(prop, value){
@@ -818,50 +887,11 @@ body.weditor-fullscreen-active{overflow:hidden}
       const range = getActiveSelectionRange();
       if (!range) return false;
       if (range.collapsed) return false;
-      const ok = tryWrapRangeWithInlineStyle(range, prop, value);
-      if (!ok) return false;
+      const node = tryWrapRangeWithInlineStyle(range, prop, value);
+      if (!node) return false;
       divEditor.dispatchEvent(new Event("input", { bubbles: true }));
-      return true;
+      return node;
     }
-    function applyFontSizePx(fontSize){
-      if (!fontSize || showingSource) return false;
-
-      const applyOnce = () => {
-        const sel = window.getSelection();
-        if (!sel || !sel.rangeCount) return "none";
-        const range = sel.getRangeAt(0);
-        if (!isNodeInside(range.commonAncestorContainer, divEditor)) return "none";
-        if (range.collapsed) return "none";
-        if (tryWrapRangeWithFontSize(range, fontSize)) {
-          return "inline";
-        }
-        const blocksApplied = applyBlockStyleToSelection("font-size", fontSize, {
-          multiOnly: true,
-          silent: true
-        });
-        return blocksApplied ? "blocks" : "none";
-      };
-
-      let applied = false;
-      if (cellSelectionState.selectedCells.length) {
-        forEachSelectedCellRange(() => {
-          const mode = applyOnce();
-          if (mode !== "none") applied = true;
-        });
-        if (applied) {
-          divEditor.dispatchEvent(new Event("input", { bubbles: true }));
-        }
-        return applied;
-      }
-
-      const mode = applyOnce();
-      if (mode !== "none") {
-        divEditor.dispatchEvent(new Event("input", { bubbles: true }));
-        return true;
-      }
-      return false;
-    }
-
     function applyTextAlignment(alignment) {
       if (!alignment || showingSource) return false;
       const normalized = alignment === "left" || alignment === "start" ? "" : alignment;
@@ -1753,14 +1783,18 @@ body.weditor-fullscreen-active{overflow:hidden}
     });
     sizeSelect.addEventListener("change", ()=>{
       const value = sizeSelect.value;
+      if (!value) return;
       if (value.startsWith("css-")) {
-        // 使用CSS样式实现大字体大小
         const fontSize = value.substring(4) + "px";
-        applyFontSizePx(fontSize);
+        const applied = setSelectionFontProperty("font-size", fontSize);
+        if (!applied) {
+          // 保底：保持焦点，后续输入使用默认字号
+          divEditor.focus();
+        }
         updateToggleStates();
       } else {
-        // 使用传统的execCommand（仅限于1-7）
         exec("fontSize", value);
+        updateToggleStates();
       }
     });
     textSelectorsSection.appendChild(sizeSelect);
@@ -1786,54 +1820,80 @@ body.weditor-fullscreen-active{overflow:hidden}
       const opt = el("option", { value: name, style: { fontFamily: name }}, [name]);
       fontSelect.appendChild(opt);
     });
+    const FONT_FAMILY_ALIASES = new Map([
+      ["times", "Times New Roman"],
+      ["times new roman", "Times New Roman"],
+      ["arial", "Arial"],
+      ["arial narrow", "Arial"],
+      ["georgia", "Georgia"],
+      ["helvetica", "Helvetica"],
+      ["tahoma", "Tahoma"],
+      ["verdana", "Verdana"],
+      ["courier", "Courier New"],
+      ["courier new", "Courier New"],
+      ["consolas", "Consolas"]
+    ]);
     fontSelect.addEventListener("change", ()=>{
       const v = fontSelect.value;
       if (!v) return;
-      const applied = applyBlockStyleToSelection("font-family", v, { multiOnly: true });
+      const applied = setSelectionFontProperty("font-family", v);
       if (!applied) {
         exec("fontName", v);
-      } else {
-        try { updateToggleStates && updateToggleStates(); } catch(_){}
       }
+      updateToggleStates();
     });
     textSelectorsSection.appendChild(fontSelect);
 
     // Helpers for reflecting current font family (中文解释: 解析当前选区字体并匹配预设)
     function normalizeFontNameValue(v){
       if (!v) return "";
-      return String(v).replace(/^['"]|['"]$/g,"").trim();
+      const raw = String(v).trim();
+      if (!raw) return "";
+      const first = raw.split(",")[0].trim();
+      return first.replace(/^['"]+|['"]+$/g,"");
     }
-    function resolveCurrentFontFromSelection(){
-      // 1) Try execCommand reported fontName
-      let name = document.queryCommandValue && document.queryCommandValue("fontName");
-      name = normalizeFontNameValue(name || "");
-      // 2) Fallback to computed style of anchor
-      if (!name){
-        const sel = window.getSelection && window.getSelection();
-        if (sel && sel.anchorNode){
-          const n = sel.anchorNode.nodeType===1 ? sel.anchorNode : sel.anchorNode.parentElement;
-          if (n && n.nodeType===1){
-            const cs = window.getComputedStyle ? window.getComputedStyle(n) : null;
-            const fam = cs && cs.fontFamily ? cs.fontFamily.split(",")[0] : "";
-            name = normalizeFontNameValue(fam);
-          }
-        }
+    function matchFontPreset(name){
+      const normalized = normalizeFontNameValue(name);
+      if (!normalized) return "";
+      const lower = normalized.toLowerCase();
+      for (const preset of FONT_FAMILY_PRESETS){
+        if (preset.toLowerCase() === lower) return preset;
       }
-      // 3) Match against presets (case-insensitive)
-      const key = name.toLowerCase();
-      for (const f of FONT_FAMILY_PRESETS){
-        if (f.toLowerCase() === key) return f;
+      if (FONT_FAMILY_ALIASES.has(lower)) {
+        return FONT_FAMILY_ALIASES.get(lower);
+      }
+      for (const preset of FONT_FAMILY_PRESETS){
+        if (lower.indexOf(preset.toLowerCase()) !== -1) return preset;
       }
       return "";
     }
-    function resolveCurrentFontSizeValue(){
-      // 1) Prefer execCommand result (only reliable for legacy 1-7 sizes)
-      const raw = document.queryCommandValue && document.queryCommandValue("fontSize");
-      const value = raw ? String(raw) : "";
-      if (["1","2","3","4","5","6","7"].includes(value)) {
-        return value;
+    function resolveCurrentFontFromSelection(){
+      const sel = window.getSelection && window.getSelection();
+      if (sel && sel.anchorNode){
+        let n = sel.anchorNode.nodeType===1 ? sel.anchorNode : sel.anchorNode.parentElement;
+        while (n && n !== divEditor){
+          if (n.style && n.style.fontFamily){
+            const match = matchFontPreset(n.style.fontFamily);
+            if (match) return match;
+          }
+          n = n.parentElement;
+        }
       }
-      // 2) Walk up DOM to find explicit inline font-size
+      if (sel && sel.anchorNode){
+        const node = sel.anchorNode.nodeType===1 ? sel.anchorNode : sel.anchorNode.parentElement;
+        if (node && node.nodeType===1){
+          const cs = window.getComputedStyle ? window.getComputedStyle(node) : null;
+          if (cs && cs.fontFamily){
+            const match = matchFontPreset(cs.fontFamily);
+            if (match) return match;
+          }
+        }
+      }
+      const execName = document.queryCommandValue && document.queryCommandValue("fontName");
+      const matchExec = matchFontPreset(execName || "");
+      return matchExec || "";
+    }
+    function resolveCurrentFontSizeValue(){
       const sel = window.getSelection && window.getSelection();
       if (sel && sel.anchorNode){
         let n = sel.anchorNode.nodeType===1 ? sel.anchorNode : sel.anchorNode.parentElement;
@@ -1845,14 +1905,24 @@ body.weditor-fullscreen-active{overflow:hidden}
           n = n.parentElement;
         }
       }
-      // 3) Fallback to computed style on anchor node
       if (sel && sel.anchorNode){
         const node = sel.anchorNode.nodeType===1 ? sel.anchorNode : sel.anchorNode.parentElement;
         if (node && node.nodeType===1){
           const cs = window.getComputedStyle ? window.getComputedStyle(node) : null;
-          const key = cs ? resolveFontSizeKeyFromPx(cs.fontSize) : "";
-          if (key) return key;
+          if (cs && cs.fontSize){
+            const key = resolveFontSizeKeyFromPx(cs.fontSize);
+            if (key) return key;
+          }
         }
+      }
+      const raw = document.queryCommandValue && document.queryCommandValue("fontSize");
+      const value = raw ? String(raw) : "";
+      if (["1","2","3","4","5","6","7"].includes(value)) {
+        return value;
+      }
+      if (value){
+        const mapped = resolveFontSizeKeyFromPx(value);
+        if (mapped) return mapped;
       }
       return "";
     }
@@ -2238,23 +2308,18 @@ body.weditor-fullscreen-active{overflow:hidden}
     btnTextColor.addEventListener("mousedown", (evt)=>{
       evt.preventDefault();
       try { saveEditorSelection && saveEditorSelection(); } catch(_){}
-      try { console.debug("[weditor:color] mousedown saved selection"); } catch(_){}
     });
     inputTextColor.addEventListener("input", ()=>{
       const value = inputTextColor.value;
       const applyColor = ()=>{
-        try { console.debug("[weditor:color] apply start", { value }); } catch(_){}
         let restored = false;
         try { restored = restoreEditorSelection ? restoreEditorSelection() : false; } catch(_){}
         try { divEditor.focus({ preventScroll: true }); } catch(_){}
-        try { console.debug("[weditor:color] selection restored?", restored); } catch(_){}
         if (!restored) {
           try { moveCaretToEnd(divEditor); } catch(_){}
-          try { console.debug("[weditor:color] fallback move caret to end"); } catch(_){}
         }
         let handled = false;
         const inlineApplied = applyInlineStyleToSelection("color", value);
-        try { console.debug("[weditor:color] inline style applied?", inlineApplied); } catch(_){}
         if (inlineApplied) {
           handled = true;
         } else if (!handled) {
@@ -2264,16 +2329,11 @@ body.weditor-fullscreen-active{overflow:hidden}
             if (handled) {
               divEditor.dispatchEvent(new Event("input", { bubbles: true }));
             }
-            try { console.debug("[weditor:color] inline wrap fallback?", handled); } catch(_){}
           }
         }
         let execOk = true;
         if (!handled) {
           execOk = exec("foreColor", value);
-          try { console.debug("[weditor:color] execCommand foreColor invoked", { execOk }); } catch(_){}
-        }
-        if (!handled && !execOk) {
-          try { console.debug("[weditor:color] execCommand foreColor failed"); } catch(_){}
         }
         try { updateToggleStates && updateToggleStates(); } catch(_){}
       };
@@ -2294,23 +2354,18 @@ body.weditor-fullscreen-active{overflow:hidden}
     btnBgColor.addEventListener("mousedown", (evt)=>{
       evt.preventDefault();
       try { saveEditorSelection && saveEditorSelection(); } catch(_){}
-      try { console.debug("[weditor:bg] mousedown saved selection"); } catch(_){}
     });
     inputBgColor.addEventListener("input", ()=>{
       const value = inputBgColor.value;
       const applyHighlight = ()=>{
-        try { console.debug("[weditor:bg] apply start", { value }); } catch(_){}
         let restored = false;
         try { restored = restoreEditorSelection ? restoreEditorSelection() : false; } catch(_){}
         try { divEditor.focus({ preventScroll: true }); } catch(_){}
-        try { console.debug("[weditor:bg] selection restored?", restored); } catch(_){}
         if (!restored) {
           try { moveCaretToEnd(divEditor); } catch(_){}
-          try { console.debug("[weditor:bg] fallback move caret to end"); } catch(_){}
         }
         let handled = false;
         const inlineApplied = applyInlineStyleToSelection("background-color", value);
-        try { console.debug("[weditor:bg] inline style applied?", inlineApplied); } catch(_){}
         if (inlineApplied) {
           handled = true;
         } else if (!handled) {
@@ -2320,22 +2375,16 @@ body.weditor-fullscreen-active{overflow:hidden}
             if (handled) {
               divEditor.dispatchEvent(new Event("input", { bubbles: true }));
             }
-            try { console.debug("[weditor:bg] inline wrap fallback?", handled); } catch(_){}
           }
         }
         let execOk = true;
         if (!handled) {
           try {
             execOk = exec("hiliteColor", value);
-            try { console.debug("[weditor:bg] execCommand hiliteColor invoked", { execOk }); } catch(_){}
           } catch(_){
             // Fallback for older engines (中文解释: 旧浏览器后备)
             execOk = exec("backColor", value);
-            try { console.debug("[weditor:bg] execCommand backColor fallback invoked", { execOk }); } catch(_){}
           }
-        }
-        if (!handled && !execOk) {
-          try { console.debug("[weditor:bg] exec command failed"); } catch(_){}
         }
         try { updateToggleStates && updateToggleStates(); } catch(_){}
       };
@@ -3087,6 +3136,102 @@ body.weditor-fullscreen-active{overflow:hidden}
       return null;
     }
 
+    function removeInlinePropFromDescendants(root, prop, keepValue){
+      if (!root || !prop) return false;
+      const desired = keepValue ? String(keepValue).trim() : "";
+      const walker = document.createTreeWalker(root, NodeFilter.SHOW_ELEMENT, null);
+      let node = walker.nextNode();
+      let mutated = false;
+      while (node) {
+        // Skip the root element itself
+        if (node !== root) {
+          let changed = false;
+          if (node.style && node.style.getPropertyValue) {
+            const current = node.style.getPropertyValue(prop);
+            if (current) {
+              const normalized = current.trim();
+              if (!desired || normalized !== desired) {
+                node.style.removeProperty(prop);
+                changed = true;
+              }
+            }
+            if (changed && !node.style.length) {
+              node.removeAttribute("style");
+            }
+          }
+          if (prop === "font-family" && node.getAttribute) {
+            const face = node.getAttribute("face");
+            if (face && (!desired || face.trim() !== desired)) {
+              node.removeAttribute("face");
+              changed = true;
+            }
+          }
+          if (changed) {
+            markSuppressedInlineProp(node, prop);
+            mutated = true;
+          }
+        }
+        node = walker.nextNode();
+      }
+      return mutated;
+    }
+
+    function removeInlinePropFromRange(range, prop, keepValue){
+      if (!range || !prop) return false;
+      const desired = keepValue ? String(keepValue).trim().toLowerCase() : "";
+      const walker = document.createTreeWalker(range.commonAncestorContainer, NodeFilter.SHOW_ELEMENT, null);
+      const nodeRange = document.createRange();
+      let mutated = false;
+      let node = walker.currentNode;
+      if (!node) node = walker.nextNode();
+      while (node) {
+        if (!isNodeInside(node, divEditor)) {
+          node = walker.nextNode();
+          continue;
+        }
+        let contained = false;
+        try {
+          nodeRange.selectNode(node);
+          contained =
+            range.compareBoundaryPoints(Range.START_TO_START, nodeRange) <= 0 &&
+            range.compareBoundaryPoints(Range.END_TO_END, nodeRange) >= 0;
+        } catch(_){
+          contained = false;
+        }
+        if (!contained) {
+          node = walker.nextNode();
+          continue;
+        }
+        let changed = false;
+        if (node.style && node.style.getPropertyValue) {
+          const current = node.style.getPropertyValue(prop);
+          if (current) {
+            const normalized = current.trim().toLowerCase();
+            if (!desired || normalized !== desired) {
+              node.style.removeProperty(prop);
+              changed = true;
+            }
+          }
+          if (changed && !node.style.length) {
+            node.removeAttribute("style");
+          }
+        }
+        if (prop === "font-family" && node.getAttribute) {
+          const face = node.getAttribute("face");
+          if (face && (!desired || face.trim().toLowerCase() !== desired)) {
+            node.removeAttribute("face");
+            changed = true;
+          }
+        }
+        if (changed) {
+          markSuppressedInlineProp(node, prop);
+          mutated = true;
+        }
+        node = walker.nextNode();
+      }
+      nodeRange.detach?.();
+      return mutated;
+    }
     function buildTableMap(table) {
       const map = [];
       const rowspans = [];
@@ -3692,35 +3837,14 @@ body.weditor-fullscreen-active{overflow:hidden}
 
       tableDebug("saveEditorSelection", { collapsed: range.collapsed, start: range.startContainer, end: range.endContainer });
       savedEditorRange = range.cloneRange();
-      try {
-        console.debug("[weditor:selection] saved", {
-          collapsed: range.collapsed,
-          startNode: range.startContainer && range.startContainer.nodeName,
-          startOffset: range.startOffset,
-          endNode: range.endContainer && range.endContainer.nodeName,
-          endOffset: range.endOffset
-        });
-      } catch(_){}
       updateTableToolsVisibility();
     }
     function restoreEditorSelection(){
       const sel = window.getSelection();
-      if (!savedEditorRange || !sel) {
-        try { console.debug("[weditor:selection] restore skipped (no saved range)"); } catch(_){}
-        return false;
-      }
+      if (!savedEditorRange || !sel) return false;
       sel.removeAllRanges();
       sel.addRange(savedEditorRange);
       tableDebug("restoreEditorSelection applied", { collapsed: savedEditorRange.collapsed, start: savedEditorRange.startContainer, end: savedEditorRange.endContainer });
-      try {
-        console.debug("[weditor:selection] restored", {
-          collapsed: savedEditorRange.collapsed,
-          startNode: savedEditorRange.startContainer && savedEditorRange.startContainer.nodeName,
-          startOffset: savedEditorRange.startOffset,
-          endNode: savedEditorRange.endContainer && savedEditorRange.endContainer.nodeName,
-          endOffset: savedEditorRange.endOffset
-        });
-      } catch(_){}
       return true;
     }
     divEditor.addEventListener("mouseup", saveEditorSelection);
