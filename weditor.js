@@ -390,29 +390,16 @@ body.weditor-fullscreen-active{overflow:hidden}
 
   // ---------- Build one editor (div.weditor + next textarea.weditor_textarea) ----------
   const DEFAULT_EDITOR_OPTIONS = {
-    paginationPreview: false,
+    paginationPreview: true,
     pageSize: "A4",
     pageHeightPx: 1122, // approx 297mm at 96 DPI
     pageWidthPx: 794,   // approx 210mm at 96 DPI
     pageMarginPx: 84    // ~ 1 inch margins for preview background spacing
   };
 
-  function parseBooleanOption(value, fallback = false){
-    if (value == null) return fallback;
-    if (typeof value === "boolean") return value;
-    const normalized = String(value).trim().toLowerCase();
-    if (!normalized) return fallback;
-    if (["1","true","yes","on"].includes(normalized)) return true;
-    if (["0","false","no","off"].includes(normalized)) return false;
-    return fallback;
-  }
-
   function getEditorOptions(divEditor){
     const merged = { ...DEFAULT_EDITOR_OPTIONS };
     if (divEditor && divEditor.dataset){
-      if (divEditor.dataset.paginationPreview != null){
-        merged.paginationPreview = parseBooleanOption(divEditor.dataset.paginationPreview, merged.paginationPreview);
-      }
       if (divEditor.dataset.pageHeightPx){
         const value = parseFloat(divEditor.dataset.pageHeightPx);
         if (Number.isFinite(value) && value > 0) merged.pageHeightPx = value;
