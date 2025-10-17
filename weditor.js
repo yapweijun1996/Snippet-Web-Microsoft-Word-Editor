@@ -87,7 +87,7 @@
 body.weditor-fullscreen-active{overflow:hidden}
 .weditor-wrap.weditor-fullscreen{position:fixed;top:0;left:0;width:100%;height:100%;z-index:9999;margin:0;border:0}
 .weditor-wrap.weditor-fullscreen .weditor-stage{display:flex;justify-content:center;align-items:flex-start;padding:24px;background:#ddd;overflow:auto;gap:24px}
-.weditor-wrap.weditor-fullscreen .weditor-page{width:750px;margin:auto;background:#fff;border-radius:4px;box-shadow:0 16px 40px rgba(15,23,42,0.18)}
+.weditor-wrap.weditor-fullscreen .weditor-page{width:750px;min-height:1050px;margin:auto;background:#fff;border-radius:4px;box-shadow:0 16px 40px rgba(15,23,42,0.18)}
 .weditor-wrap.weditor-fullscreen .weditor-area{flex:1;min-height:0}
 /* Exit Fullscreen button (top-right in fullscreen) */
 .weditor-fs-exit{position:absolute;top:10px;right:8px;min-width:36px;min-height:36px;padding:6px 10px;display:none;align-items:center;justify-content:center;border:1px solid #dc2626;background:#ef4444;color:#fff;border-radius:4px;cursor:pointer;box-shadow:0 1px 3px rgba(15,23,42,0.12);z-index:10000}
