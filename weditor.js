@@ -266,6 +266,45 @@ body.weditor-fullscreen-active{overflow:hidden}
   };
   const isHttpUrl = (u)=>/^https?:\/\//i.test(String(u||""));
 
+  function openPrintWindowWithHTML(html){
+    try {
+      const iframe = document.createElement("iframe");
+      iframe.style.position = "fixed";
+      iframe.style.right = "0";
+      iframe.style.bottom = "0";
+      iframe.style.width = "0";
+      iframe.style.height = "0";
+      iframe.style.border = "0";
+      iframe.style.visibility = "hidden";
+      document.body.appendChild(iframe);
+
+      const doc = iframe.contentDocument || iframe.contentWindow.document;
+      const styles = `<style>${CSS_TEXT}</style>`;
+      doc.open();
+      doc.write(`<!doctype html><html><head><meta charset="utf-8"><title>Print Preview</title>${styles}</head><body class="weditor-print-preview">${html}</body></html>`);
+      doc.close();
+
+      const triggerPrint = ()=>{
+        try {
+          iframe.contentWindow.focus();
+          iframe.contentWindow.print();
+        } catch(_err){}
+        setTimeout(()=>{ if (iframe.parentNode) iframe.parentNode.removeChild(iframe); }, 1000);
+      };
+
+      if (typeof iframe.contentWindow.requestAnimationFrame === "function"){
+        iframe.contentWindow.requestAnimationFrame(()=>setTimeout(triggerPrint, 0));
+      } else if (typeof requestAnimationFrame === "function"){
+        requestAnimationFrame(()=>setTimeout(triggerPrint, 0));
+      } else {
+        setTimeout(triggerPrint, 150);
+      }
+    } catch (err){
+      console.error("Print preview failed", err);
+      alert("Print preview failed. Please try again or use browser print (Ctrl/Cmd+P).");
+    }
+  }
+
   // Font size presets (global; used by buildEditor and window.weditorTest)
   const FONT_SIZE_PRESETS = [
     { label: "6", value: "1" },
@@ -3884,6 +3923,14 @@ body.weditor-fullscreen-active{overflow:hidden}
       }
       
       divEditor.dispatchEvent(new Event("input", { bubbles: true }));
+    }, insertPageSection);
+    addBtn("Print Preview", "Open browser print dialog", () => {
+      const html = getExportHTML();
+      if (!html) {
+        alert("Nothing to print yet.");
+        return;
+      }
+      openPrintWindowWithHTML(html);
     }, insertPageSection);
     // Layout extras
     addBtn("Clear","Clear formatting", ()=>exec("removeFormat"), layoutUtilitiesSection);
