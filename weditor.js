@@ -12,9 +12,6 @@
 .weditor-page table td,.weditor-page table th{word-break:break-word;overflow-wrap:anywhere}
 .weditor-page img,.weditor-page svg,.weditor-page canvas,.weditor-page video,.weditor-page iframe,.weditor-page object{max-width:100%;height:auto}
 .weditor-page [style*="width"]{max-width:100%}
-.weditor-page-section{position:relative;width:var(--weditor-page-width,100%);min-height:var(--weditor-page-height,1122px);margin:0 auto var(--weditor-pagination-gap,32px);background:#fff;border-radius:4px;box-shadow:0 16px 36px rgba(15,23,42,0.18);padding:var(--weditor-page-padding,15px);box-sizing:border-box;display:flex;flex-direction:column;gap:0}
-.weditor-page-section:last-child{margin-bottom:0}
-.weditor-wrap[data-pagination!="true"] .weditor-page-section{min-height:auto;margin:0;background:#fff;border-radius:0;box-shadow:none;padding:var(--weditor-page-padding,15px)}
 .weditor-toolbar{z-index:10;position:sticky;top:0;display:flex;flex-direction:column;gap:0;background:#f8fafc;border-bottom:1px solid #e2e8f0;--weditor-btn-h:34px;--weditor-btn-py:6px;--weditor-btn-px:12px}
 .weditor-toolbar-nav{display:flex;flex-wrap:wrap;gap:8px;align-items:center;padding:10px 12px;background:linear-gradient(135deg,#f8fafc,#eef2ff)}
 .weditor-nav-btn{display:inline-flex;align-items:center;justify-content:center;gap:6px;padding:8px 16px;border-radius:999px;border:1px solid transparent;background:#ffffff;color:#1e293b;font-size:13px;font-weight:600;letter-spacing:.01em;cursor:pointer;box-shadow:0 1px 2px rgba(15,23,42,0.08);transition:all .18s ease}
@@ -93,11 +90,12 @@ body.weditor-fullscreen-active{overflow:hidden}
 .weditor-wrap.weditor-fullscreen .weditor-page{width:750px;min-height:1050px;margin:auto;background:#fff;border-radius:4px;box-shadow:0 16px 40px rgba(15,23,42,0.18)}
 .weditor-wrap.weditor-fullscreen .weditor-area{flex:1;min-height:0}
 .weditor-wrap[data-pagination="true"] .weditor-stage{position:relative;display:flex;justify-content:center;align-items:flex-start;padding:var(--weditor-pagination-padding,32px);background:#eef2f9;overflow:auto}
-.weditor-wrap[data-pagination="true"] .weditor-page{position:relative;width:100%;max-width:var(--weditor-page-width,794px);margin:0 auto;background:transparent;border-radius:0;border:none;box-shadow:none;padding:0;display:flex;flex-direction:column;align-items:stretch}
+.weditor-wrap[data-pagination="true"] .weditor-page{position:relative;width:var(--weditor-page-width,794px);min-height:var(--weditor-page-height,1122px);margin:0 auto;background:transparent;border-radius:4px;border:1px solid transparent;box-shadow:none}
 .weditor-wrap[data-pagination="true"] .weditor-pagination-overlay{position:absolute;top:var(--weditor-pagination-padding,32px);left:50%;transform:translateX(-50%);width:var(--weditor-page-width,794px);display:flex;flex-direction:column;align-items:center;gap:var(--weditor-pagination-gap,32px);pointer-events:none;z-index:0}
 .weditor-wrap[data-pagination="true"] .weditor-pagination-sheet{position:relative;width:var(--weditor-page-width,794px);height:var(--weditor-page-height,1122px);background:#fff;border-radius:4px;box-shadow:0 16px 36px rgba(15,23,42,0.18);border:1px solid rgba(148,163,184,0.35);overflow:hidden}
 .weditor-wrap[data-pagination="true"] .weditor-pagination-sheet::after{content:attr(data-page);position:absolute;bottom:16px;right:32px;padding:4px 10px;border-radius:12px;background:rgba(15,23,42,0.08);color:#1f2937;font-size:11px;font-weight:600;letter-spacing:.08em;pointer-events:none}
 .weditor-wrap[data-pagination="true"] .weditor-area{position:relative;z-index:1;background:transparent;padding:0;margin:0}
+.weditor-wrap[data-pagination="true"] .weditor-page{padding:var(--weditor-page-padding,15px);border-radius:4px}
 .weditor-wrap[data-pagination="true"] .weditor-pagination-mask{position:absolute;top:var(--weditor-pagination-padding,32px);left:50%;transform:translateX(-50%);width:var(--weditor-page-width,794px);pointer-events:none;z-index:5}
 .weditor-wrap[data-pagination="true"] .weditor-pagination-gap{position:absolute;left:0;width:100%;background:var(--weditor-pagination-gap-color,rgba(148,163,184,0.32));border-top:1px dashed rgba(100,116,139,0.45);border-bottom:1px dashed rgba(100,116,139,0.45);backdrop-filter:blur(1px);pointer-events:none}
 /* Exit Fullscreen button (top-right in fullscreen) */
@@ -254,7 +252,6 @@ body.weditor-fullscreen-active{overflow:hidden}
     pageBreakAfter: "always",
     breakAfter: "page"
   };
-  const PAGE_SECTION_CLASS = "weditor-page-section";
   const tableDebug = (...args)=>{ if (TABLE_DEBUG && typeof console !== "undefined") console.log("[weditor-table]", ...args); };
   const $$ = (s, r=document)=>Array.from(r.querySelectorAll(s));
   const el = (tag, attrs, kids=[])=>{
@@ -498,17 +495,20 @@ body.weditor-fullscreen-active{overflow:hidden}
     const PAGE_BREAK_TABLE_CELL_TAGS = new Set(["TD","TH"]);
 
     const isElementNode = (node) => node && node.nodeType === Node.ELEMENT_NODE;
-    const isPageSection = (node) => isElementNode(node) && node.classList.contains(PAGE_SECTION_CLASS);
-    const isPageBreakNode = (node) => isElementNode(node) && node.classList.contains("weditor-page-break");
 
     function findClosestEditable(node, predicate){
       let cur = node && (node.nodeType === Node.ELEMENT_NODE ? node : node.parentElement);
       while (cur && cur !== divEditor){
-        if (isPageSection(cur)) {
-          cur = cur.parentElement;
-          continue;
-        }
         if (predicate(cur)) return cur;
+        cur = cur.parentElement;
+      }
+      return null;
+    }
+
+    function findTopLevelEditable(node){
+      let cur = node && (node.nodeType === Node.ELEMENT_NODE ? node : node.parentElement);
+      while (cur && cur !== divEditor){
+        if (cur.parentNode === divEditor) return cur;
         cur = cur.parentElement;
       }
       return null;
@@ -521,13 +521,6 @@ body.weditor-fullscreen-active{overflow:hidden}
       }
       if (!isElementNode(node)) return false;
       if (node.tagName === "BR") return false;
-      if (isPageBreakNode(node)) return false;
-      if (isPageSection(node)) {
-        for (const child of node.childNodes){
-          if (nodeHasMeaningfulContent(child)) return true;
-        }
-        return false;
-      }
       for (const child of node.childNodes){
         if (nodeHasMeaningfulContent(child)) return true;
       }
@@ -538,71 +531,7 @@ body.weditor-fullscreen-active{overflow:hidden}
       if (!isElementNode(el)) return;
       if (nodeHasMeaningfulContent(el)) return;
       while (el.firstChild) el.removeChild(el.firstChild);
-      el.appendChild(document.createElement("br"));
-    }
-
-    function createEmptyParagraph(){
-      return el("p", null, [document.createElement("br")]);
-    }
-
-    function createPageSection(){
-      return el("div", { class: PAGE_SECTION_CLASS, "data-weditor-page-section": "true" });
-    }
-
-    function ensureSectionHasPlaceholder(section){
-      if (!isPageSection(section)) return;
-      for (const child of section.childNodes){
-        if (nodeHasMeaningfulContent(child)) return;
-      }
-      while (section.firstChild) section.removeChild(section.firstChild);
-      section.appendChild(createEmptyParagraph());
-    }
-
-    function flattenPageSections(){
-      const sections = Array.from(divEditor.querySelectorAll(`.${PAGE_SECTION_CLASS}`));
-      sections.forEach(section=>{
-        if (!isNodeInside(section, divEditor)) return;
-        while (section.firstChild){
-          divEditor.insertBefore(section.firstChild, section);
-        }
-        section.remove();
-      });
-    }
-
-    let pageSectionRebuildTimer = null;
-    function rebuildPageSections(){
-      flattenPageSections();
-      const frag = document.createDocumentFragment();
-      const sections = [];
-      let section = createPageSection();
-      sections.push(section);
-      frag.appendChild(section);
-      while (divEditor.firstChild){
-        const node = divEditor.firstChild;
-        if (isPageBreakNode(node)){
-          ensureSectionHasPlaceholder(section);
-          frag.appendChild(node);
-          section = createPageSection();
-          sections.push(section);
-          frag.appendChild(section);
-          continue;
-        }
-        section.appendChild(node);
-      }
-      ensureSectionHasPlaceholder(section);
-      divEditor.appendChild(frag);
-      sections.forEach((sec, idx)=>{
-        if (sec && sec.setAttribute) sec.setAttribute("data-page-index", String(idx));
-      });
-      schedulePaginationRebuild();
-    }
-
-    function schedulePageSectionRebuild(){
-      clearTimeout(pageSectionRebuildTimer);
-      pageSectionRebuildTimer = setTimeout(()=>{
-        pageSectionRebuildTimer = null;
-        rebuildPageSections();
-      }, 160);
+      el.appendChild(el.ownerDocument.createElement("br"));
     }
 
     function createCaretRangeAtStart(node){
@@ -611,26 +540,6 @@ body.weditor-fullscreen-active{overflow:hidden}
       range.selectNodeContents(node);
       range.collapse(true);
       return range;
-    }
-
-    function findBlockAncestor(node){
-      let cur = node && (node.nodeType === Node.ELEMENT_NODE ? node : node.parentElement);
-      while (cur && cur !== divEditor){
-        if (isPageSection(cur)) {
-          cur = cur.parentElement;
-          continue;
-        }
-        if (!isElementNode(cur)){
-          cur = cur.parentElement;
-          continue;
-        }
-        if (PAGE_BREAK_BLOCK_TAGS.has(cur.tagName)) return cur;
-        const parent = cur.parentElement;
-        if (parent === divEditor) return cur;
-        if (parent && isPageSection(parent) && parent.parentElement === divEditor) return cur;
-        cur = parent;
-      }
-      return null;
     }
 
     function resolvePageBreakContext(range){
@@ -658,9 +567,18 @@ body.weditor-fullscreen-active{overflow:hidden}
         }
       }
 
-      const block = findBlockAncestor(startNode);
+      const block = findClosestEditable(startNode, (node)=>{
+        if (!isElementNode(node)) return false;
+        if (PAGE_BREAK_BLOCK_TAGS.has(node.tagName)) return true;
+        return node.parentNode === divEditor;
+      });
       if (block && block !== divEditor){
         return { type: "block", block };
+      }
+
+      const topLevel = findTopLevelEditable(startNode);
+      if (topLevel && topLevel !== divEditor){
+        return { type: "block", block: topLevel };
       }
 
       return null;
@@ -755,7 +673,6 @@ body.weditor-fullscreen-active{overflow:hidden}
       const prev = pb.previousElementSibling;
       const next = pb.nextElementSibling;
       pb.remove();
-      schedulePageSectionRebuild();
       selectPageBreak(null);
       if (options.restoreCaret !== false) {
         const sel = window.getSelection();
@@ -872,8 +789,7 @@ body.weditor-fullscreen-active{overflow:hidden}
         return Math.max(16, Math.round(editorOptions.pageMarginPx * 0.5));
       })();
       const contentHeight = measureContentHeight();
-      const sectionCount = divEditor.querySelectorAll(`.${PAGE_SECTION_CLASS}`).length;
-      const pageCount = Math.max(1, sectionCount || Math.ceil(contentHeight / pageHeight));
+      const pageCount = Math.max(1, Math.ceil(contentHeight / pageHeight));
       const totalHeight = (pageCount * pageHeight) + ((pageCount - 1) * gapValue);
       paginationState.totalHeight = totalHeight;
       const existing = overlay.children.length;
@@ -1746,13 +1662,6 @@ body.weditor-fullscreen-active{overflow:hidden}
 
     function sanitizePageBreaksForExport(root){
       if (!root || typeof root.querySelectorAll !== "function") return;
-      root.querySelectorAll(`.${PAGE_SECTION_CLASS}`).forEach(section=>{
-        if (!section.parentNode) return;
-        while (section.firstChild){
-          section.parentNode.insertBefore(section.firstChild, section);
-        }
-        section.remove();
-      });
       root.querySelectorAll(".weditor-page-break").forEach(pb=>{
         if (!pb) return;
         pb.classList.remove("weditor-page-break-selected");
@@ -1783,7 +1692,6 @@ body.weditor-fullscreen-active{overflow:hidden}
         divEditor.innerHTML = v;
         bindUnboundPageBreaks();
         selectPageBreak(null);
-        rebuildPageSections();
       }
       if (!silent){
         divEditor.dispatchEvent(new Event("input",{bubbles:true}));
@@ -1865,9 +1773,6 @@ body.weditor-fullscreen-active{overflow:hidden}
     divEditor.addEventListener("input", syncToTextarea);
     divEditor.addEventListener("input", updateToggleStates);
     divEditor.addEventListener("input", updateTableToolsVisibility);
-    divEditor.addEventListener("input", ()=>{
-      if (!showingSource) schedulePageSectionRebuild();
-    });
     divEditor.addEventListener("input", schedulePaginationRebuild);
     divEditor.addEventListener("input", ()=>{
       bindUnboundPageBreaks();
@@ -3961,7 +3866,6 @@ body.weditor-fullscreen-active{overflow:hidden}
         }
       }
 
-      rebuildPageSections();
       selectPageBreak(pageBreakNode);
       suppressNextPageBreakClear = true;
 
@@ -4334,7 +4238,6 @@ body.weditor-fullscreen-active{overflow:hidden}
     const parent = divEditor.parentNode;
     const nextSibling = parent ? divEditor.nextSibling : null;
     page.appendChild(divEditor);
-    rebuildPageSections();
     stage.appendChild(page);
     if (paginationEnabled && paginationMask){
       stage.appendChild(paginationMask);
