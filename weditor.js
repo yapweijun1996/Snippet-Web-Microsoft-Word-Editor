@@ -87,17 +87,8 @@
 body.weditor-fullscreen-active{overflow:hidden}
 .weditor-wrap.weditor-fullscreen{position:fixed;top:0;left:0;width:100%;height:100%;z-index:9999;margin:0;border:0}
 .weditor-wrap.weditor-fullscreen .weditor-stage{display:flex;justify-content:center;align-items:flex-start;padding:24px;background:#ddd;overflow:auto;gap:24px}
-.weditor-wrap.weditor-fullscreen .weditor-page{width:750px;min-height:1050px;margin:auto;background:#fff;border-radius:4px;box-shadow:0 16px 40px rgba(15,23,42,0.18)}
+.weditor-wrap.weditor-fullscreen .weditor-page{width:750px;margin:auto;background:#fff;border-radius:4px;box-shadow:0 16px 40px rgba(15,23,42,0.18)}
 .weditor-wrap.weditor-fullscreen .weditor-area{flex:1;min-height:0}
-.weditor-wrap[data-pagination="true"] .weditor-stage{position:relative;display:flex;justify-content:center;align-items:flex-start;padding:var(--weditor-pagination-padding,32px);background:#eef2f9;overflow:auto}
-.weditor-wrap[data-pagination="true"] .weditor-page{position:relative;width:var(--weditor-page-width,794px);min-height:var(--weditor-page-height,1122px);margin:0 auto;background:transparent;border-radius:4px;border:1px solid transparent;box-shadow:none}
-.weditor-wrap[data-pagination="true"] .weditor-pagination-overlay{position:absolute;top:var(--weditor-pagination-padding,32px);left:50%;transform:translateX(-50%);width:var(--weditor-page-width,794px);display:flex;flex-direction:column;align-items:center;gap:var(--weditor-pagination-gap,32px);pointer-events:none;z-index:0}
-.weditor-wrap[data-pagination="true"] .weditor-pagination-sheet{position:relative;width:var(--weditor-page-width,794px);height:var(--weditor-page-height,1122px);background:#fff;border-radius:4px;box-shadow:0 16px 36px rgba(15,23,42,0.18);border:1px solid rgba(148,163,184,0.35);overflow:hidden}
-.weditor-wrap[data-pagination="true"] .weditor-pagination-sheet::after{content:attr(data-page);position:absolute;bottom:16px;right:32px;padding:4px 10px;border-radius:12px;background:rgba(15,23,42,0.08);color:#1f2937;font-size:11px;font-weight:600;letter-spacing:.08em;pointer-events:none}
-.weditor-wrap[data-pagination="true"] .weditor-area{position:relative;z-index:1;background:transparent;padding:0;margin:0}
-.weditor-wrap[data-pagination="true"] .weditor-page{padding:var(--weditor-page-padding,15px);border-radius:4px}
-.weditor-wrap[data-pagination="true"] .weditor-pagination-mask{position:absolute;top:var(--weditor-pagination-padding,32px);left:50%;transform:translateX(-50%);width:var(--weditor-page-width,794px);pointer-events:none;z-index:5}
-.weditor-wrap[data-pagination="true"] .weditor-pagination-gap{position:absolute;left:0;width:100%;background:var(--weditor-pagination-gap-color,rgba(148,163,184,0.32));border-top:1px dashed rgba(100,116,139,0.45);border-bottom:1px dashed rgba(100,116,139,0.45);backdrop-filter:blur(1px);pointer-events:none}
 /* Exit Fullscreen button (top-right in fullscreen) */
 .weditor-fs-exit{position:absolute;top:10px;right:8px;min-width:36px;min-height:36px;padding:6px 10px;display:none;align-items:center;justify-content:center;border:1px solid #dc2626;background:#ef4444;color:#fff;border-radius:4px;cursor:pointer;box-shadow:0 1px 3px rgba(15,23,42,0.12);z-index:10000}
 .weditor-wrap.weditor-fullscreen .weditor-fs-exit{display:inline-flex}
@@ -428,39 +419,7 @@ body.weditor-fullscreen-active{overflow:hidden}
   }
 
   // ---------- Build one editor (div.weditor + next textarea.weditor_textarea) ----------
-  const DEFAULT_EDITOR_OPTIONS = {
-    paginationPreview: true,
-    pageSize: "A4",
-    pageHeightPx: 1122, // approx 297mm at 96 DPI
-    pageWidthPx: 794,   // approx 210mm at 96 DPI
-    pageMarginPx: 84    // ~ 1 inch margins for preview background spacing
-  };
-
-  function getEditorOptions(divEditor){
-    const merged = { ...DEFAULT_EDITOR_OPTIONS };
-    if (divEditor && divEditor.dataset){
-      if (divEditor.dataset.pageHeightPx){
-        const value = parseFloat(divEditor.dataset.pageHeightPx);
-        if (Number.isFinite(value) && value > 0) merged.pageHeightPx = value;
-      }
-      if (divEditor.dataset.pageWidthPx){
-        const value = parseFloat(divEditor.dataset.pageWidthPx);
-        if (Number.isFinite(value) && value > 0) merged.pageWidthPx = value;
-      }
-      if (divEditor.dataset.pageMarginPx){
-        const value = parseFloat(divEditor.dataset.pageMarginPx);
-        if (Number.isFinite(value) && value >= 0) merged.pageMarginPx = value;
-      }
-      if (divEditor.dataset.pageSize){
-        merged.pageSize = String(divEditor.dataset.pageSize).trim() || merged.pageSize;
-      }
-    }
-    return merged;
-  }
-
   function buildEditor(divEditor){
-    const editorOptions = getEditorOptions(divEditor);
-    divEditor.__weditorOptions = editorOptions;
     let selectedPageBreak = null;
     let suppressNextPageBreakClear = false;
     let showingSource = false;
@@ -750,34 +709,6 @@ body.weditor-fullscreen-active{overflow:hidden}
     toolbar.appendChild(navBar);
     toolbar.appendChild(panelContainer);
 
-    let paginationOverlay = null;
-    let paginationMask = null;
-    const paginationEnabled = !!editorOptions.paginationPreview;
-    wrap.dataset.pagination = paginationEnabled ? "true" : "false";
-    if (!paginationEnabled){
-      delete wrap.dataset.paginationPages;
-    }
-    const paginationState = {
-      enabled: paginationEnabled,
-      overlay: null,
-      mask: null,
-      sheets: [],
-      gaps: [],
-      totalHeight: 0
-    };
-    divEditor.__weditorPagination = paginationState;
-    if (paginationEnabled){
-      paginationOverlay = el("div",{class:"weditor-pagination-overlay"});
-      paginationState.overlay = paginationOverlay;
-      paginationMask = el("div",{class:"weditor-pagination-mask"});
-      paginationState.mask = paginationMask;
-      wrap.style.setProperty("--weditor-page-width", editorOptions.pageWidthPx + "px");
-      wrap.style.setProperty("--weditor-page-height", editorOptions.pageHeightPx + "px");
-      wrap.style.setProperty("--weditor-pagination-padding", Math.max(0, editorOptions.pageMarginPx) + "px");
-      wrap.style.setProperty("--weditor-pagination-gap", Math.max(16, Math.round(editorOptions.pageMarginPx * 0.5)) + "px");
-      stage.appendChild(paginationOverlay);
-    }
-
     function computePageContentWidth(){
       if (!page) return 0;
       try {
@@ -791,102 +722,6 @@ body.weditor-fullscreen-active{overflow:hidden}
       } catch(_){
         return page.clientWidth || 0;
       }
-    }
-
-    let paginationRebuildTimer = null;
-
-    function measureContentHeight(){
-      const editorRect = divEditor.getBoundingClientRect ? divEditor.getBoundingClientRect() : null;
-      const pageRect = page.getBoundingClientRect ? page.getBoundingClientRect() : null;
-      const candidateHeights = [
-        divEditor.scrollHeight,
-        divEditor.offsetHeight,
-        page.scrollHeight,
-        page.offsetHeight
-      ];
-      if (editorRect && editorRect.height) candidateHeights.push(editorRect.height);
-      if (pageRect && pageRect.height) candidateHeights.push(pageRect.height);
-      const maxHeight = candidateHeights
-        .filter(val => Number.isFinite(val) && val > 0)
-        .reduce((acc, val) => Math.max(acc, val), 0);
-      return maxHeight || 0;
-    }
-
-    function rebuildPaginationSheets(){
-      if (!paginationState.enabled || !paginationState.overlay) return;
-      const overlay = paginationState.overlay;
-      const mask = paginationState.mask;
-      const pageHeight = Math.max(1, Number(editorOptions.pageHeightPx) || 0);
-      if (!pageHeight) return;
-      const gapValue = (() => {
-        try {
-          const cs = window.getComputedStyle ? window.getComputedStyle(wrap) : null;
-          if (!cs) return Math.max(16, Math.round(editorOptions.pageMarginPx * 0.5));
-          const v = parseFloat(cs.getPropertyValue("--weditor-pagination-gap"));
-          if (Number.isFinite(v) && v >= 0) return v;
-        } catch(_err){}
-        return Math.max(16, Math.round(editorOptions.pageMarginPx * 0.5));
-      })();
-      const contentHeight = measureContentHeight();
-      const pageCount = Math.max(1, Math.ceil(contentHeight / pageHeight));
-      const totalHeight = (pageCount * pageHeight) + ((pageCount - 1) * gapValue);
-      paginationState.totalHeight = totalHeight;
-      const existing = overlay.children.length;
-      if (existing > pageCount){
-        for (let i = existing - 1; i >= pageCount; i--){
-          const child = overlay.children[i];
-          if (child) child.remove();
-        }
-      } else if (existing < pageCount){
-        for (let i = existing; i < pageCount; i++){
-          overlay.appendChild(el("div",{class:"weditor-pagination-sheet"}));
-        }
-      }
-      Array.from(overlay.children).forEach((sheet, idx)=>{
-        if (!sheet) return;
-        sheet.setAttribute("data-page", `${idx + 1}/${pageCount}`);
-      });
-      overlay.style.height = totalHeight + "px";
-      wrap.dataset.paginationPages = String(pageCount);
-      paginationState.sheets = Array.from(overlay.children);
-      if (mask){
-        mask.style.height = totalHeight + "px";
-        const desired = Math.max(0, pageCount - 1);
-        const current = mask.children.length;
-        if (current > desired){
-          for (let i = current - 1; i >= desired; i--){
-            const child = mask.children[i];
-            if (child) child.remove();
-          }
-        } else if (current < desired){
-          for (let i = current; i < desired; i++){
-            mask.appendChild(el("div",{class:"weditor-pagination-gap"}));
-          }
-        }
-        Array.from(mask.children).forEach((gapEl, idx)=>{
-          if (!gapEl) return;
-          if (gapValue <= 0){
-            gapEl.style.display = "none";
-            gapEl.style.top = "";
-            gapEl.style.height = "";
-            return;
-          }
-          gapEl.style.display = "block";
-          const topOffset = (idx + 1) * pageHeight + idx * gapValue;
-          gapEl.style.top = topOffset + "px";
-          gapEl.style.height = gapValue + "px";
-        });
-        paginationState.gaps = Array.from(mask.children);
-      }
-    }
-
-    function schedulePaginationRebuild(){
-      if (!paginationState.enabled) return;
-      clearTimeout(paginationRebuildTimer);
-      paginationRebuildTimer = setTimeout(()=>{
-        paginationRebuildTimer = null;
-        rebuildPaginationSheets();
-      }, 120);
     }
 
     function parseLengthToPx(value){
@@ -1017,7 +852,6 @@ body.weditor-fullscreen-active{overflow:hidden}
       normalizeTimer = setTimeout(()=>{
         normalizeTimer = null;
         try { normalizeContentWidths(); } catch(_){}
-        schedulePaginationRebuild();
       }, 40);
     }
 
@@ -1740,7 +1574,6 @@ body.weditor-fullscreen-active{overflow:hidden}
           convertToInlineStyles();
         }
         scheduleContentWidthNormalization();
-        schedulePaginationRebuild();
       }
     }
 
@@ -1812,7 +1645,6 @@ body.weditor-fullscreen-active{overflow:hidden}
     divEditor.addEventListener("input", syncToTextarea);
     divEditor.addEventListener("input", updateToggleStates);
     divEditor.addEventListener("input", updateTableToolsVisibility);
-    divEditor.addEventListener("input", schedulePaginationRebuild);
     divEditor.addEventListener("input", ()=>{
       bindUnboundPageBreaks();
       if (!selectedPageBreak) return;
@@ -4286,9 +4118,6 @@ body.weditor-fullscreen-active{overflow:hidden}
     const nextSibling = parent ? divEditor.nextSibling : null;
     page.appendChild(divEditor);
     stage.appendChild(page);
-    if (paginationEnabled && paginationMask){
-      stage.appendChild(paginationMask);
-    }
     wrap.appendChild(toolbar);
     wrap.appendChild(stage);
     if (parent) {
@@ -4297,9 +4126,6 @@ body.weditor-fullscreen-active{overflow:hidden}
       else parent.appendChild(wrap);
     }
     scheduleContentWidthNormalization();
-    if (paginationState.enabled){
-      rebuildPaginationSheets();
-    }
     window.addEventListener("resize", scheduleContentWidthNormalization);
 
     // Setup image resize functionality for this editor instance
@@ -4316,7 +4142,6 @@ body.weditor-fullscreen-active{overflow:hidden}
       // Keep table tools in sync with content presence (中文解释: 内容含表格时自动展开)
       updateTableToolsVisibility();
       scheduleContentWidthNormalization();
-      schedulePaginationRebuild();
     }
     pair.addEventListener("change", () => setEditorHTMLFromTextarea(pair.value));
     pair.addEventListener("input", () => setEditorHTMLFromTextarea(pair.value));
